@@ -83,7 +83,12 @@ def main():
 
     try:
         # Open the virtual serial port
-        with serial.Serial(slave_name, baud_rate, timeout=timeout) as ser:
+        with serial.Serial(slave_name, baud_rate, timeout=timeout,
+                           parity=serial.PARITY_NONE,
+                           stopbits=serial.STOPBITS_ONE,
+                           bytesize=serial.EIGHTBITS,
+                           xonxoff=False,
+                           rtscts=False) as ser:
             print(f"Connected to virtual serial port {slave_name}, baud rate: {baud_rate}")
 
             while True:

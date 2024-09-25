@@ -4,6 +4,11 @@
 
 ![](overview.png)
 
+## SDP (serial data processor) design
+
+See the [design doc](SDP-design.md) for more details.
+
+
 ## serial-port-sim.py: 
 The aim of this script is to create a virtual serial port and send data
 to simulate the behavior from/to the Roulette machine and the LOC computer.
