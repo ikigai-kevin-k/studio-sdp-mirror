@@ -16,17 +16,49 @@ class SDPStateMachine:
             self.state = new_state
             print(f"SDP status updated as: {self.state}")
 
+class WebSocketCommunication:
+    def __init__(self, state_machine, roulette_comm):
+        self.state_machine = state_machine
+        self.roulette_comm = roulette_comm
+
+    def start(self):
+        print("WebSocket communication started")
+
+    def send_message(self, message):
+        print(f"WebSocket message sent: {message}")
+
+class HTTPCommunication:
+    def __init__(self, state_machine, roulette_comm):
+        self.state_machine = state_machine
+        self.roulette_comm = roulette_comm
+
+    def start(self):
+        print("HTTP server started")
+
+    def handle_request(self, request):
+        print(f"HTTP request handled: {request}")
+
 class LOSCommunication:
     def __init__(self, state_machine, roulette_comm):
         self.state_machine = state_machine
         self.roulette_comm = roulette_comm
         self.command_queue = queue.Queue()
+        self.websocket_comm = WebSocketCommunication(state_machine, roulette_comm)
+        self.http_comm = HTTPCommunication(state_machine, roulette_comm)
+
+    def start_communication(self):
+        self.websocket_comm.start()
+        self.http_comm.start()
 
     def listen_for_commands(self):
         while True:
-            # Simulate receiving LOS command events
-            command = input("Enter LOS command events: ")
-            self.command_queue.put(command)
+            command = input("Enter LOS command (or 'websocket' or 'http'): ")
+            if command.lower() == 'websocket':
+                self.websocket_comm.send_message("Test WebSocket message")
+            elif command.lower() == 'http':
+                self.http_comm.handle_request("Test HTTP request")
+            else:
+                self.command_queue.put(command)
 
     def process_commands(self):
         while True:
@@ -39,6 +71,8 @@ class LOSCommunication:
                 self.roulette_comm.send_command(command)
             # high priority processing, short sleep
             time.sleep(0.1)
+
+
 
 class RouletteCommunication:
     def __init__(self, state_machine, los_comm):
@@ -123,6 +157,7 @@ def main():
     roulette_comm.los_comm = los_comm
 
     roulette_comm.initialize_serial()
+    los_comm.start_communication()
 
     # Create and start threads
     threads = [

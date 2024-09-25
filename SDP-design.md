@@ -44,6 +44,8 @@ Various modules update the state machine as needed -> Main loop periodically pri
 
 This program uses multithreading to handle concurrent tasks, passes data between threads using queues, and simulates communication with actual hardware using a virtual serial port. The overall design aims to simulate a real-time response system, processing commands from the Live Operation System (LOS) and interacting with the roulette machine.
 
+Currently provide websocket/http communication placeholder modules for testing.
+
 ## State Diagram of SDP
 ```mermaid
 stateDiagram-v2
