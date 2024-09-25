@@ -77,7 +77,7 @@ class RouletteCommunication:
                         self.polling_results.put(simulated_response)
                 except serial.SerialException as e:
                     print(f"Serial communication error: {e}")
-            time.sleep(0.5)  # Poll every 0.5 seconds
+            time.sleep(0.1)  # Poll every 0.1 seconds
 
     def process_polling_results(self):
         while True:
@@ -90,7 +90,7 @@ class RouletteCommunication:
                 self.state_machine.update_state(f"ROULETTE_{parsed_result}")
                 # forward back to LOS
                 # self.los_comm.send_result(parsed_result)
-            time.sleep(0.2)  # low priority processing
+            time.sleep(0.01)  # low priority processing
 
     def parse_result(self, result):
         # parsing game protocol result
@@ -140,7 +140,7 @@ def main():
     try:
         while True:
             print(f"Current SDP state: {state_machine.state}")
-            time.sleep(5)  # Print state every 5 seconds
+            time.sleep(0.1)  # Print state every 0.1 seconds
     except KeyboardInterrupt:
         print("Program terminated")
     finally:
