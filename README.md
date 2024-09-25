@@ -16,9 +16,16 @@ The specific ranges of each fields in the game protocol is going to be checked.
 ### Requirements
 * Python 3.9+ (only tested on 3.9)
 * PySerial (imported as serial)
-* For MacOS, due to depreciation of system-level pip install, need to create venv for pip installation.
+* For MacOS, due to depreciation of system-level pip install, need to create venv for pip installation:
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install pyserial
+```
 
 ### Usage
 ```bash
 python3 serial-port-sim.py
 ```
+The demonstrative output shows as below:
+![](demo.png)
