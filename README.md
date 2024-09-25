@@ -1,1 +1,24 @@
 # studio-sdp-roulette
+
+## Overview Architecture
+
+![](overview.png)
+
+## serial-port-sim.py: 
+The aim of this script is to create a virtual serial port and send data
+to simulate the behavior from/to the Roulette machine and the LOC computer.
+Currently the both two ends of serial ports are created on the same MacOS notebook,
+hence it is a loopback.
+The data is generated following the specified game protocol format:
+*X:{x:01d}:{y:03d}:{z:02d}:{a:01d}:{b:03d}:{c:01d}
+The specific ranges of each fields in the game protocol is going to be checked.
+
+### Requirements
+* Python 3.9+ (only tested on 3.9)
+* PySerial (imported as serial)
+* For MacOS, due to depreciation of system-level pip install, need to create venv for pip installation.
+
+### Usage
+```bash
+python3 serial-port-sim.py
+```
