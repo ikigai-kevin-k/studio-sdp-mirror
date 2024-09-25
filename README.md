@@ -25,6 +25,8 @@ See the [design doc](SDP-design.md) for more details.
 ```bash
 python3 sdp-prototype.py
 ```
+The demonstrative output shows as below:
+![](demo-sdp.png)
 
 ## Misc: serial-port-sim.py: 
 The aim of this script is to create a virtual serial port and send data
