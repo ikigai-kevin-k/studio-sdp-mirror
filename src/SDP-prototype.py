@@ -7,6 +7,7 @@ import serial
 import random 
 import tkinter as tk
 from tkinter import ttk, scrolledtext
+from abc import ABC, abstractmethod
 
 class GUI:
     def __init__(self, state_machine, los_comm, roulette_comm):
@@ -18,6 +19,8 @@ class GUI:
         self.message_queue = queue.Queue()
 
         self.setup_ui()
+        self.add_message("GUI initialized")
+        self.add_message("Waiting for system messages...")
 
     def setup_ui(self):
         self.state_label = ttk.Label(self.root, text="Current State: IDLE")
@@ -45,31 +48,35 @@ class GUI:
         self.message_queue.put(message)
 
     def update_log(self):
+        print("Updating log...")  # Added this line
         while not self.message_queue.empty():
             message = self.message_queue.get()
+            print(f"Adding message to log: {message}")  # Added this line
             self.log_area.insert(tk.END, message + '\n')
             self.log_area.see(tk.END)
         self.root.after(100, self.update_log)
 
     def run(self):
         self.update_log()
+        self.add_message("GUI is running")
         self.root.mainloop()
-
 
 class SDPStateMachine:
     def __init__(self, gui=None):
         self.state = "IDLE"
         self.lock = threading.Lock()
         self.gui = gui
+        if self.gui:
+            self.gui.add_message("State Machine initialized")
     
     def update_state(self, new_state):
         with self.lock:
             self.state = new_state
-            print(f"SDP status updated as: {self.state}")
+            message = f"SDP status updated as: {self.state}"
+            print(message)
             if self.gui:
                 self.gui.update_state(self.state)
-                self.gui.add_message(f"SDP status updated as: {self.state}")
-
+                self.gui.add_message(message)
 
 class WebSocketCommunication:
     def __init__(self, state_machine, roulette_comm):
@@ -94,47 +101,37 @@ class HTTPCommunication:
         print(f"HTTP request handled: {request}")
 
 class LOSCommunication:
-    def __init__(self, state_machine, roulette_comm, gui=None):
+    def __init__(self, state_machine, roulette_comm, processors=None):
         self.state_machine = state_machine
         self.roulette_comm = roulette_comm
+        self.processors = processors or []
         self.command_queue = queue.Queue()
         self.websocket_comm = WebSocketCommunication(state_machine, roulette_comm)
         self.http_comm = HTTPCommunication(state_machine, roulette_comm)
-        self.gui = gui
+
+    def add_processor(self, processor):
+        self.processors.append(processor)
 
     def start_communication(self):
         self.websocket_comm.start()
         self.http_comm.start()
 
-    def listen_for_commands(self):
-        while True:
-            command = input("Enter LOS command (or 'websocket' or 'http'): ")
-            if command.lower() == 'websocket':
-                self.websocket_comm.send_message("Test WebSocket message")
-            elif command.lower() == 'http':
-                self.http_comm.handle_request("Test HTTP request")
-            else:
-                self.command_queue.put(command)
-
     def process_commands(self):
         while True:
             if not self.command_queue.empty():
-
                 command = self.command_queue.get()
-                message = f"Processing LOS commands: {command}"
-                print(message)
-
-                # Update state machine
-                self.state_machine.update_state(f"PROCESSING_{command}")
-                # forward to the roulette machine
-                self.roulette_comm.send_command(command)
-
-                if self.gui:
-                    self.gui.add_message(message)
-
+                print(f"Processing LOS command: {command}")
+                for processor in self.processors:
+                    processor.process_data()
             time.sleep(0.1)
 
+    def handle_websocket_message(self, message):
+        for processor in self.processors:
+            processor.handle_websocket_message(message)
 
+    def handle_http_request(self, request):
+        for processor in self.processors:
+            processor.handle_http_request(request)
 
 class RouletteCommunication:
     def __init__(self, state_machine, los_comm, gui=None):
@@ -217,13 +214,82 @@ class RouletteCommunication:
         # need to be adjusted according to actual LOS command and game protocol
         return f"*X:1:100:25:0:000:0"
 
+class DataProcessor(ABC):
+    def __init__(self, state_machine, los_comm):
+        self.state_machine = state_machine
+        self.los_comm = los_comm
+
+    @abstractmethod
+    def initialize(self):
+        pass
+
+    @abstractmethod
+    def process_data(self):
+        pass
+
+    @abstractmethod
+    def handle_websocket_message(self, message):
+        pass
+
+    @abstractmethod
+    def handle_http_request(self, request):
+        pass
+
+class SDP(DataProcessor):
+    def __init__(self, state_machine, los_comm, roulette_comm):
+        super().__init__(state_machine, los_comm)
+        self.roulette_comm = roulette_comm
+
+    def initialize(self):
+        # implement SDP initialization logic
+        pass
+
+    def process_data(self):
+        # implement SDP data processing logic
+        pass
+
+    def handle_websocket_message(self, message):
+        # implement SDP WebSocket message processing logic
+        pass
+
+    def handle_http_request(self, request):
+        # implement SDP HTTP request processing logic
+        pass
+
+class IDP(DataProcessor):
+    def __init__(self, state_machine, los_comm):
+        super().__init__(state_machine, los_comm)
+        # IDP specific attributes can be initialized here
+
+    def initialize(self):
+        # implement IDP initialization logic
+        pass
+
+    def process_data(self):
+        # implement IDP data processing logic
+        pass
+
+    def handle_websocket_message(self, message):
+        # implement IDP WebSocket message processing logic
+        pass
+
+    def handle_http_request(self, request):
+        # implement IDP HTTP request processing logic
+        pass
 
 def main():
-    gui = GUI(None, None, None)  # temporary create GUI instance
+    gui = GUI(None, None, None)
     state_machine = SDPStateMachine(gui)
-    los_comm = LOSCommunication(state_machine, None, gui)
-    roulette_comm = RouletteCommunication(state_machine, los_comm, gui)
-    los_comm.roulette_comm = roulette_comm
+    roulette_comm = RouletteCommunication(state_machine, None, gui)
+    los_comm = LOSCommunication(state_machine, roulette_comm)
+    
+    sdp = SDP(state_machine, los_comm, roulette_comm)
+    idp = IDP(state_machine, los_comm)
+    
+    los_comm.add_processor(sdp)
+    los_comm.add_processor(idp)
+    
+    roulette_comm.los_comm = los_comm
 
     gui.state_machine = state_machine
     gui.los_comm = los_comm
@@ -231,6 +297,10 @@ def main():
 
     roulette_comm.initialize_serial()
     los_comm.start_communication()
+
+    # add some test messages
+    gui.add_message("All threads started")
+    gui.add_message("System is ready")
 
     # create and start threads
     threads = [
