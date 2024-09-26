@@ -5,16 +5,71 @@ import pty
 import os
 import serial 
 import random 
+import tkinter as tk
+from tkinter import ttk, scrolledtext
+
+class GUI:
+    def __init__(self, state_machine, los_comm, roulette_comm):
+        self.root = tk.Tk()
+        self.root.title("SDP Prototype Monitor")
+        self.state_machine = state_machine
+        self.los_comm = los_comm
+        self.roulette_comm = roulette_comm
+        self.message_queue = queue.Queue()
+
+        self.setup_ui()
+
+    def setup_ui(self):
+        self.state_label = ttk.Label(self.root, text="Current State: IDLE")
+        self.state_label.pack(pady=10)
+
+        self.log_area = scrolledtext.ScrolledText(self.root, wrap=tk.WORD, width=60, height=20)
+        self.log_area.pack(padx=10, pady=10)
+
+        self.command_entry = ttk.Entry(self.root, width=50)
+        self.command_entry.pack(side=tk.LEFT, padx=10)
+
+        self.send_button = ttk.Button(self.root, text="Send", command=self.send_command)
+        self.send_button.pack(side=tk.LEFT)
+
+    def send_command(self):
+        command = self.command_entry.get()
+        if self.los_comm:
+            self.los_comm.command_queue.put(command)
+        self.command_entry.delete(0, tk.END)
+
+    def update_state(self, new_state):
+        self.state_label.config(text=f"Current State: {new_state}")
+
+    def add_message(self, message):
+        self.message_queue.put(message)
+
+    def update_log(self):
+        while not self.message_queue.empty():
+            message = self.message_queue.get()
+            self.log_area.insert(tk.END, message + '\n')
+            self.log_area.see(tk.END)
+        self.root.after(100, self.update_log)
+
+    def run(self):
+        self.update_log()
+        self.root.mainloop()
+
 
 class SDPStateMachine:
-    def __init__(self):
+    def __init__(self, gui=None):
         self.state = "IDLE"
         self.lock = threading.Lock()
+        self.gui = gui
     
     def update_state(self, new_state):
         with self.lock:
             self.state = new_state
             print(f"SDP status updated as: {self.state}")
+            if self.gui:
+                self.gui.update_state(self.state)
+                self.gui.add_message(f"SDP status updated as: {self.state}")
+
 
 class WebSocketCommunication:
     def __init__(self, state_machine, roulette_comm):
@@ -39,12 +94,13 @@ class HTTPCommunication:
         print(f"HTTP request handled: {request}")
 
 class LOSCommunication:
-    def __init__(self, state_machine, roulette_comm):
+    def __init__(self, state_machine, roulette_comm, gui=None):
         self.state_machine = state_machine
         self.roulette_comm = roulette_comm
         self.command_queue = queue.Queue()
         self.websocket_comm = WebSocketCommunication(state_machine, roulette_comm)
         self.http_comm = HTTPCommunication(state_machine, roulette_comm)
+        self.gui = gui
 
     def start_communication(self):
         self.websocket_comm.start()
@@ -63,21 +119,28 @@ class LOSCommunication:
     def process_commands(self):
         while True:
             if not self.command_queue.empty():
+
                 command = self.command_queue.get()
-                print(f"Processing LOS commands: {command}")
+                message = f"Processing LOS commands: {command}"
+                print(message)
+
                 # Update state machine
                 self.state_machine.update_state(f"PROCESSING_{command}")
                 # forward to the roulette machine
                 self.roulette_comm.send_command(command)
-            # high priority processing, short sleep
+
+                if self.gui:
+                    self.gui.add_message(message)
+
             time.sleep(0.1)
 
 
 
 class RouletteCommunication:
-    def __init__(self, state_machine, los_comm):
+    def __init__(self, state_machine, los_comm, gui=None):
         self.state_machine = state_machine
         self.los_comm = los_comm
+        self.gui = gui
         self.serial_port = None
         self.polling_results = queue.Queue()
         self.master, self.slave = None, None
@@ -110,20 +173,24 @@ class RouletteCommunication:
                         simulated_response = f"*X:1:{random.randint(100,999)}:25:0:{random.randint(100,999)}:0"
                         self.polling_results.put(simulated_response)
                 except serial.SerialException as e:
-                    print(f"Serial communication error: {e}")
+                    error_message = f"Serial communication error: {e}"
+                    print(error_message)
+                    if self.gui:
+                        self.gui.add_message(error_message)
             time.sleep(0.1)  # Poll every 0.1 seconds
 
     def process_polling_results(self):
         while True:
             if not self.polling_results.empty():
                 result = self.polling_results.get()
-                print(f"processing roulette polling results: {result}")
+                message = f"Processing roulette polling results: {result}"
+                print(message)
+                if self.gui:
+                    self.gui.add_message(message)
                 # parse result
                 parsed_result = self.parse_result(result)
                 # update state machine
                 self.state_machine.update_state(f"ROULETTE_{parsed_result}")
-                # forward back to LOS
-                # self.los_comm.send_result(parsed_result)
             time.sleep(0.01)  # low priority processing
 
     def parse_result(self, result):
@@ -150,18 +217,23 @@ class RouletteCommunication:
         # need to be adjusted according to actual LOS command and game protocol
         return f"*X:1:100:25:0:000:0"
 
+
 def main():
-    state_machine = SDPStateMachine()
-    roulette_comm = RouletteCommunication(state_machine, None)
-    los_comm = LOSCommunication(state_machine, roulette_comm)
-    roulette_comm.los_comm = los_comm
+    gui = GUI(None, None, None)  # temporary create GUI instance
+    state_machine = SDPStateMachine(gui)
+    los_comm = LOSCommunication(state_machine, None, gui)
+    roulette_comm = RouletteCommunication(state_machine, los_comm, gui)
+    los_comm.roulette_comm = roulette_comm
+
+    gui.state_machine = state_machine
+    gui.los_comm = los_comm
+    gui.roulette_comm = roulette_comm
 
     roulette_comm.initialize_serial()
     los_comm.start_communication()
 
-    # Create and start threads
+    # create and start threads
     threads = [
-        threading.Thread(target=los_comm.listen_for_commands),
         threading.Thread(target=los_comm.process_commands),
         threading.Thread(target=roulette_comm.poll_roulette),
         threading.Thread(target=roulette_comm.process_polling_results)
@@ -171,20 +243,21 @@ def main():
         thread.daemon = True
         thread.start()
 
-    # Main loop
-    try:
-        while True:
-            print(f"Current SDP state: {state_machine.state}")
-            time.sleep(0.1)  # Print state every 0.1 seconds
-    except KeyboardInterrupt:
-        print("Program terminated")
-    finally:
-        if roulette_comm.serial_port:
-            roulette_comm.serial_port.close()
-        if roulette_comm.master:
-            os.close(roulette_comm.master)
-        if roulette_comm.slave:
-            os.close(roulette_comm.slave)
+    # run GUI
+    print("Starting GUI...")
+    gui.run()
+
+    print("GUI closed. Cleaning up...")
+    # clean up resources
+    if roulette_comm.serial_port:
+        roulette_comm.serial_port.close()
+    if roulette_comm.master:
+        os.close(roulette_comm.master)
+    if roulette_comm.slave:
+        os.close(roulette_comm.slave)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"An error occurred: {e}")
