@@ -64,3 +64,26 @@ UPDATING_STATE --> []: System Shutdown
 
 ## Mocked LOS Design
 Enumerate all possible LOS command events. (Kimi will provide them next week)
+
+## The Expected Directory Structure of src/
+
+I am going to divide the SDP-prototype.py into following parts:
+
+```
+src/
+├── __init__.py
+├── main.py
+├── gui.py
+├── state_machine.py
+├── communication/
+│   ├── __init__.py
+│   ├── los_communication.py
+│   ├── websocket_communication.py
+│   ├── http_communication.py
+│   └── roulette_communication.py
+└── processors/
+    ├── __init__.py
+    ├── data_processor.py
+    ├── sdp.py
+    └── idp.py
+```
