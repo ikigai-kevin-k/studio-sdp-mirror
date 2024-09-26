@@ -12,7 +12,7 @@ python3 -m pip install pyserial
 
 ## Overview Architecture
 
-![](img/overview.png)
+![](img/sdp0926.png)
 
 ### TODO
 - [ ] The reusability of the module design for IDP (image data processor, on the media server side), to be opened as Jira issue under the SDP epic, more specifically, focusing on the main loop design and how to migrate to the Sci-bo game.
