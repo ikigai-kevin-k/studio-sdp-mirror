@@ -21,7 +21,62 @@ python3 -m pip install pyserial
 
 ## SDP (serial data processor) design 
 
-## sdp-prototype.py 
+### Code structure
+
+```
+src/refactoring/
+├── __init__.py
+├── main.py
+├── gui.py
+├── state_machine.py
+├── communication/
+│   ├── __init__.py
+│   ├── los_communication.py
+│   ├── websocket_communication.py
+│   ├── http_communication.py
+│   └── roulette_communication.py
+└── processors/
+    ├── __init__.py
+    ├── data_processor.py
+    ├── sdp.py
+    └── idp.py
+```
+
+### Usage
+
+```bash
+python3 main.py
+```
+The expected output
+```bash
+Created virtual serial port: /dev/ttys029
+Serial port initialized successfully
+WebSocket communication started
+HTTP server started
+Starting GUI...
+Updating log...
+Adding message to log: GUI initialized
+Adding message to log: Waiting for system messages...
+Adding message to log: State Machine initialized
+2024-09-26 17:41:42.751 Python[650:16645140] WARNING: Secure coding is automatically enabled for restorable state! However, not on all supported macOS versions of this application. Opt-in to secure coding explicitly by implementing NSApplicationDelegate.applicationSupportsSecureRestorableState:.
+Updating log...
+Adding message to log: GUI is running
+Updating log...
+Updating log...
+Updating log...
+Updating log...
+Updating log...
+Updating log...
+Updating log...
+Updating log...
+Updating log...
+Processing roulette polling results: *X:1:950:25:0:992:0
+SDP status updated as: ROULETTE_ID_1_DATA_992
+Updating log...
+...
+```
+
+## sdp-prototype.py (to be deprecated)
 
 Serail data processor main module.
 See the [design doc](doc/SDP-design.md) for more details.
