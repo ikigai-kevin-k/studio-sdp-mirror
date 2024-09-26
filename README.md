@@ -12,7 +12,7 @@ python3 -m pip install pyserial
 
 ## Overview Architecture
 
-![](overview.png)
+![](img/overview.png)
 
 ### TODO
 - [ ] The reusability of the module design for IDP (image data processor, on the media server side), to be opened as Jira issue under the SDP epic, more specifically, focusing on the main loop design and how to migrate to the Sci-bo game.
@@ -24,14 +24,14 @@ python3 -m pip install pyserial
 ## sdp-prototype.py 
 
 Serail data processor main module.
-See the [design doc](SDP-design.md) for more details.
+See the [design doc](doc/SDP-design.md) for more details.
 
 ### Usage
 ```bash
 python3 sdp-prototype.py
 ```
 The demonstrative output shows as below:
-![](demo-sdp.png)
+![](img/demo-sdp.png)
 
 
 
@@ -50,7 +50,7 @@ The specific ranges of each fields in the game protocol is going to be checked.
 python3 serial-port-sim.py
 ```
 The demonstrative output shows as below:
-![](demo.png)
+![](img/demo.png)
 
 ### img-serial-sim.py: 
 The aim of this script is to create a virtual serial port and send image data
