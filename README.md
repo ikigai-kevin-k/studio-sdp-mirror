@@ -14,7 +14,12 @@ python3 -m pip install pyserial
 
 ![](overview.png)
 
-## SDP (serial data processor) design
+### TODO
+- [ ] The reusability of the module design for IDP (image data processor, on the media server side), to be opened as Jira issue under the SDP epic, more specifically, focusing on the main loop design and how to migrate to the Sci-bo game.
+- [ ] The implementation of websocket communication between SDP and IDP, to be opened as Jira issue under the SDP epic.
+- [ ] Not urgent: study handler with C on MCU, Linux socket and SRS for IDP.
+
+## SDP (serial data processor) design 
 
 ## sdp-prototype.py 
 
