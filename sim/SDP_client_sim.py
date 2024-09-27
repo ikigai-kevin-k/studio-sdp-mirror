@@ -20,6 +20,15 @@ class SDPClient:
             print(f"Get game parameters error: {e}")
             return None
 
+    def send_to_roulette(self, manual_end_game):
+        if self.serial:
+            # Assuming we use the 'c' field in the protocol to represent manual_end_game
+            x, y, z, a, b = 1, 0, 24, 0, 0  # Default values
+            c = 1 if manual_end_game else 0
+            data = f"*X:{x:01d}:{y:03d}:{z:02d}:{a:01d}:{b:03d}:{c:01d}\r\n"
+            self.serial.write(data.encode())
+            print(f"Sent to roulette: {data.strip()}")
+
     def read_serial_data(self):
         while True:
             if self.serial and self.serial.in_waiting > 0:
@@ -32,12 +41,18 @@ class SDPClient:
             serial_thread.daemon = True
             serial_thread.start()
 
+        last_manual_end_game = None
         while True:
             game_params = self.get_game_parameters()
             if game_params:
                 print("Game status:", game_params.get('game_status'))
                 print("Game mode:", game_params.get('game_mode'))
                 print("Last updated:", game_params.get('last_updated'))
+                manual_end_game = game_params.get('game_parameters', {}).get('manual_end_game')
+                print("Manual end game:", manual_end_game)
+                if manual_end_game != last_manual_end_game:
+                    self.send_to_roulette(manual_end_game)
+                    last_manual_end_game = manual_end_game
                 print("---")
             time.sleep(interval)
 

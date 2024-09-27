@@ -49,4 +49,10 @@ Received from roulette: *X:3:547:28:1:687:0
 Received from roulette: *X:3:479:26:0:199:0
 Received from roulette: *X:2:536:24:1:287:0
 Received from roulette: *X:1:886:27:1:882:0
+
+To simulate the game manager, you can send a POST request to the LOS server simulator with the following JSON data by this command:
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{"manual_end_game": true}' http://127.0.0.1:5000/set_game_parameter
+
+
 ```
