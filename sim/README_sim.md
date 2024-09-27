@@ -32,6 +32,9 @@ Roulette simulator sent: *X:2:960:27:1:234:1
 Roulette simulator sent: *X:1:623:28:1:561:1
 Roulette simulator sent: *X:2:052:26:0:031:1
 Roulette simulator sent: *X:1:773:26:1:433:1
+Game status: running
+Game mode: standard
+Last updated: 1727428680.836295
 
 
 kevin.k@MacBook-Pro ~/s/sim (sdp)> python SDP_client_sim.py /dev/ttys038 
