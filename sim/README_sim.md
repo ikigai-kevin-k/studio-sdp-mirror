@@ -18,8 +18,8 @@ Press CTRL+C to quit
 127.0.0.1 - - [27/Sep/2024 16:16:14] "GET /get_game_parameters HTTP/1.1" 200 -
 127.0.0.1 - - [27/Sep/2024 16:16:19] "GET /get_game_parameters HTTP/1.1" 200 -
 127.0.0.1 - - [27/Sep/2024 16:16:24] "GET /get_game_parameters HTTP/1.1" 200 -
-
-
+```
+```
 (.venv) kevin.k@MacBook-Pro ~/s/sim (sdp)> python roulette_sim.py 
 Created virtual serial port: /dev/ttys038
 Roulette simulator is running. Virtual port: /dev/ttys038
@@ -35,9 +35,9 @@ Roulette simulator sent: *X:1:773:26:1:433:1
 Game status: running
 Game mode: standard
 Last updated: 1727428680.836295
-
-
-kevin.k@MacBook-Pro ~/s/sim (sdp)> python SDP_client_sim.py /dev/ttys038 
+```
+```
+(.venv) kevin.k@MacBook-Pro ~/s/sim (sdp)> python SDP_client_sim.py /dev/ttys038 
 /Users/kevin.k/studio-sdp-roulette/.venv/lib/python3.9/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
   warnings.warn(
 Game status: running
@@ -49,10 +49,26 @@ Received from roulette: *X:3:547:28:1:687:0
 Received from roulette: *X:3:479:26:0:199:0
 Received from roulette: *X:2:536:24:1:287:0
 Received from roulette: *X:1:886:27:1:882:0
+```
 
 To simulate the game manager, you can send a POST request to the LOS server simulator with the following JSON data by this command:
+
 ```bash
 curl -X POST -H "Content-Type: application/json" -d '{"manual_end_game": true}' http://127.0.0.1:5000/set_game_parameter
-
-
+```
+Then the LOS server will receive:
+```bash
+127.0.0.1 - - [27/Sep/2024 17:51:44] "POST /set_game_parameter HTTP/1.1" 200 -
+```
+The SDP client will receive:
+```bash
+Received from roulette: *X:1:690:28:1:910:0
+Received from roulette: *X:2:743:25:0:585:0
+Received from roulette: *X:1:018:28:1:807:1
+Received from roulette: *X:3:386:27:1:135:1
+Received from roulette: *X:1:309:28:1:449:1
+Game status: running
+Game mode: standard
+Last updated: 1727430704.346894
+Manual end game: True
 ```
