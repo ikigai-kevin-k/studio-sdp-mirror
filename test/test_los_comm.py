@@ -29,7 +29,7 @@ class TestLOSCommunication(unittest.TestCase):
 
     def test_receive_game_parameters(self):
         # Test Case 3: Receive Game Parameters Settings Command from LOS
-        test_command = "SET_GAME_PARAMS:min_bet=1:max_bet=100"
+        test_command = "SET_GAME_PARAMS:min_bet=1:max_bet=100" # to be modified to a normal http API request
         self.los_comm.command_queue.put(test_command)
         
         mock_processor = Mock()

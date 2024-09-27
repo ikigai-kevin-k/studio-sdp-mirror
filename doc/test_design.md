@@ -23,8 +23,15 @@
 
 #### Test Case 2: State Machine Transition 
 
+### Usage
+
+```bash
+python -m unittest test_los_comm.py
+```
 ## Integration Tests
 
 ### Test Scenario 1
 
 LOS sends Game Parameters Settings Command to SDP via HTTP, and SDP forwards the command to Roulette via Serial Port. The roulette then changes its game parameters accordingly. The roulette then sends the Polling Results back to SDP via Serial Port, and SDP forwards the results to LOS via HTTP.
+
+
