@@ -76,48 +76,6 @@ Updating log...
 ...
 ```
 
-## sdp-prototype.py (to be deprecated)
+# Test Design
 
-Serail data processor main module.
-See the [design doc](doc/SDP-design.md) for more details.
-
-### Usage
-```bash
-python3 sdp-prototype.py
-```
-The demonstrative output shows as below:
-![](img/demo-sdp.png)
-
-
-
-## Code for Test 
-### serial-port-sim.py: 
-The aim of this script is to create a virtual serial port and send data
-to simulate the behavior from/to the Roulette machine and the LOC computer.
-Currently the both two ends of serial ports are created on the same MacOS notebook,
-hence it is a loopback.
-The data is generated following the specified game protocol format:
-*X:{x:01d}:{y:03d}:{z:02d}:{a:01d}:{b:03d}:{c:01d}
-The specific ranges of each fields in the game protocol is going to be checked.
-
-#### Usage
-```bash
-python3 serial-port-sim.py
-```
-The demonstrative output shows as below:
-![](img/demo.png)
-
-### img-serial-sim.py: 
-The aim of this script is to create a virtual serial port and send image data
-to simulate the behavior from/to the Sci-bo game machine and the SDP.
-
-#### Usage
-```bash
-python3 img-serial-sim.py
-```
-The demonstrative output shows as below:
-```bash
-Created virtual serial port: /dev/ttys034
-Sender opened on /dev/ttys034 at 115200 bps
-Receiver opened on /dev/ttys034 at 115200 bps
-```
+See the [doc](doc/test_design.md)  for more details.

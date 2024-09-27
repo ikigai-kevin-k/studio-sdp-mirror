@@ -25,7 +25,7 @@ class LOSCommunication:
                 command = self.command_queue.get()
                 print(f"Processing LOS command: {command}")
                 for processor in self.processors:
-                    processor.process_data()
+                    processor.process_data() # not implemented yet
             time.sleep(0.1)
 
     def handle_websocket_message(self, message):

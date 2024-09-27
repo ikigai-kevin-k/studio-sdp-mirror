@@ -30,7 +30,7 @@ def main():
 
     # Create and start threads
     threads = [
-        threading.Thread(target=los_comm.process_commands),
+        threading.Thread(target=los_comm.process_commands), # main loop processes commands from LOS
         threading.Thread(target=roulette_comm.poll_roulette),
         threading.Thread(target=roulette_comm.process_polling_results)
     ]
@@ -39,7 +39,7 @@ def main():
         thread.daemon = True
         thread.start()
 
-    # Run GUI
+    # Run GUI (currently exists display issue)
     print("Starting GUI...")
     gui.run()
 
