@@ -41,7 +41,7 @@ Game status: running
 Game mode: standard
 Last updated: 1727424972.313292
 ---
-Received from roulette: *X:2:149:25:0:753:1
+Received from roulette: *X:2:149:25:0:753:0
 Received from roulette: *X:3:547:28:1:687:0
 Received from roulette: *X:3:479:26:0:199:0
 Received from roulette: *X:2:536:24:1:287:0

@@ -7,7 +7,7 @@
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python3 -m pip install pyserial
+python3 -m pip install pyserial requests flask
 ```
 
 ## Overview Architecture
@@ -79,3 +79,7 @@ Updating log...
 # Test Design
 
 See the [doc](doc/test_design.md)  for more details.
+
+# Indivisualized Roulette/SDP/LOS simulators (developing...)
+
+See the [doc](sim/README_sim.md)  for more details.
