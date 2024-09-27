@@ -1,4 +1,5 @@
 class WebSocketCommunication:
+    # no need to implement yet
     def __init__(self, state_machine, roulette_comm):
         self.state_machine = state_machine
         self.roulette_comm = roulette_comm

@@ -19,4 +19,5 @@ class DataProcessor(ABC):
 
     @abstractmethod
     def handle_http_request(self, request):
+        # refer to sim/SDP_client_sim.py for implementation
         pass

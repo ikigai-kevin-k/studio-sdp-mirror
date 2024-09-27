@@ -14,10 +14,10 @@ def main():
     los_comm = LOSCommunication(state_machine, roulette_comm)
     
     sdp = SDP(state_machine, los_comm, roulette_comm)
-    idp = IDP(state_machine, los_comm)
+    idp = IDP(state_machine, los_comm) # no need to implement yet
     
     los_comm.add_processor(sdp)
-    los_comm.add_processor(idp)
+    los_comm.add_processor(idp) # no need to implement yet
     
     roulette_comm.los_comm = los_comm
 
@@ -26,7 +26,7 @@ def main():
     gui.roulette_comm = roulette_comm
 
     roulette_comm.initialize_serial()
-    los_comm.start_communication()
+    los_comm.start_communication() # use http protocol 
 
     # Create and start threads
     threads = [

@@ -1,6 +1,7 @@
 from .data_processor import DataProcessor
 
 class IDP(DataProcessor):
+    # no need to implement yet
     def __init__(self, state_machine, los_comm):
         super().__init__(state_machine, los_comm)
         # IDP specific attributes can be initialized here

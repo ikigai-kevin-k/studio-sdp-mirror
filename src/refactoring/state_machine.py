@@ -8,6 +8,9 @@ class SDPStateMachine:
         if self.gui:
             self.gui.add_message("State Machine initialized")
     
+    # to be defined more status later
+
+
     def update_state(self, new_state):
         with self.lock:
             self.state = new_state

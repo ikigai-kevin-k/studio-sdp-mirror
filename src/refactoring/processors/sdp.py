@@ -15,8 +15,10 @@ class SDP(DataProcessor):
 
     def handle_websocket_message(self, message):
         # implement SDP WebSocket message processing logic
+        # no need to implement yet
         pass
 
     def handle_http_request(self, request):
         # implement SDP HTTP request processing logic
+        # refer to sim/SDP_client_sim.py for implementation
         pass

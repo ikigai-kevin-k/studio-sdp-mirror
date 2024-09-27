@@ -32,6 +32,7 @@ class RouletteCommunication:
             if self.serial_port:
                 try:
                     # Send polling command
+                    # Write command to be seperated from here to a mocked roulette machine in the future.
                     self.serial_port.write(b'*X:1:000:25:0:000:0\r\n')
                     # Read response
                     response = self.serial_port.readline().decode().strip()
@@ -60,7 +61,7 @@ class RouletteCommunication:
                 parsed_result = self.parse_result(result)
                 # update state machine
                 self.state_machine.update_state(f"ROULETTE_{parsed_result}")
-            time.sleep(0.01)  # low priority processing
+            time.sleep(0.1)  # low priority processing
 
     def parse_result(self, result):
         # parsing game protocol result
