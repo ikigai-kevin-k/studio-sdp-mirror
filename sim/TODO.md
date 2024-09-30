@@ -26,5 +26,4 @@
 - 需要針對game protocol over RS232 protocol進行error handling, 包含timeout, checksum error, etc.
 - Roulette若是出現數值傳輸錯誤，SDP則需要進行resend
 - Roulette若是出現傳輸timeout的error，SDP則需要顯示提醒on-site engineer需要進行維護的錯誤訊息
-
-##
+- RS232是單工的所以需要設計RX/TX 
