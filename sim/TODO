@@ -1,0 +1,10 @@
+# IDP
+
+## RTMP processing FFMPEG
+
+### Reference:
+- [sdudio-streams-ffmpeg](https://github.com/Ikigaians/studio-streams-ffmpeg7.0.2)
+
+### Issue
+
+- Cannot open rtmp server in vlc
