@@ -4,13 +4,15 @@ import threading
 
 app = Flask(__name__)
 
+# In production enviroment, the game parameters should be stored in database
 game_parameters = {
     "last_updated": time.time(),
     "game_status": "running", # temporary value, the actual value should be referred from owner handbook
     "game_mode": "standard", # temporary value, the actual value should be referred from owner handbook
     "game_parameters": {
         "manual_end_game": False, # temporary value, the actual value should be referred from owner handbook
-    }
+    },
+    "roulette_open": False  # to represent whether the roulette is open
 }
 
 def update_game_parameters():
@@ -22,7 +24,10 @@ def update_game_parameters():
 
 @app.route('/get_game_parameters', methods=['GET'])
 def get_game_parameters():
-    return jsonify(game_parameters)
+    if game_parameters["roulette_open"]:
+        return jsonify(game_parameters)
+    else:
+        return jsonify({"status": "error", "message": "Roulette is not open"}), 403
 
 @app.route('/set_game_parameter', methods=['POST'])
 def set_game_parameter():
