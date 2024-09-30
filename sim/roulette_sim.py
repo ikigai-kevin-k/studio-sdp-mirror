@@ -11,13 +11,22 @@ def create_virtual_serial_port():
     return master, s_name
 
 def generate_protocol_data():
-    x = random.randint(1, 3)
-    y = random.randint(0, 999)
-    z = random.randint(24, 28)
-    a = random.randint(0, 1)
-    b = random.randint(0, 999)
-    c = random.randint(0, 1)
-    return f"*X:{x:01d}:{y:03d}:{z:02d}:{a:01d}:{b:03d}:{c:01d}\r\n"
+
+    game_states = list(range(1, 8))
+    game_numbers = list(range(1,256))
+    last_winning_numbers = list(range(0,37))
+    warning_flags = list(range(0,16))
+    rotor_speeds = list(range(10,541))
+    rotor_directions = [0,1]
+
+    x = random.choice(game_states) 
+    y = random.choice(game_numbers) 
+    z = random.choice(last_winning_numbers)
+    a = hex(random.choice(warning_flags))
+    b = random.choice(rotor_speeds)
+    c = random.choice(rotor_directions)
+
+    return f"*X:{x:01d}:{y:03d}:{z:02d}:{a}:{b:03d}:{c:01d}\r\n"
 
 def virtual_serial_thread(master):
     while True:
