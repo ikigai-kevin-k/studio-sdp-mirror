@@ -6,12 +6,7 @@ python SDP_client_sim.py /dev/ttyps{port number}
 python manager_sim.py
 ```
 
-## Expected output:
-
-The simulation execution order is as follows:
-1. LOS_server_sim.py
-2. roulette_sim.py
-3. SDP_client_sim.py
+## Initialized output
 
 ### LOS_server_sim.py
 ```
@@ -61,6 +56,8 @@ Received from roulette: *X:3:479:26:0:199:0
 Received from roulette: *X:2:536:24:1:287:0
 Received from roulette: *X:1:886:27:1:882:0
 ```
+
+## Scenario: with manager manipulation
 
 ### manager_sim.py
 
@@ -118,41 +115,4 @@ Game status: running
 Game mode: standard
 Last updated: 1727660482.071397
 Manual end game: False
----
-Game status: running
-Game mode: standard
-Last updated: 1727660487.07647
-Manual end game: True
-Sent to roulette: *X:1:000:24:0:000:1
----
-Received from roulette: *X:2:660:27:0:024:1
-Game status: running
-Game mode: standard
-Last updated: 1727660492.078322
-Manual end game: True
----
-Game status: running
-Game mode: standard
-Last updated: 1727660497.08193
-Manual end game: False
-Sent to roulette: *X:1:000:24:0:000:0
----
-Received from roulette: *X:3:529:26:1:769:1
-Game status: running
-Game mode: standard
-Last updated: 1727660502.086847
-Manual end game: False
----
-Game status: running
-Game mode: standard
-Last updated: 1727660507.088604
-Manual end game: True
-Sent to roulette: *X:1:000:24:0:000:1
----
-Received from roulette: *X:3:991:27:1:975:1
-Game status: running
-Game mode: standard
-Last updated: 1727660512.093677
-Manual end game: True
----
 ```
