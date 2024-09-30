@@ -23,6 +23,10 @@ python3 -m pip install pyserial requests flask
 
 ## Currently switching to the `sim` branch
 
+### Implementation Progress
+
+![alt text](img/implementation_progress.png)
+
 
 see the [doc](sim/README_sim.md)  for more details about executing simulators.
 
