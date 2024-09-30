@@ -28,7 +28,26 @@ python3 -m pip install pyserial requests flask
 ![alt text](img/implementation_progress.png)
 
 
-see the [doc](sim/README_sim.md)  for more details about executing simulators.
+### The main loop logic of `SDP` is implemented in the `start_polling` function in the `sdp_client_sim.py`
+
+```mermaid
+graph TD
+    A[Start Polling] --> B{Serial Available?}
+    B -->|Yes| C[Start Serial Read Thread to roulette machine]
+    B -->|No| D[Initialize Variables]
+    C --> D
+    D --> E[Fetch Game Parameters from LOS server]
+    E --> F{Parameters Fetched?}
+    F -->|Yes| G[Print Game Info]
+    F -->|No| J[Wait for Interval]
+    G --> H{manual_end_game Changed?}
+    H -->|Yes| I[Send to Roulette]
+    H -->|No| J
+    I --> J
+    J --> E
+```
+
+see the [doc](sim/README_sim.md)  for more details about other simulator components (LOS/manager behavior, roulette machine) and how to execute simulators.
 
 ## (Pending) branch `sdp`
 
