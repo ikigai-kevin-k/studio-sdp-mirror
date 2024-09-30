@@ -116,3 +116,35 @@ Game mode: standard
 Last updated: 1727660482.071397
 Manual end game: False
 ```
+
+## Exception handling
+
+- [x] LOS determines whether it's in an open game state based on the game status transmitted by SDP. If not, it blocks SDP's GET request.
+
+The expected output of LOS is like:
+
+```
+127.0.0.1 - - [30/Sep/2024 17:03:45] "GET /get_game_parameters HTTP/1.1" 403 -
+127.0.0.1 - - [30/Sep/2024 17:03:46] "POST /set_game_parameter HTTP/1.1" 200 -
+127.0.0.1 - - [30/Sep/2024 17:03:48] "POST /set_game_parameter HTTP/1.1" 200 -
+127.0.0.1 - - [30/Sep/2024 17:03:50] "POST /set_game_parameter HTTP/1.1" 200 -
+127.0.0.1 - - [30/Sep/2024 17:03:50] "GET /get_game_parameters HTTP/1.1" 403 -
+127.0.0.1 - - [30/Sep/2024 17:03:52] "POST /set_game_parameter HTTP/1.1" 200 -
+127.0.0.1 - - [30/Sep/2024 17:03:54] "POST /set_game_parameter HTTP/1.1" 200 -
+127.0.0.1 - - [30/Sep/2024 17:03:55] "GET /get_game_parameters HTTP/1.1" 403 -
+...
+``
+
+The expected output of SDP is like:
+
+```
+Get game parameters error: 403 Client Error: FORBIDDEN for url: http://localhost:5000/get_game_parameters
+Get game parameters error: 403 Client Error: FORBIDDEN for url: http://localhost:5000/get_game_parameters
+Get game parameters error: 403 Client Error: FORBIDDEN for url: http://localhost:5000/get_game_parameters
+Get game parameters error: 403 Client Error: FORBIDDEN for url: http://localhost:5000/get_game_parameters
+Get game parameters error: 403 Client Error: FORBIDDEN for url: http://localhost:5000/get_game_parameters
+Get game parameters error: 403 Client Error: FORBIDDEN for url: http://localhost:5000/get_game_parameters
+...
+```
+- [ ] During an open game state, when LOS receives a POST request from the manager, it checks if it's a valid request. If valid, it responds; if invalid, it returns a 403 error.
+- [ ] LOS uses the table ID transmitted by SDP to confirm which table the received request belongs to. If the request doesn't belong to that table, it returns a 403 error.

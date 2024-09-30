@@ -13,9 +13,9 @@
 
 ## LOS logic
 
-- LOS透過SDP傳給他的game status判斷是否處於開局狀態，若不是，則屏蔽掉SDP的GET request
-- 開局狀態下，LOS若收到manager的POST request，則檢查是否為合法request，若合法則response，若不合法，則返回403
-- LOS透過SDP傳給他的table ID,確認收到的request是屬於哪一桌的，若不是屬於該桌的request，則返回400
+- [x] LOS determines whether it's in an open game state based on the game status transmitted by SDP. If not, it blocks SDP's GET request.
+- [ ] During an open game state, when LOS receives a POST request from the manager, it checks if it's a valid request. If valid, it responds; if invalid, it returns a 403 error.
+- [ ] LOS uses the table ID transmitted by SDP to confirm which table the received request belongs to. If the request doesn't belong to that table, it returns a 403 error.
 
 ## SDP logic
 
