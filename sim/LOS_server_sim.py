@@ -7,12 +7,12 @@ app = Flask(__name__)
 # In production enviroment, the game parameters should be stored in database
 game_parameters = {
     "last_updated": time.time(),
-    "game_status": "running", # temporary value, the actual value should be referred from owner handbook
+    "game_status": "running", # two states: running/closed, temporary value, the actual value should be referred from owner handbook
     "game_mode": "standard", # temporary value, the actual value should be referred from owner handbook
     "game_parameters": {
         "manual_end_game": False, # temporary value, the actual value should be referred from owner handbook
     },
-    "roulette_open": False  # to represent whether the roulette is open
+    "roulette_open": True  # to represent whether the roulette is open
 }
 
 def update_game_parameters():
@@ -31,11 +31,19 @@ def get_game_parameters():
 
 @app.route('/set_game_parameter', methods=['POST'])
 def set_game_parameter():
-    data = request.json
-    if 'manual_end_game' in data:
-        game_parameters['game_parameters']['manual_end_game'] = data['manual_end_game']
-        return jsonify({"status": "success", "message": "Game parameter updated"}), 200
-    return jsonify({"status": "error", "message": "Invalid parameter"}), 400
+    if game_parameters["roulette_open"]:
+        print(game_parameters["roulette_open"]) # for debugging
+        data = request.json
+        if 'manual_end_game' in data:
+            if isinstance(data['manual_end_game'], bool):
+                game_parameters['game_parameters']['manual_end_game'] = data['manual_end_game']
+                return jsonify({"status": "success", "message": "Game parameter updated"}), 200
+            else:
+                return jsonify({"status": "error", "message": "Invalid value for manual_end_game"}), 400
+        else:
+            return jsonify({"status": "error", "message": "Invalid parameter"}), 400
+    else:
+        return jsonify({"status": "error", "message": "Cannot set parameters when game is closed"}), 403
 
 if __name__ == '__main__':
     update_thread = threading.Thread(target=update_game_parameters)
