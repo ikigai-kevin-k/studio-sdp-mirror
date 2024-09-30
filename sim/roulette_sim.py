@@ -11,7 +11,7 @@ def create_virtual_serial_port():
     return master, s_name
 
 def generate_protocol_data():
-    x = random.randint(1, 3)  # 假设 x 可以是 1, 2, 或 3
+    x = random.randint(1, 3)
     y = random.randint(0, 999)
     z = random.randint(24, 28)
     a = random.randint(0, 1)
@@ -22,9 +22,17 @@ def generate_protocol_data():
 def virtual_serial_thread(master):
     while True:
         try:
+            # Send data
             data = generate_protocol_data().encode()
             os.write(master, data)
             print(f"Roulette simulator sent: {data.decode().strip()}")
+
+            # Read data (if any)
+            read_data = os.read(master, 1024)
+            if read_data:
+                print(f"Roulette simulator received: {read_data.decode().strip()}")
+                # Here you can process the received data and update the simulator's state
+
             time.sleep(1)
         except OSError:
             break
