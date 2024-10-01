@@ -1,3 +1,42 @@
+# Roulette State Machine and SDP corresponding state transition
+
+## Roulette State Machine
+Reference: Owner's Handbook,p.49
+
+- *X;1 - State 1: Game Start
+    - indicates the rotor is revolving in a table closed mode (from state 6), or after 3 revolutions of the rotor after the winning number state has occurred. (from 3 times "state 2 -> state 3 -> state 4 -> state 5")
+- *X:2 - State 2: Rotor Rotating
+    - indicates the rotor is revolving and a new game is being started. (game running in a round)
+- *X:3 - State 3: Ball in track
+    - indicates a ball has been detected in the racetrack by all three in-rim sensors, i.e. one revolution of the ball.(game running in a round)
+- *X:4 - State 4: No more bets
+    - indicates the No More Bets state, (the speed of the ball has decreased below the set time value between in-rim sensors).(game running in a round)
+- *X:5 - State 5: Win Number
+    - indicates Winning Number has been established, by all in-rim sensors detecting the ball in a valid pocket during state 4, with no game errors present.
+- *X:6 - State 6: Table Closed (Power down)
+    - indicates that the table is closed or the wheel has been powered down.
+
+```mermaid
+stateDiagram-v2
+    [*] --> State1: Power on
+    State1: Game Start
+    State2: Rotor Rotating
+    State3: Ball in track
+    State4: No more bets
+    State5: Win Number
+    State6: Table Closed (Power down)
+
+    State1 --> State2: New game starts
+    State4 --> State5: Winning number established
+    State5 --> State1:  After 3 revolutions
+    State2 --> State3: Rotor revolves (1st/2nd/3rd time), Ball detected in racetrack
+    State3 --> State4: Rotor revolves (1st/2nd/3rd time), Ball speed decreases
+    State5 --> State6: Power down
+    State6 --> State1: Power on / Table opens
+    State1 --> State6: Power down
+```
+
+
 # Usage
 ```bash
 python LOS_server_sim.py
@@ -133,7 +172,7 @@ The expected output of LOS is like:
 127.0.0.1 - - [30/Sep/2024 17:03:54] "POST /set_game_parameter HTTP/1.1" 200 -
 127.0.0.1 - - [30/Sep/2024 17:03:55] "GET /get_game_parameters HTTP/1.1" 403 -
 ...
-``
+```
 
 The expected output of SDP is like:
 
@@ -144,7 +183,8 @@ Get game parameters error: 403 Client Error: FORBIDDEN for url: http://localhost
 Get game parameters error: 403 Client Error: FORBIDDEN for url: http://localhost:5000/get_game_parameters
 Get game parameters error: 403 Client Error: FORBIDDEN for url: http://localhost:5000/get_game_parameters
 Get game parameters error: 403 Client Error: FORBIDDEN for url: http://localhost:5000/get_game_parameters
-...
 ```
+
 - [ ] During an open game state, when LOS receives a POST request from the manager, it checks if it's a valid request. If valid, it responds; if invalid, it returns a 403 error.
+
 - [ ] LOS uses the table ID transmitted by SDP to confirm which table the received request belongs to. If the request doesn't belong to that table, it returns a 403 error.
