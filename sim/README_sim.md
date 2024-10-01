@@ -36,6 +36,74 @@ stateDiagram-v2
     State1 --> State6: Power down
 ```
 
+Warning Flags: The warning flag outputs a live hexadecimal sum value of occurring faults.
+- Value 1: warning flag indicates the ball has been removed from the wheel or has not been sensed by the rim sensors.
+- Value 2: warning flag indicates the ball is travelling in the same direction as the rotor.
+- Value 4: indicates failure of an in-rim sensor, or the motor or encoder.
+- Value 8 indicates a void game and failed ball launch. The controller will automatically
+attempt to re-launch the ball.
+
+Roulette machine considering the warning flags:
+
+```mermaid
+stateDiagram-v2
+    %% define styles
+    classDef normalState fill:#9cf,stroke:#333,stroke-width:2px
+    classDef errorState fill:#f99,stroke:#633,stroke-width:2px
+    classDef warningTransition stroke:#f60,stroke-width:2px
+    classDef recoveryTransition stroke:#0c0,stroke-width:2px
+
+    [*] --> State1: Power on
+    State1: Game Start
+    State2: Rotor Rotating
+    State3: Ball in track
+    State4: No more bets
+    State5: Win Number
+    State6: Table Closed<br>(Power down)
+    
+    ErrorState1: Ball Removed/<br>Not Sensed
+    ErrorState2: Ball Wrong<br>Direction
+    ErrorState3: Sensor/Motor/<br>Encoder Failure
+    ErrorState4: Void Game/<br>Failed Ball Launch
+
+    State1 --> State2: New game starts
+    State2 --> State3: Ball detected<br>in racetrack
+    State3 --> State4: Ball speed<br>decreases
+    State4 --> State5: Winning number<br>established
+    State5 --> State1: After<br>3 revolutions
+    State5 --> State6: Power down
+    State6 --> State1: Power on /<br>Table opens
+    State1 --> State6: Power down
+
+    State2 --> ErrorState1: Warning Flag 1
+    State3 --> ErrorState1: Warning Flag 1
+    State4 --> ErrorState1: Warning Flag 1
+
+    State2 --> ErrorState2: Warning Flag 2
+    State3 --> ErrorState2: Warning Flag 2
+    State4 --> ErrorState2: Warning Flag 2
+
+    State1 --> ErrorState3: Warning Flag 4
+    State2 --> ErrorState3: Warning Flag 4
+    State3 --> ErrorState3: Warning Flag 4
+    State4 --> ErrorState3: Warning Flag 4
+    State5 --> ErrorState3: Warning Flag 4
+
+    State2 --> ErrorState4: Warning Flag 8
+    State3 --> ErrorState4: Warning Flag 8
+
+    ErrorState1 --> State1: Error resolved
+    ErrorState2 --> State1: Error resolved
+    ErrorState3 --> State1: Error resolved
+    ErrorState4 --> State2: Auto re-launch
+
+    %% apply styles
+    class State1,State2,State3,State4,State5,State6 normalState
+    class ErrorState1,ErrorState2,ErrorState3,ErrorState4 errorState
+    class State2-->ErrorState1,State3-->ErrorState1,State4-->ErrorState1,State2-->ErrorState2,State3-->ErrorState2,State4-->ErrorState2,State1-->ErrorState3,State2-->ErrorState3,State3-->ErrorState3,State4-->ErrorState3,State5-->ErrorState3,State2-->ErrorState4,State3-->ErrorState4 warningTransition
+    class ErrorState1-->State1,ErrorState2-->State1,ErrorState3-->State1,ErrorState4-->State2 recoveryTransition
+```
+
 
 # Usage
 ```bash
