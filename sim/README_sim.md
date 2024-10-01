@@ -24,15 +24,15 @@ stateDiagram-v2
     State3: Ball in track
     State4: No more bets
     State5: Win Number
-    State6: Table Closed (Power down)
+    State6: Table Closed<br>(Power down)
 
     State1 --> State2: New game starts
-    State4 --> State5: Winning number established
-    State5 --> State1:  After 3 revolutions
-    State2 --> State3: Rotor revolves (1st/2nd/3rd time), Ball detected in racetrack
-    State3 --> State4: Rotor revolves (1st/2nd/3rd time), Ball speed decreases
+    State4 --> State5: Winning number<br>established
+    State5 --> State1:  After<br>3 revolutions
+    State2 --> State3: Rotor revolves<br>(1st/2nd/3rd time),<br>Ball detected<br>in racetrack
+    State3 --> State4: Rotor revolves<br>(1st/2nd/3rd time),<br>Ball speed<br>decreases
     State5 --> State6: Power down
-    State6 --> State1: Power on / Table opens
+    State6 --> State1: Power on /<br>Table opens
     State1 --> State6: Power down
 ```
 
