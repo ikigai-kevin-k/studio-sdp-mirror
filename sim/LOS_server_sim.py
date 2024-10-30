@@ -31,9 +31,9 @@ game_parameters = {
     # game status 要改名成game_state以貼合owner handbook
     "game_state": "1", # 1~6
     "game_mode": "1", # 1,2,4,16,128,256,1024
-    "warning_flag": "1", # 1,2,4,8 and their sum
+    "warning_flag": "0", # 0,1,2,4,8 and their sum, i.e. 0~15
     "extra_game_parameter": {
-        "manual_end_game": False, # 好像沒有對應的game protocol
+        "manual_end_game": False, # 目前對應到arcade mode (fully-automatic)
     }
 }
 
@@ -53,6 +53,7 @@ def get_game_parameters():
 
 @app.route('/set_game_parameter', methods=['POST'])
 def set_game_parameter():
+    # if game is not closed, then we can set the game parameter
     if game_parameters["game_state"] != "6":
         data = request.json
         if 'manual_end_game' in data:
@@ -66,6 +67,15 @@ def set_game_parameter():
     else:
         return jsonify({"status": "error", "message": "Cannot set parameters when game is closed"}), 403
 
+@app.route('/set_power_off', methods=['POST'])
+def set_power_off():
+    game_parameters["game_state"] = "6"
+    return jsonify({"status": "success", "message": "Game power off"}), 200
+
+@app.route('/set_power_on', methods=['POST'])
+def set_power_on():
+    game_parameters["game_state"] = "1"
+    return jsonify({"status": "success", "message": "Game power on"}), 200
 if __name__ == '__main__':
     update_thread = threading.Thread(target=update_game_parameters)
     update_thread.start()

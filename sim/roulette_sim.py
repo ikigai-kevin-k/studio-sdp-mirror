@@ -4,6 +4,7 @@ import os
 import pty
 import threading
 import random
+from itertools import islice
 
 def create_virtual_serial_port():
     master, slave = pty.openpty()
@@ -28,11 +29,22 @@ def generate_protocol_data():
 
     return f"*X:{x:01d}:{y:03d}:{z:02d}:{a}:{b:03d}:{c:01d}\r\n"
 
+def read_ss2_protocol_log(line_number):
+    with open("./log/ss2_protocol.log", "r") as file:
+        line = next(islice(file, line_number - 1, line_number), None)
+        print(f"Read line {line_number}: {line}")
+        return line if line else ""
+
+BIG_NUMBER = 1000000
+
 def virtual_serial_thread(master):
+    line_number = 1
     while True:
         try:
             # Send data
-            data = generate_protocol_data().encode()
+            # data = generate_protocol_data().encode()
+            data = read_ss2_protocol_log(line_number).encode()
+            line_number  = (line_number + 1) % BIG_NUMBER
             os.write(master, data)
             print(f"Roulette simulator sent: {data.decode().strip()}")
 
