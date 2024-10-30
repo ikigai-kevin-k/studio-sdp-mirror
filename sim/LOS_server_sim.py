@@ -8,21 +8,14 @@ app = Flask(__name__)
 """
 Recall API design:
 { 
-# ... (Other API fields)
+
 "roulette_details":  {
    "game_state":  # 1~6
    "warning_flag":  # 1,2,4,8 and their sum
    "game_mode":  # 1,2,4,16,128,256,1024
    }
-# ... (Other API fields)
-}
 
-2024/10/02 Modified:
-game_parameters:
-- 重新命名last_updated為timestamp
-- 重新命名game_parameters為extra_game_parameter
-- 刪除了roulette_open直接用game_state來判斷是否可以get/set game parameter
-- 註解中註明了value的取值範圍
+}
 """
 
 # In production enviroment, the game parameters should be stored in database
@@ -44,6 +37,7 @@ def update_game_parameters():
         game_parameters["timestamp"] = time.time()
         time.sleep(5)  # currently hardcoded
 
+
 @app.route('/get_game_parameters', methods=['GET'])
 def get_game_parameters():
     if game_parameters["game_state"] != "6":
@@ -51,10 +45,12 @@ def get_game_parameters():
     else:
         return jsonify({"status": "error", "message": "Roulette is not open"}), 403
 
+# set game parameter only when game is closed
 @app.route('/set_game_parameter', methods=['POST'])
 def set_game_parameter():
-    # if game is not closed, then we can set the game parameter
-    if game_parameters["game_state"] != "6":
+    # Because we use arcade mode (fully-automatic), we don't set game parameters during game
+    # if game is closed, then we can set the game parameter
+    if game_parameters["game_state"] == "6":
         data = request.json
         if 'manual_end_game' in data:
             if isinstance(data['manual_end_game'], bool):
