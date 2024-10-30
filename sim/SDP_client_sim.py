@@ -3,6 +3,11 @@ import time
 import serial
 import threading
 
+
+"""
+SDP should be able to automatically deal with the command from/to LOS and roulette.
+"""
+
 class SDPClient:
     def __init__(self, LOS_server_url='http://localhost:5000', roulette_serial_port_number=None): 
         """

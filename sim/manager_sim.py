@@ -2,7 +2,7 @@ import requests
 import time
 
 """
-This is the manager simulator. It simulates the manager sending requests to the LOS.
+This is the manager simulator. It simulates the manager's manual operation of sending requests to the LOS server interface toward the SDP.
 """
 
 class ManagerSimulator:
