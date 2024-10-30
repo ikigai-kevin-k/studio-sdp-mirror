@@ -4,75 +4,89 @@ import threading
 
 app = Flask(__name__)
 
+class LOSServerSimulator:
+    """
+    Recall API design:
+    { 
 
-"""
-Recall API design:
-{ 
-
-"roulette_details":  {
-   "game_state":  # 1~6
-   "warning_flag":  # 1,2,4,8 and their sum
-   "game_mode":  # 1,2,4,16,128,256,1024
-   }
-
-}
-"""
-
-# In production enviroment, the game parameters should be stored in database
-game_parameters = {
-    "timestamp": time.time(),
-    # game status 要改名成game_state以貼合owner handbook
-    "game_state": "1", # 1~6
-    "game_mode": "1", # 1,2,4,16,128,256,1024
-    "warning_flag": "0", # 0,1,2,4,8 and their sum, i.e. 0~15
-    "extra_game_parameter": {
-        "manual_end_game": False, # 目前對應到arcade mode (fully-automatic)
+    "roulette_protocol":  {
+    "game_state":  # 1~6
+    "game number": 1~255
+    "last_winning_number": 0~36
+    "warning_flag":  # 1,2,4,8 and their sum
+    "rotor_speed":  # 0~999
+    "rotor_direction":  # 0: clockwise, 1: counterclockwise
     }
-}
+    }
+    """
 
-def update_game_parameters():
-    global game_parameters
-    while True:
-        # here can add logic to update game parameters
-        game_parameters["timestamp"] = time.time()
-        time.sleep(5)  # currently hardcoded
+    # In production enviroment, the game parameters should be stored in database
+    game_parameters = {
+        "timestamp": time.time(),
+        "game_state": "1", # 1~6, if game is not set to stop (6), then game state will repeatly show from 1 to 5
+        "game_number": "1", # 1~255
+        "last_winning_number": "0", # 0~36
+        "warning_flag": "0", # 0,1,2,4,8 and their sum, i.e. 0~15
+        "rotor_speed": "0", # 0~999
+        "rotor_direction": "0", # 0: clockwise, 1: counterclockwise
+    }
 
 
-@app.route('/get_game_parameters', methods=['GET'])
-def get_game_parameters():
-    if game_parameters["game_state"] != "6":
-        return jsonify(game_parameters)
-    else:
-        return jsonify({"status": "error", "message": "Roulette is not open"}), 403
+    def los_update_game_parameters():
+        """
+        TODO: write a fake DB to update game parameters
+        """
+        global game_parameters
+        while True:
+            # here can add logic to update game parameters
+            pass
+            game_parameters["timestamp"] = time.time()
+            print("game parameters updated")
+            time.sleep(5)  # currently hardcoded
 
-# set game parameter only when game is closed
-@app.route('/set_game_parameter', methods=['POST'])
-def set_game_parameter():
-    # Because we use arcade mode (fully-automatic), we don't set game parameters during game
-    # if game is closed, then we can set the game parameter
-    if game_parameters["game_state"] == "6":
-        data = request.json
-        if 'manual_end_game' in data:
-            if isinstance(data['manual_end_game'], bool):
-                game_parameters["extra_game_parameter"]['manual_end_game'] = data['manual_end_game']
-                return jsonify({"status": "success", "message": "Game parameter updated"}), 200
-            else:
-                return jsonify({"status": "error", "message": "Invalid value for manual_end_game"}), 400
+
+    @app.route('/get_game_parameters', methods=['GET'])
+    def los_get_game_parameters_to_sdp():
+        if game_parameters["game_state"] != "6":
+            return jsonify(game_parameters)
         else:
-            return jsonify({"status": "error", "message": "Invalid parameter"}), 400
-    else:
-        return jsonify({"status": "error", "message": "Cannot set parameters when game is closed"}), 403
+            return jsonify({"status": "error", "message": "Roulette is not open, cannot get game parameters"}), 403
 
-@app.route('/set_power_off', methods=['POST'])
-def set_power_off():
-    game_parameters["game_state"] = "6"
-    return jsonify({"status": "success", "message": "Game power off"}), 200
+    # set game parameter only when game is closed
+    @app.route('/set_power_off', methods=['POST'])
+    def los_set_power_off_to_sdp():
+        """
+        Because we use arcade mode (fully-automatic), we don't set game parameters during game
+        If game is closed, then we can set the game parameter
+        """
+        
+        if game_parameters["game_state"] != "6":
+            manager_request_data = request.json
+            if 'set_power_off' in manager_request_data:
+                if isinstance(manager_request_data['set_power_off'], bool):
+                    game_parameters['set_power_off'] = manager_request_data['set_power_off']
+                    return jsonify({"status": "success", "message": "set power off"}), 200
+                else:
+                    return jsonify({"status": "error", "message": "Invalid value for set_power_off"}), 400
+            else:
+                return jsonify({"status": "error", "message": "Invalid parameter"}), 400
+        else:
+            return jsonify({"status": "error", "message": "Cannot set power off when game is closed"}), 403
 
-@app.route('/set_power_on', methods=['POST'])
-def set_power_on():
-    game_parameters["game_state"] = "1"
-    return jsonify({"status": "success", "message": "Game power on"}), 200
+    @app.route('/set_power_on', methods=['POST'])
+    def los_set_power_on_to_sdp():
+        if game_parameters["game_state"] == "6":
+            manager_request_data = request.json
+            if isinstance(manager_request_data['set_power_on'], bool):
+                game_parameters['set_power_on'] = manager_request_data['set_power_on']
+                return jsonify({"status": "success", "message": "set power on"}), 200
+            else:
+                return jsonify({"status": "error", "message": "Invalid value for set_power_on"}), 400
+        else:
+            return jsonify({"status": "error", "message": "Cannot set power on when game is open"}), 403
+
 if __name__ == '__main__':
-    update_thread = threading.Thread(target=update_game_parameters)
+    los = LOSServerSimulator()
+    update_thread = threading.Thread(target=los.los_update_game_parameters)
     update_thread.start()
     app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
