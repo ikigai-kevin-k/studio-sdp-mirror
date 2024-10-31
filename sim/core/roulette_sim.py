@@ -15,11 +15,11 @@ class StateMachine:
     def __init__(self):
         self.data_protocol_modes = ["game_mode","operation_mode","self_test_mode", "power_setting_mode","calibration_mode", "warning_flag_mode", "statistics_mode"]
         self.power_states = ["on", "off"]
-        self.game_states = ["idle","start_game","place_bet","ball_launch","no_more_bet","winning_number","table_closed"]
+        self.game_states = ["start_game","place_bet","ball_launch","no_more_bet","winning_number","table_closed"]
         
-        self.current_game_state = "idle"
+        self.current_game_state = "start_game"
         self.current_data_protocol_mode = None 
-        self.current_power_state = "off"
+        self.current_power_state = "on"
 
     def game_state_transition_to(self, new_game_state):
         self.current_game_state = new_game_state
@@ -89,7 +89,9 @@ class RouletteSimulator(StateMachine):
         When read one line of the protocol log, determine the current state of the roulette.
         """
         data = protocol_log_line
+        print(f"Received data: {data}")
         if "*X:" in data:
+            print("Received data is *X:...")
             self.current_data_protocol_mode = "game_mode"
 
             if "*X:1" in data:
@@ -152,6 +154,7 @@ class RouletteSimulator(StateMachine):
             """
             pass
         else:
+            print(data)
             raise Exception("unknown protocol log type.")
 
     def read_ss2_protocol_log(self,file_name,line_number):
@@ -252,7 +255,7 @@ class RouletteSimulator(StateMachine):
     
     def roulette_write_data_to_sdp(self,data):
         os.write(self.masterRoulettePort, data.encode())
-        print(f"Roulette simulator sent to SDP: {data.decode().strip()}")
+        print(f"Roulette simulator sent to SDP: {data.encode().strip()}")
 
     def roulette_read_data_from_sdp(self):
         read_data = os.read(self.masterRoulettePort, 1024) # 1024 is the buffer size
@@ -272,10 +275,12 @@ class RouletteSimulator(StateMachine):
                 print("--------------after receive the next line of the log------------------")
                 if not data:
                     print("Reached end of log file. Terminating program...")
-                    os._exit(0) 
+                    return
                 else:
-
-                    self.state_discriminator(data)
+                    try:
+                        self.state_discriminator(data)
+                    except Exception as e:
+                        print(f"Error in state_discriminator: {e}")
                     self.roulette_write_data_to_sdp(data)
                     self.roulette_read_data_from_sdp()
                     self.roulette_state_display()
@@ -291,15 +296,13 @@ if __name__ == "__main__":
 
     global log_file_name 
     log_file_name = "../log/ss2_protocol.log"
-
-    roulette = RouletteSimulator()
-
-    print(f"Roulette simulator is running. Virtual port: {roulette.slaveRoulettePort}")
-    print("Press Ctrl+C to stop the simulator.")
-
     try:
+        roulette = RouletteSimulator()
         roulette.roulette_main_thread(roulette.masterRoulettePort)
+        print(f"Roulette simulator is running. Virtual port: {roulette.slaveRoulettePort}")
+        print("Press Ctrl+C to stop the simulator.")
+
         while True:
             pass # keep the thread alive
     except KeyboardInterrupt:
-        print("Stopping roulette simulator...")
+        print("Stopping roulette simulator by keyboard interrupt...")
