@@ -8,6 +8,42 @@ import threading
 SDP should be able to automatically deal with the command from/to LOS and roulette.
 """
 
+class StateMachine:
+    """
+    Refer to Cammegh SS2 Owner's handbook, p.49,
+    First, implement the naive state transition logic without any external interruptions and internal errors.
+
+    """
+
+
+    def __init__(self):
+        self.data_protocol_modes = ["game_mode","operation_mode","self_test_mode", "power_setting_mode","calibration_mode", "warning_flag_mode", "statistics_mode"]
+        self.power_states = ["on", "off"]
+        self.game_states = ["idle","start_game","place_bet","ball_launch","no_more_bet","winning_number","table_closed"]
+        self.current_game_state = "idle"
+
+    def transition(self, new_game_state):
+        self.current_game_state = new_game_state
+
+    def naive_state_machine(self):
+        """
+        Transition logic (without perturbations):
+        1->2->3->4->5->1... until 6 interrupts
+        """
+        match self.current_game_state:
+            case "start_game":
+                self.transition("place_bet")
+            case "place_bet":
+                self.transition("ball_launch")
+            case "ball_launch":
+                self.transition("no_more_bet")
+            case "no_more_bet":
+                self.transition("winning_number")
+            case "winning_number":
+                self.transition("start_game")
+            case "table_closed":
+                self.transition("idle")
+
 class SDPClient:
     def __init__(self, LOS_server_url='http://localhost:5000', roulette_serial_port_number=None): 
         """
