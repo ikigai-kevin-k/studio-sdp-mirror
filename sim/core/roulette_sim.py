@@ -84,11 +84,11 @@ class RouletteSimulator(StateMachine):
         s_name = os.ttyname(slave)
         return master, s_name
 
-    def state_discriminator(self):
+    def state_discriminator(self,protocol_log_line):
         """
         When read one line of the protocol log, determine the current state of the roulette.
         """
-        data = read_ss2_protocol_log(line_number)
+        data = protocol_log_line
         if "*X:" in data:
             self.current_data_protocol_mode = "game_mode"
 
@@ -154,6 +154,21 @@ class RouletteSimulator(StateMachine):
         else:
             raise Exception("unknown protocol log type.")
 
+    def read_ss2_protocol_log(self,file_name,line_number):
+
+        """
+        This is a utility function to read the protocol log file.
+        Should be moved to a utility module.
+        """
+        with open(file_name, "r") as file:
+            line = next(islice(file, line_number - 1, line_number), None)
+            return line if line else ""
+
+    def roulette_state_display(self):
+        print(f"Current game state: {self.current_game_state}")
+        print(f"Current data protocol mode: {self.current_data_protocol_mode}")
+        print(f"Current power state: {self.current_power_state}")
+
     def generate_protocol_data(self,mode):
 
         
@@ -175,6 +190,11 @@ class RouletteSimulator(StateMachine):
 
         match mode:
             case "X":
+
+                """
+                This part is to be deprecated when the stateful data generator is implemented.
+                """
+
                 game_states = list(range(1, 8))
                 game_numbers = list(range(1,256))
                 last_winning_numbers = list(range(0,37))
@@ -229,73 +249,56 @@ class RouletteSimulator(StateMachine):
                 """
                 pass
                 return "*M\r\n"
-            
-            
-    def virtual_serial_thread(self, master):
+    
+    def roulette_write_data_to_sdp(self,data):
+        os.write(self.masterRoulettePort, data.encode())
+        print(f"Roulette simulator sent to SDP: {data.decode().strip()}")
+
+    def roulette_read_data_from_sdp(self):
+        read_data = os.read(self.masterRoulettePort, 1024) # 1024 is the buffer size
+        if read_data:
+            print(f"Roulette supposed to be received from SDP: {read_data.decode().strip()}")
+
+    def roulette_main_thread(self,master):
+
         line_number = 1
+
+        
         while True:
             try:
-
-                data = read_ss2_protocol_log(line_number)
-                
+                print("--------------before receive the next line of the log------------------")
+                self.roulette_state_display()
+                data = self.read_ss2_protocol_log(line_number)
+                print("--------------after receive the next line of the log------------------")
                 if not data:
                     print("Reached end of log file. Terminating program...")
                     os._exit(0) 
+                else:
 
-                data = data.encode()
-                line_number += 1
-                
-                os.write(master, data)
-                print(f"Roulette simulator sent: {data.decode().strip()}")
+                    self.state_discriminator(data)
+                    self.roulette_write_data_to_sdp(data)
+                    self.roulette_read_data_from_sdp()
+                    self.roulette_state_display()
 
-                read_data = os.read(master, 1024) # 1024 is the buffer size
-                if read_data:
-                    print(f"SDP supposed to be received: {read_data.decode().strip()}")
-
-                    """
-                    TODO:
-                    - The logic of processing the received data and update the simulator's state
-                    """
-
-                time.sleep(0.1) # the sleep time should be longer than the roulette's write interval
+                    line_number += 1
+                    time.sleep(0.1) # the sleep time should be longer than the roulette's write interval
 
             except OSError:
+                Exception("virtual serial main thread unexceptionally terminated.")
                 break
-
-def read_ss2_protocol_log(line_number):
-
-    """
-    This is a utility function to read the protocol log file.
-    Should be moved to a utility module.
-    """
-
-    """
-    TODO:
-    - The current protocol log only consider the *X command, need to consider more types of commands:
-        *o for operation mode
-        *F for self-test mode
-        *P for power setting
-        *C for calibration
-        *W for winning number statistics
-        *M for pocket misfires statistics
-    """
-    with open("../log/ss2_protocol.log", "r") as file:
-        line = next(islice(file, line_number - 1, line_number), None)
-        return line if line else ""
-
-BIG_NUMBER = 1000000
-
-
 
 if __name__ == "__main__":
 
-    line_number = 1
+    global log_file_name 
+    log_file_name = "../log/ss2_protocol.log"
+
     roulette = RouletteSimulator()
 
     print(f"Roulette simulator is running. Virtual port: {roulette.slaveRoulettePort}")
     print("Press Ctrl+C to stop the simulator.")
 
     try:
+        roulette.roulette_main_thread(roulette.masterRoulettePort)
         while True:
             pass # keep the thread alive
     except KeyboardInterrupt:
