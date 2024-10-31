@@ -1,3 +1,5 @@
+
+
 # IDP
 
 ## RTMP processing FFMPEG
@@ -11,7 +13,7 @@
 
 # Latest discussion with Kimi and Steve about LOS/SDP/Roulette
 
-## LOS logic
+# LOS logic
 
 - [x] LOS determines whether it's in an open game state based on the game status transmitted by SDP. If not, it blocks SDP's GET request.
 - [ ] During an open game state, when LOS receives a POST request from the manager, it checks if it's a valid request. If valid, it responds; if invalid, it returns a 403 error.
