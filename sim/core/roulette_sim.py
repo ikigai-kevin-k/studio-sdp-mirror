@@ -13,20 +13,19 @@ class StateMachine:
     """
 
     def __init__(self):
-        self.data_protocol_modes = ["game_mode","operation_mode","self_test_mode", "power_setting_mode","calibration_mode", "warning_flag_mode", "statistics_mode"]
+        self.data_protocol_modes = ["idle","game_mode","operation_mode","self_test_mode", "power_setting_mode","calibration_mode", "warning_flag_mode", "statistics_mode"]
         self.power_states = ["on", "off"]
         self.game_states = ["start_game","place_bet","ball_launch","no_more_bet","winning_number","table_closed"]
         
-        self.current_game_state = "start_game"
+        self.current_game_state = "idle"
         self.current_data_protocol_mode = None 
-        self.current_power_state = "on"
+        self.current_power_state = "off"
 
     def game_state_transition_to(self, new_game_state):
         self.current_game_state = new_game_state
         """
         Duration, refer to log and video
-        """
-        time.sleep(1) 
+        """ 
 
     def normal_state_machine(self):
         """
@@ -89,23 +88,23 @@ class RouletteSimulator(StateMachine):
         When read one line of the protocol log, determine the current state of the roulette.
         """
         data = protocol_log_line
-        print(f"Received data: {data}")
-        if "*X:" in data:
-            print("Received data is *X:...")
+
+        if "*X;" in data:
             self.current_data_protocol_mode = "game_mode"
 
-            if "*X:1" in data:
+            if "*X;1" in data and self.current_game_state == "idle":
                 self.game_state_transition_to("start_game")
-            elif "*X:2" in data:
+            elif "*X;2" in data and self.current_game_state == "start_game":
                 self.game_state_transition_to("place_bet")
-            elif "*X:3" in data:
+            elif "*X;3" in data and self.current_game_state == "place_bet":
                 self.game_state_transition_to("ball_launch")
-            elif "*X:4" in data:
+            elif "*X;4" in data and self.current_game_state == "ball_launch":
                 self.game_state_transition_to("no_more_bet")
-            elif "*X:5" in data:
+            elif "*X;5" in data and self.current_game_state == "no_more_bet":
                 self.game_state_transition_to("winning_number")
-            elif "*X:6" in data:
+            elif "*X;6":
                 self.game_state_transition_to("table_closed")
+                self.game_state_transition_to("idle")
             else:
                 raise Exception("unknown game state.")
         elif "*o" in data:
@@ -125,14 +124,16 @@ class RouletteSimulator(StateMachine):
             """
             Power setting mode
             """
-            if "*P:1" in data:
+            if "*P:1" in data and self.current_power_state == "off":
                 self.current_power_state = "on"
                 """In arcade mode, power on will trigger table open"""
                 self.game_state_transition_to("idle")
+                self.game_state_transition_to("start_game")
             elif "*P:0" in data:
                 self.current_power_state = "off"
                 """off will trigger table force close"""
                 self.game_state_transition_to("table_closed")
+                self.game_state_transition_to("idle")
         elif "*C" in data:
             self.current_data_protocol_mode = "calibration_mode"
             """
@@ -212,7 +213,7 @@ class RouletteSimulator(StateMachine):
                 rotor_speed = random.choice(rotor_speeds)
                 rotor_direction = random.choice(rotor_directions)
 
-                return f"*X:{game_state:01d}:{game_number:03d}:{last_winning_number:02d}:{warning_flag}:{rotor_speed:03d}:{rotor_direction:01d}\r\n"
+                return f"*X;{game_state:01d}:{game_number:03d}:{last_winning_number:02d}:{warning_flag}:{rotor_speed:03d}:{rotor_direction:01d}\r\n"
 
             case "o":
                 """
@@ -265,8 +266,6 @@ class RouletteSimulator(StateMachine):
     def roulette_main_thread(self,master):
 
         line_number = 1
-
-        
         while True:
             try:
                 print("--------------before receive the next line of the log------------------")
@@ -281,13 +280,13 @@ class RouletteSimulator(StateMachine):
                         self.state_discriminator(data)
                     except Exception as e:
                         print(f"Error in state_discriminator: {e}")
+                        continue
                     self.roulette_write_data_to_sdp(data)
                     self.roulette_read_data_from_sdp()
                     self.roulette_state_display()
 
                     line_number += 1
                     time.sleep(0.1) # the sleep time should be longer than the roulette's write interval
-
             except OSError:
                 Exception("virtual serial main thread unexceptionally terminated.")
                 break
