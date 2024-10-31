@@ -12,7 +12,6 @@ class StateMachine:
 
     """
 
-
     def __init__(self):
         self.data_protocol_modes = ["game_mode","operation_mode","self_test_mode", "power_setting_mode","calibration_mode", "warning_flag_mode", "statistics_mode"]
         self.power_states = ["on", "off"]
@@ -74,8 +73,9 @@ class StateMachine:
 
 class RouletteSimulator(StateMachine):
     def __init__(self):
+        super().__init__()
         self.masterRoulettePort, self.slaveRoulettePort = self.create_virtual_serial_port()
-        self.thread = threading.Thread(target=self.virtual_serial_thread, args=(self.masterRoulettePort,))
+        self.thread = threading.Thread(target=self.roulette_main_thread, args=(self.masterRoulettePort,))
         self.thread.daemon = True
         self.thread.start()
 
@@ -268,7 +268,7 @@ class RouletteSimulator(StateMachine):
             try:
                 print("--------------before receive the next line of the log------------------")
                 self.roulette_state_display()
-                data = self.read_ss2_protocol_log(line_number)
+                data = self.read_ss2_protocol_log(log_file_name,line_number)
                 print("--------------after receive the next line of the log------------------")
                 if not data:
                     print("Reached end of log file. Terminating program...")
