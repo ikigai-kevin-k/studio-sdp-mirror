@@ -90,6 +90,8 @@ class RouletteSimulator:
                 """
                 pass
                 return "*M\r\n"
+            
+            
     def virtual_serial_thread(self, master):
         line_number = 1
         while True:
