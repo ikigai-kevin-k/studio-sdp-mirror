@@ -3,8 +3,29 @@ import os
 import pty
 import threading
 import random
-from itertools import islice
+import logging
 
+# 在文件开头添加颜色常量
+RED = '\033[91m'
+GREEN = '\033[92m'
+RESET = '\033[0m'
+YELLOW = '\033[93m'   # 黄色
+BLUE = '\033[94m'     # 蓝色
+MAGENTA = '\033[95m'  # 紫色
+GRAY = '\033[90m'     # 灰色
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("roulette_sim.log"),
+        logging.StreamHandler()
+    ]
+)
+
+def log_with_color(message):
+    # clean_message = message.replace(RED, '').replace(GREEN, '').replace(YELLOW, '').replace(BLUE, '').replace(MAGENTA, '').replace(GRAY, '').replace(RESET, '')
+    logging.info(message)
 class StateMachine:
     """
     Refer to Cammegh SS2 Owner's handbook, p.49,
@@ -33,6 +54,12 @@ class StateMachine:
         1->2->3->4->5->1... until 6 interrupts
         """
         match self.current_game_state:
+            case "idle":
+                self.transition("start_game")
+                """
+                Duration, refer to log and video
+                """
+                pass
             case "start_game":
                 self.transition("place_bet")
                 """
@@ -90,7 +117,7 @@ class RouletteSimulator(StateMachine):
         data = protocol_log_line
 
         if "*X;" in data:
-            self.current_data_protocol_mode = "game_mode"
+            self.current_data_protocol_mode = f"{GREEN}game_mode{RESET}"
 
             if "*X;1" in data and self.current_game_state == "idle":
                 self.game_state_transition_to("start_game")
@@ -120,22 +147,31 @@ class RouletteSimulator(StateMachine):
             """
             pass
         elif "*P" in data:
-            self.current_data_protocol_mode = "power_setting_mode"
+            self.current_data_protocol_mode = f"{MAGENTA}power_setting_mode{RESET}"
             """
             Power setting mode
             """
-            if "*P:1" in data and self.current_power_state == "off":
+            if "*P 1" in data and self.current_power_state == "off":
+                """add a confition: the next line is *P OK"""
                 self.current_power_state = "on"
                 """In arcade mode, power on will trigger table open"""
                 self.game_state_transition_to("idle")
                 self.game_state_transition_to("start_game")
-            elif "*P:0" in data:
+            elif "*P 0" in data:
+                """add a condition: the next line is *P OK"""
                 self.current_power_state = "off"
                 """off will trigger table force close"""
                 self.game_state_transition_to("table_closed")
                 self.game_state_transition_to("idle")
+            elif "*P OK" in data:
+                pass
+            else:
+                log_with_color(data)
+                raise Exception("unknown power state.")
+                                
+
         elif "*C" in data:
-            self.current_data_protocol_mode = "calibration_mode"
+            self.current_data_protocol_mode = f"{BLUE}calibration_mode{RESET}"
             """
             Calibration mode
             """
@@ -155,24 +191,36 @@ class RouletteSimulator(StateMachine):
             """
             pass
         else:
-            print(data)
+            log_with_color(data)
             raise Exception("unknown protocol log type.")
 
-    def read_ss2_protocol_log(self,file_name,line_number):
-
+    def read_ss2_protocol_log(self, file_name, line_number):
         """
         This is a utility function to read the protocol log file.
         Should be moved to a utility module.
         """
-        with open(file_name, "r") as file:
-            line = next(islice(file, line_number - 1, line_number), None)
-            return line if line else ""
+        try:
+            with open(file_name, "r") as file:
+                # 使用for循环跳过之前的行
+                for _ in range(line_number - 1):
+                    next(file)
+                # 读取当前行
+                line = next(file, None)
+                if line:
+                    return line.strip()
+                log_with_color("No more lines to read")
+                return ""
+        except Exception as e:
+            log_with_color(f"Error reading log file: {e}")
+            return ""
 
     def roulette_state_display(self):
-        print(f"Current game state: {self.current_game_state}")
-        print(f"Current data protocol mode: {self.current_data_protocol_mode}")
-        print(f"Current power state: {self.current_power_state}")
-
+        log_with_color(f"{RESET}Current{GREEN} {YELLOW}game state:{RESET} {self.current_game_state}{RESET}")
+        log_with_color(f"{RESET}Current{GREEN} {BLUE}data protocol mode:{RESET} {self.current_data_protocol_mode}{RESET}")
+        if self.current_power_state == "on":
+            log_with_color(f"{RESET}Current{GREEN} {MAGENTA}power state:{RESET} {GREEN}{self.current_power_state}{RESET}")
+        elif self.current_power_state == "off":
+            log_with_color(f"{RESET}Current{RED} {MAGENTA}power state:{RESET} {RED}{self.current_power_state}{RESET}")
     def generate_protocol_data(self,mode):
 
         
@@ -256,52 +304,50 @@ class RouletteSimulator(StateMachine):
     
     def roulette_write_data_to_sdp(self,data):
         os.write(self.masterRoulettePort, data.encode())
-        print(f"Roulette simulator sent to SDP: {data.encode().strip()}")
+        log_with_color(f"Roulette simulator sent to SDP: {data.encode().strip()}")
 
     def roulette_read_data_from_sdp(self):
         read_data = os.read(self.masterRoulettePort, 1024) # 1024 is the buffer size
         if read_data:
-            print(f"Roulette supposed to be received from SDP: {read_data.decode().strip()}")
+            log_with_color(f"Roulette supposed to be received from SDP: {read_data.decode().strip()}")
 
-    def roulette_main_thread(self,master):
-
+    def roulette_main_thread(self, master):
         line_number = 1
         while True:
             try:
-                print("--------------before receive the next line of the log------------------")
+                log_with_color(f"{GREEN}Line number: {line_number}{RESET}")
                 self.roulette_state_display()
                 data = self.read_ss2_protocol_log(log_file_name,line_number)
-                print("--------------after receive the next line of the log------------------")
+  
                 if not data:
-                    print("Reached end of log file. Terminating program...")
-                    return
-                else:
-                    try:
-                        self.state_discriminator(data)
-                    except Exception as e:
-                        print(f"Error in state_discriminator: {e}")
-                        continue
+                    log_with_color("Reached end of log file. Terminating program...")
+                    os._exit(0)  # 强制退出程序
+                    
+                try:
+                    self.state_discriminator(data)
                     self.roulette_write_data_to_sdp(data)
                     self.roulette_read_data_from_sdp()
-                    self.roulette_state_display()
-
-                    line_number += 1
-                    time.sleep(0.1) # the sleep time should be longer than the roulette's write interval
-            except OSError:
-                Exception("virtual serial main thread unexceptionally terminated.")
+                except Exception as e:
+                    log_with_color(f"Error processing line {line_number}: {e}")
+                
+                line_number += 1
+                time.sleep(0.1)
+                
+            except OSError as e:
+                log_with_color(f"Serial port error: {e}")
                 break
 
 if __name__ == "__main__":
 
     global log_file_name 
-    log_file_name = "../log/ss2_protocol.log"
+    log_file_name = "../log/ss2_protocol2.log"
     try:
         roulette = RouletteSimulator()
         roulette.roulette_main_thread(roulette.masterRoulettePort)
-        print(f"Roulette simulator is running. Virtual port: {roulette.slaveRoulettePort}")
-        print("Press Ctrl+C to stop the simulator.")
+        log_with_color(f"Roulette simulator is running. Virtual port: {roulette.slaveRoulettePort}")
+        log_with_color("Press Ctrl+C to stop the simulator.")
 
         while True:
             pass # keep the thread alive
     except KeyboardInterrupt:
-        print("Stopping roulette simulator by keyboard interrupt...")
+        log_with_color("Stopping roulette simulator by keyboard interrupt...")
