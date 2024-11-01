@@ -5,20 +5,20 @@ import threading
 import random
 import logging
 
-# 在文件开头添加颜色常量
+#  color constants
 RED = '\033[91m'
 GREEN = '\033[92m'
 RESET = '\033[0m'
-YELLOW = '\033[93m'   # 黄色
-BLUE = '\033[94m'     # 蓝色
-MAGENTA = '\033[95m'  # 紫色
-GRAY = '\033[90m'     # 灰色
+YELLOW = '\033[93m'  
+BLUE = '\033[94m'    
+MAGENTA = '\033[95m'  
+GRAY = '\033[90m'     
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler("roulette_sim.log"),
+        logging.FileHandler("../log/sim/roulette_sim.log", mode="w"),
         logging.StreamHandler()
     ]
 )
@@ -43,6 +43,9 @@ class StateMachine:
         self.current_power_state = "off"
 
     def game_state_transition_to(self, new_game_state):
+        """
+        Redundant function, depreciated
+        """
         self.current_game_state = new_game_state
         """
         Duration, refer to log and video
@@ -51,7 +54,9 @@ class StateMachine:
     def normal_state_machine(self):
         """
         Transition logic (without perturbations):
-        1->2->3->4->5->1... until 6 interrupts
+        1->2->3->4->5->2->3->4->5->... until 6 interrupts
+
+        Depreciated: replaced by the state_discriminator in RouletteSimulator
         """
         match self.current_game_state:
             case "idle":
@@ -85,7 +90,7 @@ class StateMachine:
                 """
                 pass
             case "winning_number":
-                self.transition("start_game")
+                self.transition("place_bet")
                 """
                 Duration, refer to log and video
                 """
@@ -110,29 +115,115 @@ class RouletteSimulator(StateMachine):
         s_name = os.ttyname(slave)
         return master, s_name
 
+
     def state_discriminator(self,protocol_log_line):
         """
         When read one line of the protocol log, determine the current state of the roulette.
         """
+
+        """
+        TODO:
+        - Add assertions to check the consistency of the state transitions between the state machine and the protocol log
+            - Currently, consider the state transition without time delay
+            - Assert the current game state whether obeys the expected state transition logic  
+        """
+
         data = protocol_log_line
-
+        previous_game_state = self.current_game_state
+        previous_data_protocol_mode = self.current_data_protocol_mode
+        print(data,previous_game_state)
         if "*X;" in data:
-            self.current_data_protocol_mode = f"{GREEN}game_mode{RESET}"
+            self.current_data_protocol_mode = f"game_mode"
 
-            if "*X;1" in data and self.current_game_state == "idle":
-                self.game_state_transition_to("start_game")
-            elif "*X;2" in data and self.current_game_state == "start_game":
-                self.game_state_transition_to("place_bet")
-            elif "*X;3" in data and self.current_game_state == "place_bet":
-                self.game_state_transition_to("ball_launch")
-            elif "*X;4" in data and self.current_game_state == "ball_launch":
-                self.game_state_transition_to("no_more_bet")
-            elif "*X;5" in data and self.current_game_state == "no_more_bet":
-                self.game_state_transition_to("winning_number")
-            elif "*X;6":
-                self.game_state_transition_to("table_closed")
-                self.game_state_transition_to("idle")
+            if "*X;1" in data:
+                try:
+                    """
+                    case 1: previous power state is on and
+                            previous data protocol mode is power setting mode, and
+                            previous game mode is idle
+                    or
+                    case 2: previous power state is on, and
+                            previous data protocol mode is None, and
+                            previous game mode is idle
+                    or 
+                    case 3: previous power state is on, and
+                            previous data protocol mode is game_mode, and
+                            previous game mode is table_closed
+                    """
+
+                    # assert((self.current_power_state == "on" and 
+                    #             previous_data_protocol_mode == "power_setting_mode" and 
+                    #             previous_game_state == "idle") or 
+                    #         (self.current_power_state == "on" and 
+                    #             previous_data_protocol_mode is None and 
+                    #             previous_game_state == "idle") or
+                    #         (self.current_power_state == "on" and 
+                    #             previous_data_protocol_mode == "game_mode" and 
+                    #             previous_game_state == "table_closed"))
+                    assert previous_game_state == "idle"
+
+                except Exception as e:
+                    log_with_color(f"Error asserting state transition: {e}")
+                    # print(data,previous_game_state)
+                    os._exit(1)
+                # self.game_state_transition_to("start_game")
+                self.current_game_state = "start_game"
+            elif "*X;2" in data:
+                try:
+                    assert previous_game_state == "idle"
+                except Exception as e:
+                    log_with_color(f"Error asserting state transition: {e}")
+                    # print(data,previous_game_state)
+                    os._exit(1)
+                # self.game_state_transition_to("place_bet")
+                self.current_game_state = "place_bet"
+            elif "*X;3" in data:
+                try:
+                    assert previous_game_state == "start_game"\
+                        or previous_game_state == "winning_number"
+                except Exception as e:
+                    log_with_color(f"Error asserting state transition: {e}")
+                    # print(data,previous_game_state)
+                    os._exit(1)
+                # self.game_state_transition_to("ball_launch")
+                self.current_game_state = "ball_launch"
+            elif "*X;4" in data:
+                try:
+                    assert previous_game_state == "place_bet"
+                except Exception as e:
+                    log_with_color(f"Error asserting state transition: {e}")
+                    # print(data,previous_game_state)
+                    os._exit(1)
+                # self.game_state_transition_to("no_more_bet")
+                self.current_game_state = "no_more_bet"
+            elif "*X;5" in data:
+                try:
+                    assert previous_game_state == "ball_launch"
+                except Exception as e:
+                    log_with_color(f"Error asserting state transition: {e}")
+                    # print(data,previous_game_state)
+                    os._exit(1)
+                # self.game_state_transition_to("winning_number")
+                self.current_game_state = "winning_number"
+            elif "*X;6" in data:
+                try:
+                    assert previous_game_state == "start_game"\
+                          or previous_game_state == "place_bet"\
+                          or previous_game_state == "ball_launch"\
+                          or previous_game_state == "no_more_bet"\
+                          or previous_game_state == "winning_number"
+
+                except Exception as e:
+                    log_with_color(f"Error asserting state transition: {e}")
+                    # print(data,previous_game_state)
+                    os._exit(1)
+
+                # self.game_state_transition_to("table_closed")
+                self.current_game_state = "table_closed"
+                # self.game_state_transition_to("idle")
+                self.current_game_state = "idle"
             else:
+                print(data,previous_game_state)
                 raise Exception("unknown game state.")
         elif "*o" in data:
             self.current_data_protocol_mode = "operation_mode"
@@ -147,7 +238,7 @@ class RouletteSimulator(StateMachine):
             """
             pass
         elif "*P" in data:
-            self.current_data_protocol_mode = f"{MAGENTA}power_setting_mode{RESET}"
+            self.current_data_protocol_mode = f"power_setting_mode"
             """
             Power setting mode
             """
@@ -155,23 +246,28 @@ class RouletteSimulator(StateMachine):
                 """add a confition: the next line is *P OK"""
                 self.current_power_state = "on"
                 """In arcade mode, power on will trigger table open"""
-                self.game_state_transition_to("idle")
-                self.game_state_transition_to("start_game")
-            elif "*P 0" in data:
+                # self.game_state_transition_to("idle")
+                self.current_game_state = "idle"
+                self.current_data_protocol_mode = "game_mode"
+            elif "*P 0" in data and self.current_power_state == "on":
                 """add a condition: the next line is *P OK"""
                 self.current_power_state = "off"
                 """off will trigger table force close"""
-                self.game_state_transition_to("table_closed")
-                self.game_state_transition_to("idle")
+                # self.game_state_transition_to("table_closed")
+                self.current_game_state = "table_closed"
+                self.current_data_protocol_mode = None
             elif "*P OK" in data:
-                pass
+                self.current_data_protocol_mode = "power_setting_mode"
+                self.current_power_state = "on"
+                # self.game_state_transition_to('idle')
+                self.current_game_state = "idle"
             else:
                 log_with_color(data)
                 raise Exception("unknown power state.")
-                                
+            
 
         elif "*C" in data:
-            self.current_data_protocol_mode = f"{BLUE}calibration_mode{RESET}"
+            self.current_data_protocol_mode = "calibration_mode"
             """
             Calibration mode
             """
@@ -182,12 +278,19 @@ class RouletteSimulator(StateMachine):
             Warning flag mode
             Restart the game
             """
-            self.game_state_transition_to("start_game")
+            # self.game_state_transition_to("start_game")
+            self.current_game_state = "start_game"
             pass
         elif "*M" in data:
             self.current_data_protocol_mode = "statistics_mode"
             """
             Statistics mode
+            """
+            pass
+
+        elif data.strip().isdigit():                 
+            """
+            The number of the winning number
             """
             pass
         else:
@@ -201,10 +304,10 @@ class RouletteSimulator(StateMachine):
         """
         try:
             with open(file_name, "r") as file:
-                # 使用for循环跳过之前的行
+               
                 for _ in range(line_number - 1):
                     next(file)
-                # 读取当前行
+                
                 line = next(file, None)
                 if line:
                     return line.strip()
@@ -221,6 +324,7 @@ class RouletteSimulator(StateMachine):
             log_with_color(f"{RESET}Current{GREEN} {MAGENTA}power state:{RESET} {GREEN}{self.current_power_state}{RESET}")
         elif self.current_power_state == "off":
             log_with_color(f"{RESET}Current{RED} {MAGENTA}power state:{RESET} {RED}{self.current_power_state}{RESET}")
+    
     def generate_protocol_data(self,mode):
 
         
@@ -340,7 +444,7 @@ class RouletteSimulator(StateMachine):
 if __name__ == "__main__":
 
     global log_file_name 
-    log_file_name = "../log/ss2_protocol2.log"
+    log_file_name = "../log/ss2/ss2_protocol_instant_transition.log"
     try:
         roulette = RouletteSimulator()
         roulette.roulette_main_thread(roulette.masterRoulettePort)
@@ -351,3 +455,5 @@ if __name__ == "__main__":
             pass # keep the thread alive
     except KeyboardInterrupt:
         log_with_color("Stopping roulette simulator by keyboard interrupt...")
+    except Exception as e:
+        log_with_color(f"Unexpected error: {e}")
