@@ -31,6 +31,14 @@ class LOSServerSimulator:
         "rotor_direction": "0", # 0: clockwise, 1: counterclockwise
     }
 
+    def getRollTokenAndRoll(self):
+        pass
+
+    def getResultTokenAndRead(self):
+        pass
+
+    def push(self):
+        pass
 
     def los_update_game_parameters():
         """

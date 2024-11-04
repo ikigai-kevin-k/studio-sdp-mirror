@@ -14,17 +14,24 @@ BLUE = '\033[94m'
 MAGENTA = '\033[95m'  
 GRAY = '\033[90m'     
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("../log/sim/roulette_sim.log", mode="w"),
-        logging.StreamHandler()
-    ]
-)
+class ColorfulLogger(logging.Logger):
+    def __init__(self):
+        super().__init__(name="roulette_sim_colorful_logger")
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler("../log/sim/roulette_sim.log", mode="w"),
+                logging.StreamHandler()
+            ]
+        )
 
-def log_with_color(message):
-     logging.info(message)
+    def log_with_color(self,message):
+        self.info(message)
+
+colorful_logger = ColorfulLogger()
+log_with_color = colorful_logger.log_with_color
+
 class StateMachine:
     """
     Refer to Cammegh SS2 Owner's handbook, p.49,
@@ -43,7 +50,7 @@ class StateMachine:
     X5_MAX_WAITING_TIME = 4
     X6_MAX_WAITING_TIME = 100
 
-    LOG_FREQUENCY = 0. # default: 0.5s 1 times
+    LOG_FREQUENCY = 0.5 # default: 0.5s 1 times
 
     def __init__(self):
         self.data_protocol_modes = ["power_setting_mode","game_mode","operation_mode","self_test_mode","calibration_mode", "warning_flag_mode", "statistics_mode"]
@@ -87,7 +94,16 @@ class RouletteSimulator(StateMachine):
         self.x5_state_transition_waiting_counter = 0
         self.x6_state_transition_waiting_counter = 0
         self.p0_delay_counter = 0
-        
+
+    def force_restart_game(self):
+        pass
+
+    def force_close_table(self):
+        pass
+
+    def warning_flag_handler(self):
+        pass
+
     def state_discriminator(self,protocol_log_line):
         """
         When read one line of the protocol log, determine the current state of the roulette.
@@ -165,6 +181,7 @@ class RouletteSimulator(StateMachine):
                             self.x1_state_transition_waiting_counter += 1
                             return
                         else:
+                            # self.force_restart_game()
                             raise Exception(f"{RED}state transition time too long, there may be something wrong.{RESET}")
                 except Exception as e:
                     log_with_color(f"Error asserting state transition: {e}")
@@ -198,6 +215,7 @@ class RouletteSimulator(StateMachine):
                             self.x2_state_transition_waiting_counter += 1
                             return
                         else:
+                            # self.force_restart_game()
                             raise Exception(f"{RED}state transition time too long, there may be something wrong.{RESET}")
                 except Exception as e:
                     log_with_color(f"Error asserting state transition: {e}")
@@ -217,6 +235,7 @@ class RouletteSimulator(StateMachine):
                             self.x3_state_transition_waiting_counter += 1
                             return
                         else:
+                            # self.force_restart_game()
                             raise Exception(f"{RED}state transition time too long, there may be something wrong.{RESET}")
                 except Exception as e:
                     log_with_color(f"Error asserting state transition: {e}")
@@ -235,6 +254,7 @@ class RouletteSimulator(StateMachine):
                             self.x4_state_transition_waiting_counter += 1
                             return
                         else:
+                            # self.force_restart_game()
                             raise Exception(f"{RED}state transition time too long, there may be something wrong.{RESET}")
                 except Exception as e:
                     log_with_color(f"Error asserting state transition: {e}")
@@ -252,6 +272,7 @@ class RouletteSimulator(StateMachine):
                             self.x5_state_transition_waiting_counter += 1
                             return
                         else:
+                            # self.force_restart_game()
                             raise Exception(f"{RED}state transition time too long, there may be something wrong.{RESET}")
                 except Exception as e:
                     log_with_color(f"Error asserting state transition: {e}")
@@ -273,6 +294,7 @@ class RouletteSimulator(StateMachine):
                             self.x6_state_transition_waiting_counter += 1
                             return
                         else:
+                            # self.force_close_table()
                             raise Exception(f"{RED}state transition time too long, there may be something wrong.{RESET}")
                 except Exception as e:
                     log_with_color(f"Error asserting state transition: {e}")
@@ -425,7 +447,6 @@ class RouletteSimulator(StateMachine):
 if __name__ == "__main__":
 
     global log_file_name 
-    # log_file_name = "../log/ss2/ss2_protocol_instant_transition.log"
     log_file_name = "../log/ss2/ss2_protocol2.log"
     try:
         roulette = RouletteSimulator()

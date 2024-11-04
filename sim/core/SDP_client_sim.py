@@ -14,6 +14,9 @@ class StateMachine:
 
     """
 
+    """
+    To be depreciated, replaced by RouletteSimulator state machine
+    """
 
     def __init__(self):
         self.data_protocol_modes = ["game_mode","operation_mode","self_test_mode", "power_setting_mode","calibration_mode", "warning_flag_mode", "statistics_mode"]
@@ -64,7 +67,26 @@ class SDPClient:
             print(f"Get game parameters error: {e}")
             return None
 
+    def SDP_send_p1_to_roulette(self, manual_end_game, use_command_file=True):
+        """
+        let roulette power on and start a new table
+        When roulette receives power on command when the power is off, it will start a new table (then read the log in simulation mode)
+        When power is on, don' care.
+        """
+        pass
+
+    def SDP_send_p0_to_roulette(self, manual_end_game, use_command_file=True):
+        """
+        let roulette power off (force close the table)
+        When roulette receives power off command when the power is on, it will forceclose the current table (then close the log file)
+        When power is off, don't care.
+        """
+        pass
+
     def sdp_send_to_roulette(self, manual_end_game, use_command_file=True):
+        """
+        To be depreciated and replaced by SDP_send_p1_to_roulette and SDP_send_p0_to_roulette
+        """
         """
         To be refactored: rename c to P (stands for power on/off)
         """
