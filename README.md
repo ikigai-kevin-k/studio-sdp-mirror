@@ -9,4 +9,4 @@ python3 roulette_sim.py
 The SDP CLI interface:
 ![SDP CLI](img/sdp-interface-cli.png)
 The terminal log with color:
-![terminal log with color](img/color-log.png)
+![terminal log with color](img/correct_log.png)
