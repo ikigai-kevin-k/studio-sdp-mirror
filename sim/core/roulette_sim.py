@@ -96,13 +96,41 @@ class RouletteSimulator(StateMachine):
         self.p0_delay_counter = 0
 
     def force_restart_game(self):
+        """
+        Read from the log line containing "*X;1"
+        """
+        self.current_game_state = "start_game"
         pass
 
     def force_close_table(self):
+        """
+        Read from the log line containing "*X;6"
+        """
+        self.current_game_state = "table_closed"
         pass
 
-    def warning_flag_handler(self):
+    def force_power_off(self):
+        """
+        Read from the log line containing "*P 0"
+        """
+        self.current_power_state = "off"
         pass
+
+    def power_on(self):
+        """
+        Read from the log line containing "*P 1"
+        """
+        self.current_power_state = "on"
+        pass
+
+    def warning_flag_handler(self,data):
+        """
+        Read from the log line containing "*W"
+        """
+        if data.split(";")[4] == "0":
+            return
+        else:
+            self.force_restart_game()
 
     def state_discriminator(self,protocol_log_line):
         """
