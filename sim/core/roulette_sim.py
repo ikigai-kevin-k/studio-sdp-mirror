@@ -78,44 +78,57 @@ class RouletteSimulator(StateMachine):
         """
 
         data = protocol_log_line
-        # previous_game_state = self.current_game_state
-        # previous_data_protocol_mode = self.current_data_protocol_mode
-        # print(data,previous_game_state)
+
         print("\n")
-        print(data,self.current_data_protocol_mode,self.current_game_state)
+        print("log line:",data)
+        print("current_data_protocol_mode:",self.current_data_protocol_mode)
+        print("current_game_state:",self.current_game_state)
+        print("current_power_state:",self.current_power_state)
+
+        import pdb
+        pdb.set_trace()
+
         if "*X;" in data:
-            assert self.current_data_protocol_mode == "power_setting_mode"
+            # assert self.current_data_protocol_mode == "power_setting_mode"
             
             if "*X;1" in data:
                 print("1\n")
                 try:
-                    assert self.current_game_state == "table_closed" and self.current_data_protocol_mode == "power_setting_mode" and self.current_power_state == "on"
-
+                    assert self.current_game_state == "table_closed" and \
+                           self.current_data_protocol_mode == "power_setting_mode" and \
+                          self.current_power_state == "on"
+                    self.current_data_protocol_mode = "game_mode"
+                    self.current_game_state = "start_game"
                 except Exception as e:
                     print("1\n")
                     log_with_color(f"Error asserting state transition: {e}")
                     # print(data,previous_game_state)
                     os._exit(1)
                 # self.game_state_transition_to("start_game")
-                self.current_data_protocol_mode = "game_mode"
-                self.current_game_state = "start_game"
-
+                # self.current_data_protocol_mode = "game_mode"
+                # self.current_game_state = "start_game"
+                return
+            
             elif "*X;2" in data:
                 print("2\n")
-                try:
-                    assert self.current_data_protocol_mode == "game_mode" and self.current_game_state == "start_game"
-                except Exception as e:
-                    print("2\n")
-                    log_with_color(f"Error asserting state transition: {e}")
-                    # print(data,previous_game_state)
-                    os._exit(1)
-                # self.game_state_transition_to("place_bet")
-                # previous_game_state = self.current_game_state
+                # try:
+                #     assert self.current_data_protocol_mode == "game_mode" and self.current_game_state == "start_game" and self.current_power_state == "on"
+                # except Exception as e:
+                #     print("2\n")
+                #     log_with_color(f"Error asserting state transition: {e}")
+
+                #     os._exit(1)
+
                 self.current_game_state = "place_bet"
+                return 
+            
+            
             elif "*X;3" in data:
                 print("3\n")
                 try:
                     assert self.current_game_state == "place_bet"
+                    self.current_game_state = "ball_launch"
+                    return
                 except Exception as e:
                     print("3\n")
                     log_with_color(f"Error asserting state transition: {e}")
@@ -123,11 +136,12 @@ class RouletteSimulator(StateMachine):
                     os._exit(1)
                 # self.game_state_transition_to("ball_launch")
                 # previous_game_state = self.current_game_state
-                self.current_game_state = "ball_launch"
             elif "*X;4" in data:
                 print("4\n")
                 try:
                     assert self.current_game_state == "ball_launch"
+                    self.current_game_state = "no_more_bet"
+                    return
                 except Exception as e:
                     print("4\n")
                     log_with_color(f"Error asserting state transition: {e}")
@@ -135,11 +149,13 @@ class RouletteSimulator(StateMachine):
                     os._exit(1)
                 # self.game_state_transition_to("no_more_bet")
                 # previous_game_state = self.current_game_state
-                self.current_game_state = "no_more_bet"
+
             elif "*X;5" in data:
                 print("5\n")
                 try:
                     assert self.current_game_state == "no_more_bet"
+                    self.current_game_state = "winning_number"
+                    return
                 except Exception as e:
                     print("5\n")
                     log_with_color(f"Error asserting state transition: {e}")
@@ -147,7 +163,7 @@ class RouletteSimulator(StateMachine):
                     os._exit(1)
                 # self.game_state_transition_to("winning_number")
                 # previous_game_state = self.current_game_state
-                self.current_game_state = "winning_number"
+
             elif "*X;6" in data:
                 print("6\n")
                 try:
@@ -156,7 +172,8 @@ class RouletteSimulator(StateMachine):
                           or self.current_game_state == "ball_launch"\
                           or self.current_game_state == "no_more_bet"\
                           or self.current_game_state == "winning_number"
-
+                    self.current_game_state = "table_closed"
+                    return
                 except Exception as e:
                     print("6\n")
                     log_with_color(f"Error asserting state transition: {e}")
@@ -165,7 +182,7 @@ class RouletteSimulator(StateMachine):
 
                 # self.game_state_transition_to("table_closed")
                 # previous_game_state = self.current_game_state
-                self.current_game_state = "table_closed"
+
                 # self.game_state_transition_to("idle")
             else:
                 # print(data,previous_game_state)
@@ -189,27 +206,24 @@ class RouletteSimulator(StateMachine):
             """
             
             if "*P 1" in data and self.current_power_state == "off":
-                """add a confition: the next line is *P OK"""
+                """add a condition: the next line is *P OK"""
                 self.current_power_state = "on"
                 """In arcade mode, power on will trigger table open"""
                 self.current_data_protocol_mode = "power_setting_mode"
+                return
             elif "*P 0" in data and self.current_power_state == "on":
                 """add a condition: the next line is *P OK"""
                 self.current_power_state = "off"
                 """off will trigger table force close"""
                 self.current_game_state = "table_closed"
                 self.current_data_protocol_mode = "power_setting_mode"
+                return
             elif "*P OK" in data:
                 pass
-                # self.current_data_protocol_mode = "power_setting_mode"
-                # self.current_power_state = "on"
-                # self.current_game_state = "table_closed"
-                # self.game_state_transition_to('idle')
-                # self.current_game_state = "idle"
+                return
             else:
                 log_with_color(data)
-                raise Exception("unknown power state.")
-            
+                raise Exception("unknown power state.")            
 
         elif "*C" in data:
             self.current_data_protocol_mode = "calibration_mode"
@@ -365,6 +379,7 @@ class RouletteSimulator(StateMachine):
         while True:
             try:
                 log_with_color(f"{GREEN}Line number: {line_number}{RESET}")
+                print("\n")
                 self.roulette_state_display()
                 data = self.read_ss2_protocol_log(log_file_name,line_number)
   
@@ -392,13 +407,14 @@ if __name__ == "__main__":
     log_file_name = "../log/ss2/ss2_protocol_instant_transition.log"
     try:
         roulette = RouletteSimulator()
-        roulette.roulette_main_thread(roulette.masterRoulettePort)
         log_with_color(f"Roulette simulator is running. Virtual port: {roulette.slaveRoulettePort}")
         log_with_color("Press Ctrl+C to stop the simulator.")
 
-        while True:
-            pass # keep the thread alive
-    except KeyboardInterrupt:
-        log_with_color("Stopping roulette simulator by keyboard interrupt...")
+        stop_event = threading.Event()
+        try:
+            stop_event.wait()  # 等待中断信号
+        except KeyboardInterrupt:
+            log_with_color("Stopping roulette simulator by keyboard interrupt...")
+            
     except Exception as e:
         log_with_color(f"Unexpected error: {e}")
