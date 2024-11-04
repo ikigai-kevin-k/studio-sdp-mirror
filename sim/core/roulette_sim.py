@@ -31,6 +31,19 @@ class StateMachine:
     First, implement the naive state transition logic without any external interruptions and internal errors.
 
     """
+    P1_MAX_WAITING_TIME = 2
+    P0_MAX_WAITING_TIME = 2
+
+    P0_MAX_DELAY = 5
+    # state transition waiting time
+    X1_MAX_WAITING_TIME = 17
+    X2_MAX_WAITING_TIME = 21
+    X3_MAX_WAITING_TIME = 16
+    X4_MAX_WAITING_TIME = 43
+    X5_MAX_WAITING_TIME = 4
+    X6_MAX_WAITING_TIME = 100
+
+    LOG_FREQUENCY = 0. # default: 0.5s 1 times
 
     def __init__(self):
         self.data_protocol_modes = ["power_setting_mode","game_mode","operation_mode","self_test_mode","calibration_mode", "warning_flag_mode", "statistics_mode"]
@@ -41,28 +54,18 @@ class StateMachine:
         self.current_data_protocol_mode = "power_setting_mode"
         self.current_power_state = "off"
 
-        self._state_transition_waiting_counter = 0
+        self.p0_delay_counter = 0
 
-    def game_state_transition_to(self, new_game_state):
-        """
-        Redundant function, depreciated
-        """
-        self.current_game_state = new_game_state
-        """
-        Duration, refer to log and video
-        """ 
+        self.x1_state_transition_waiting_counter = 0
+        self.x2_state_transition_waiting_counter = 0
+        self.x3_state_transition_waiting_counter = 0
+        self.x4_state_transition_waiting_counter = 0
+        self.x5_state_transition_waiting_counter = 0
+        self.x6_state_transition_waiting_counter = 0
 
 
 
 class RouletteSimulator(StateMachine):
-    P1_MAX_WAITING_TIME = 2
-    P0_MAX_WAITING_TIME = 2
-    X1_MAX_WAITING_TIME = 17
-    X2_MAX_WAITING_TIME = 21
-    X3_MAX_WAITING_TIME = 16
-    X4_MAX_WAITING_TIME = 43
-    X5_MAX_WAITING_TIME = 4
-    X6_MAX_WAITING_TIME = 10
 
     def __init__(self):
         super().__init__()
@@ -76,7 +79,15 @@ class RouletteSimulator(StateMachine):
         s_name = os.ttyname(slave)
         return master, s_name
 
-
+    def reset_state_transition_waiting_counter(self):
+        self.x1_state_transition_waiting_counter = 0
+        self.x2_state_transition_waiting_counter = 0
+        self.x3_state_transition_waiting_counter = 0
+        self.x4_state_transition_waiting_counter = 0
+        self.x5_state_transition_waiting_counter = 0
+        self.x6_state_transition_waiting_counter = 0
+        self.p0_delay_counter = 0
+        
     def state_discriminator(self,protocol_log_line):
         """
         When read one line of the protocol log, determine the current state of the roulette.
@@ -125,73 +136,85 @@ class RouletteSimulator(StateMachine):
         print("current_game_state:",self.current_game_state)
         print("current_power_state:",self.current_power_state)
 
+        # import pdb; pdb.set_trace()
+
         if "*X;" in data:
+            print(f"{GREEN}X1 state transition waiting counter:{RESET}",self.x1_state_transition_waiting_counter)
+            print(f"{GREEN}X2 state transition waiting counter:{RESET}",self.x2_state_transition_waiting_counter)
+            print(f"{GREEN}X3 state transition waiting counter:{RESET}",self.x3_state_transition_waiting_counter)
+            print(f"{GREEN}X4 state transition waiting counter:{RESET}",self.x4_state_transition_waiting_counter)
+            print(f"{GREEN}X5 state transition waiting counter:{RESET}",self.x5_state_transition_waiting_counter)
+            print(f"{GREEN}X6 state transition waiting counter:{RESET}",self.x6_state_transition_waiting_counter)
+            print(f"{GREEN}P0 delay counter:{RESET}",self.p0_delay_counter)
             
             if "*X;1" in data:
                 try:
-                    assert (self.current_game_state == "table_closed" 
-                            or self.current_game_state == "start_game") and \
-                            self.current_data_protocol_mode == "power_setting_mode" and \
-                            self.current_power_state == "on"
+                    # assert (self.current_game_state == "table_closed" 
+                    #         or self.current_game_state == "start_game") and \
+                    #         (self.current_data_protocol_mode == "power_setting_mode"  or \
+                    #          self.current_data_protocol_mode == "game_mode") and \
+                    #         self.current_power_state == "on"
                     
                     if self.current_game_state == "table_closed":
                         self.current_data_protocol_mode = "game_mode"
                         self.current_game_state = "start_game"
-
-                        self._state_transition_waiting_counter = 0
+                        self.reset_state_transition_waiting_counter()
                         return
                     elif self.current_game_state == "start_game":
-                        if self._state_transition_waiting_counter < self.X1_MAX_WAITING_TIME:
-                            self._state_transition_waiting_counter += 1
+                        if self.x1_state_transition_waiting_counter < self.X1_MAX_WAITING_TIME:
+                            self.x1_state_transition_waiting_counter += 1
                             return
                         else:
                             raise Exception(f"{RED}state transition time too long, there may be something wrong.{RESET}")
                 except Exception as e:
-                    print("1\n")
                     log_with_color(f"Error asserting state transition: {e}")
                     raise Exception("state transition error, close the program.")
             
             elif "*X;2" in data:
                 try:
-                    assert self.current_data_protocol_mode == "game_mode" and \
-                           (self.current_game_state == "start_game" or\
-                            self.current_game_state == "winning_number" or\
-                            self.current_game_state == "place_bet") and \
-                           self.current_power_state == "on"
+                    # assert self.current_data_protocol_mode == "game_mode" and \
+                    #        (self.current_game_state == "start_game" or\
+                    #         self.current_game_state == "winning_number" or\
+                    #         self.current_game_state == "place_bet") and \
+                    #        self.current_power_state == "on"
                     
+                    # if self.current_game_state == "table_closed":
+                    #     if self.x6_state_transition_waiting_counter < self.P0_MAX_DELAY:
+                    #         self.x6_state_transition_waiting_counter += 1
+                    #     else:
+                    #         raise Exception(f"{RED}P0 delay time too long, there may be something wrong.{RESET}")
                     if self.current_game_state == "start_game":
                         self.current_game_state = "place_bet"
-                        self._state_transition_waiting_counter = 0
+                        self.reset_state_transition_waiting_counter()
                         return
                     
                     elif self.current_game_state == "winning_number":
                         self.current_game_state = "place_bet"
-                        self._state_transition_waiting_counter = 0
+                        self.reset_state_transition_waiting_counter()
                         return
                     
                     elif self.current_game_state == "place_bet":
-                        if self._state_transition_waiting_counter < self.X2_MAX_WAITING_TIME:
-                            self._state_transition_waiting_counter += 1
+                        if self.x2_state_transition_waiting_counter < self.X2_MAX_WAITING_TIME:
+                            self.x2_state_transition_waiting_counter += 1
                             return
                         else:
                             raise Exception(f"{RED}state transition time too long, there may be something wrong.{RESET}")
                 except Exception as e:
-                    print("2\n")
                     log_with_color(f"Error asserting state transition: {e}")
                     raise Exception("state transition error, close the program.")
 
             elif "*X;3" in data:
                 try:
-                    assert self.current_game_state == "place_bet" or\
-                           self.current_game_state == "ball_launch"
+                    # assert self.current_game_state == "place_bet" or\
+                    #        self.current_game_state == "ball_launch"
                     
                     if self.current_game_state == "place_bet":
                         self.current_game_state = "ball_launch"
-                        self._state_transition_waiting_counter = 0
+                        self.reset_state_transition_waiting_counter()
                         return
                     elif self.current_game_state == "ball_launch":
-                        if self._state_transition_waiting_counter < self.X3_MAX_WAITING_TIME:
-                            self._state_transition_waiting_counter += 1
+                        if self.x3_state_transition_waiting_counter < self.X3_MAX_WAITING_TIME:
+                            self.x3_state_transition_waiting_counter += 1
                             return
                         else:
                             raise Exception(f"{RED}state transition time too long, there may be something wrong.{RESET}")
@@ -200,16 +223,16 @@ class RouletteSimulator(StateMachine):
                     raise Exception("state transition error, close the program.")
             elif "*X;4" in data:
                 try:
-                    assert self.current_game_state == "ball_launch" or \
-                           self.current_game_state == "no_more_bet"
+                    # assert self.current_game_state == "ball_launch" or \
+                    #        self.current_game_state == "no_more_bet"
                     
                     if self.current_game_state == "ball_launch":
                         self.current_game_state = "no_more_bet"
-                        self._state_transition_waiting_counter = 0
+                        self.reset_state_transition_waiting_counter()
                         return
                     elif self.current_game_state == "no_more_bet":
-                        if self._state_transition_waiting_counter < self.X4_MAX_WAITING_TIME:
-                            self._state_transition_waiting_counter += 1
+                        if self.x4_state_transition_waiting_counter < self.X4_MAX_WAITING_TIME:
+                            self.x4_state_transition_waiting_counter += 1
                             return
                         else:
                             raise Exception(f"{RED}state transition time too long, there may be something wrong.{RESET}")
@@ -218,41 +241,39 @@ class RouletteSimulator(StateMachine):
                     raise Exception("state transition error, close the program.")
             elif "*X;5" in data or data.strip().isdigit():
                 try:
-                    assert self.current_game_state == "no_more_bet" or\
-                           self.current_game_state == "winning_number"
+                    # assert self.current_game_state == "no_more_bet" or\
+                    #        self.current_game_state == "winning_number"
                     if self.current_game_state == "no_more_bet":
                         self.current_game_state = "winning_number"
-                        self._state_transition_waiting_counter = 0
+                        self.reset_state_transition_waiting_counter()
                         return
                     elif self.current_game_state == "winning_number":
-                        if self._state_transition_waiting_counter < self.X5_MAX_WAITING_TIME:
-                            self._state_transition_waiting_counter += 1
+                        if self.x5_state_transition_waiting_counter < self.X5_MAX_WAITING_TIME:
+                            self.x5_state_transition_waiting_counter += 1
                             return
                         else:
                             raise Exception(f"{RED}state transition time too long, there may be something wrong.{RESET}")
                 except Exception as e:
                     log_with_color(f"Error asserting state transition: {e}")
                     raise Exception("state transition error, close the program.")
-            # elif data.strip().isdigit():
-            #     try: 
-            #         assert self.current_game_state == "winning_number"
-            #         if self.current_game_state == "winning_number":
-            #             self.current_game_state = "place_bet"
-            #             self._state_transition_waiting_counter = 0
-            #             return
-            #     except Exception as e:
-            #         log_with_color(f"Error asserting state transition: {e}")
-            #         raise Exception("state transition error, close the program.")
 
             elif "*X;6" in data:
                 try:
-                    assert self.current_game_state == "start_game"\
-                          or self.current_game_state == "place_bet"\
-                          or self.current_game_state == "ball_launch"\
-                          or self.current_game_state == "no_more_bet"\
-                          or self.current_game_state == "winning_number"
-                    self.current_game_state = "table_closed"
-                    return
+                    # assert self.current_game_state == "start_game"\
+                    #       or self.current_game_state == "place_bet"\
+                    #       or self.current_game_state == "ball_launch"\
+                    #       or self.current_game_state == "no_more_bet"\
+                    #       or self.current_game_state == "winning_number"
+                    if self.current_game_state != "table_closed":
+                        self.current_game_state = "table_closed"
+                        self.reset_state_transition_waiting_counter()
+                        return
+                    else:
+                        if self.x6_state_transition_waiting_counter < self.X6_MAX_WAITING_TIME:
+                            self.x6_state_transition_waiting_counter += 1
+                            return
+                        else:
+                            raise Exception(f"{RED}state transition time too long, there may be something wrong.{RESET}")
                 except Exception as e:
                     log_with_color(f"Error asserting state transition: {e}")
                     raise Exception("state transition error, close the program.")
@@ -291,6 +312,11 @@ class RouletteSimulator(StateMachine):
                 """off will trigger table force close"""
                 self.current_game_state = "table_closed"
                 self.current_data_protocol_mode = "power_setting_mode"
+
+                if "*X:6" not in data and self.p0_delay_counter < self.P0_MAX_DELAY:
+                    self.p0_delay_counter += 1
+                else:
+                    raise Exception(f"{RED}P0 delay time too long, there may be something wrong.{RESET}")
                 return
             
             elif "*P OK" in data:
@@ -346,6 +372,7 @@ class RouletteSimulator(StateMachine):
                 if line:
                     return line.strip()
                 log_with_color("No more lines to read")
+                self.reset_state_transition_waiting_counter()
                 return ""
         except Exception as e:
             log_with_color(f"Error reading log file: {e}")
@@ -389,7 +416,7 @@ class RouletteSimulator(StateMachine):
                     break
                 
                 line_number += 1
-                time.sleep(0.1)
+                time.sleep(self.LOG_FREQUENCY)
                 
             except OSError as e:
                 log_with_color(f"Serial port error: {e}")
