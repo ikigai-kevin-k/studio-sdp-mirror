@@ -24,8 +24,7 @@ logging.basicConfig(
 )
 
 def log_with_color(message):
-    # clean_message = message.replace(RED, '').replace(GREEN, '').replace(YELLOW, '').replace(BLUE, '').replace(MAGENTA, '').replace(GRAY, '').replace(RESET, '')
-    logging.info(message)
+     logging.info(message)
 class StateMachine:
     """
     Refer to Cammegh SS2 Owner's handbook, p.49,
@@ -85,14 +84,12 @@ class RouletteSimulator(StateMachine):
         print("current_game_state:",self.current_game_state)
         print("current_power_state:",self.current_power_state)
 
-        import pdb
-        pdb.set_trace()
+        # import pdb
+        # pdb.set_trace()
 
         if "*X;" in data:
-            # assert self.current_data_protocol_mode == "power_setting_mode"
             
             if "*X;1" in data:
-                print("1\n")
                 try:
                     assert self.current_game_state == "table_closed" and \
                            self.current_data_protocol_mode == "power_setting_mode" and \
@@ -102,40 +99,29 @@ class RouletteSimulator(StateMachine):
                 except Exception as e:
                     print("1\n")
                     log_with_color(f"Error asserting state transition: {e}")
-                    # print(data,previous_game_state)
-                    os._exit(1)
-                # self.game_state_transition_to("start_game")
-                # self.current_data_protocol_mode = "game_mode"
-                # self.current_game_state = "start_game"
+                    raise Exception("state transition error, close the program.")
                 return
             
             elif "*X;2" in data:
-                print("2\n")
-                # try:
-                #     assert self.current_data_protocol_mode == "game_mode" and self.current_game_state == "start_game" and self.current_power_state == "on"
-                # except Exception as e:
-                #     print("2\n")
-                #     log_with_color(f"Error asserting state transition: {e}")
+                try:
+                    assert self.current_data_protocol_mode == "game_mode" and \
+                           (self.current_game_state == "start_game" or self.current_game_state == "winning_number") and \
+                           self.current_power_state == "on"
+                    self.current_game_state = "place_bet"
+                    return 
+                except Exception as e:
+                    print("2\n")
+                    log_with_color(f"Error asserting state transition: {e}")
+                    raise Exception("state transition error, close the program.")
 
-                #     os._exit(1)
-
-                self.current_game_state = "place_bet"
-                return 
-            
-            
             elif "*X;3" in data:
-                print("3\n")
                 try:
                     assert self.current_game_state == "place_bet"
                     self.current_game_state = "ball_launch"
                     return
                 except Exception as e:
-                    print("3\n")
                     log_with_color(f"Error asserting state transition: {e}")
-                    # print(data,previous_game_state)
-                    os._exit(1)
-                # self.game_state_transition_to("ball_launch")
-                # previous_game_state = self.current_game_state
+                    raise Exception("state transition error, close the program.")
             elif "*X;4" in data:
                 print("4\n")
                 try:
@@ -143,15 +129,9 @@ class RouletteSimulator(StateMachine):
                     self.current_game_state = "no_more_bet"
                     return
                 except Exception as e:
-                    print("4\n")
                     log_with_color(f"Error asserting state transition: {e}")
-                    # print(data,previous_game_state)
-                    os._exit(1)
-                # self.game_state_transition_to("no_more_bet")
-                # previous_game_state = self.current_game_state
-
+                    raise Exception("state transition error, close the program.")
             elif "*X;5" in data:
-                print("5\n")
                 try:
                     assert self.current_game_state == "no_more_bet"
                     self.current_game_state = "winning_number"
@@ -159,13 +139,9 @@ class RouletteSimulator(StateMachine):
                 except Exception as e:
                     print("5\n")
                     log_with_color(f"Error asserting state transition: {e}")
-                    # print(data,previous_game_state)
-                    os._exit(1)
-                # self.game_state_transition_to("winning_number")
-                # previous_game_state = self.current_game_state
+                    raise Exception("state transition error, close the program.")
 
             elif "*X;6" in data:
-                print("6\n")
                 try:
                     assert self.current_game_state == "start_game"\
                           or self.current_game_state == "place_bet"\
@@ -175,19 +151,13 @@ class RouletteSimulator(StateMachine):
                     self.current_game_state = "table_closed"
                     return
                 except Exception as e:
-                    print("6\n")
                     log_with_color(f"Error asserting state transition: {e}")
-                    # print(data,previous_game_state)
-                    os._exit(1)
+                    raise Exception("state transition error, close the program.")
 
-                # self.game_state_transition_to("table_closed")
-                # previous_game_state = self.current_game_state
-
-                # self.game_state_transition_to("idle")
             else:
-                # print(data,previous_game_state)
-                # print(data,self.current_game_state)
-                raise Exception("unknown game state.")
+                log_with_color(f"unknown game state: {data}")
+                raise Exception("unknown game state, close the program.")
+            
         elif "*o" in data:
             self.current_data_protocol_mode = "operation_mode"
             """
@@ -211,6 +181,7 @@ class RouletteSimulator(StateMachine):
                 """In arcade mode, power on will trigger table open"""
                 self.current_data_protocol_mode = "power_setting_mode"
                 return
+            
             elif "*P 0" in data and self.current_power_state == "on":
                 """add a condition: the next line is *P OK"""
                 self.current_power_state = "off"
@@ -218,6 +189,7 @@ class RouletteSimulator(StateMachine):
                 self.current_game_state = "table_closed"
                 self.current_data_protocol_mode = "power_setting_mode"
                 return
+            
             elif "*P OK" in data:
                 pass
                 return
@@ -284,87 +256,6 @@ class RouletteSimulator(StateMachine):
         elif self.current_power_state == "off":
             log_with_color(f"{RESET}Current{RED} {MAGENTA}power state:{RESET} {RED}{self.current_power_state}{RESET}")
     
-    def generate_protocol_data(self,mode):
-
-        
-        """
-        This is a stateless protocol data generator, which means it does not consider the previous state of the roulette.
-        When the stateful data generator has been implemented, this function should be removed.
-        """
-
-        """
-        TODO:
-        - The current protocol data only consider the *X command, need to add more types of commands, for example, 
-            *o for operation mode
-            *F for self-test mode
-            *P for power setting
-            *C for calibration
-            *W for winning number statistics
-            *M for pocket misfires statistics
-        """
-
-        match mode:
-            case "X":
-
-                """
-                This part is to be deprecated when the stateful data generator is implemented.
-                """
-
-                game_states = list(range(1, 8))
-                game_numbers = list(range(1,256))
-                last_winning_numbers = list(range(0,37))
-                warning_flags = list(range(0,16))
-                rotor_speeds = list(range(10,541))
-                rotor_directions = [0,1]
-
-                game_state = random.choice(game_states)
-                game_number = random.choice(game_numbers)
-                last_winning_number = random.choice(last_winning_numbers)
-                warning_flag = hex(random.choice(warning_flags))
-                rotor_speed = random.choice(rotor_speeds)
-                rotor_direction = random.choice(rotor_directions)
-
-                return f"*X;{game_state:01d}:{game_number:03d}:{last_winning_number:02d}:{warning_flag}:{rotor_speed:03d}:{rotor_direction:01d}\r\n"
-
-            case "o":
-                """
-                need to add the type behaviour of the operation mode here or in the casino_engineer_sim.py
-                """
-                pass
-                return "*o\r\n"
-
-            case "F":
-                """
-                need to add the type behaviour of the self-test mode here or in the casino_engineer_sim.py
-                """
-                pass
-                return "*F\r\n"
-            case "P":
-                """
-                need to add the type behaviour of the power setting mode here or in the casino_engineer_sim.py
-                """
-                pass
-                return "*P\r\n"
-
-            case "C":
-                """
-                need to add the type behaviour of the calibration mode here or in the casino_engineer_sim.py
-                """
-                pass
-                return "*C\r\n"
-            case "W":
-                """
-                need to add the type behaviour of the winning number statistics mode here or in the casino_engineer_sim.py
-                """
-                pass
-                return "*W\r\n"
-            case "M":
-                """
-                need to add the type behaviour of the pocket misfires statistics mode here or in the casino_engineer_sim.py
-                """
-                pass
-                return "*M\r\n"
-    
     def roulette_write_data_to_sdp(self,data):
         os.write(self.masterRoulettePort, data.encode())
         log_with_color(f"Roulette simulator sent to SDP: {data.encode().strip()}")
@@ -385,14 +276,14 @@ class RouletteSimulator(StateMachine):
   
                 if not data:
                     log_with_color("Reached end of log file. Terminating program...")
-                    os._exit(0)  # 强制退出程序
-                    
+                    break
                 try:
                     self.state_discriminator(data)
                     self.roulette_write_data_to_sdp(data)
                     self.roulette_read_data_from_sdp()
                 except Exception as e:
                     log_with_color(f"Error processing line {line_number}: {e}")
+                    break
                 
                 line_number += 1
                 time.sleep(0.1)
@@ -412,9 +303,10 @@ if __name__ == "__main__":
 
         stop_event = threading.Event()
         try:
-            stop_event.wait()  # 等待中断信号
+            stop_event.wait()  # wait for interrupt signal           
         except KeyboardInterrupt:
             log_with_color("Stopping roulette simulator by keyboard interrupt...")
             
     except Exception as e:
         log_with_color(f"Unexpected error: {e}")
+        log_with_color("Roulette simulator terminated.")
