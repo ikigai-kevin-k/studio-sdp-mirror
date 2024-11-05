@@ -99,7 +99,11 @@ class RouletteSimulator(StateMachine):
         """
         Read from the log line containing "*X;1"
         """
+        self.reset_state_transition_waiting_counter()
         self.current_game_state = "start_game"
+        self.current_data_protocol_mode = "game_mode"
+        self.current_power_state = "on"
+        self.read_ss2_protocol_log(LOG_FILE_NAME,3)
         pass
 
     def force_close_table(self):
@@ -127,10 +131,30 @@ class RouletteSimulator(StateMachine):
         """
         Read from the log line containing "*W"
         """
-        if data.split(";")[4] == "0":
+        def num_to_sum(warning_flag_number):
+            if warning_flag_number <= 0 or warning_flag_number > 15:
+                return "number must be between 1 and 15"
+            
+            bases = [1, 2, 4, 8]
+            result = []
+            
+            for base in bases:
+                if n >= base:
+                    result.append(str(base))
+                    n -= base
+            return result 
+        
+        warning_flag_number = int(data.split(";")[4])
+        if not warning_flag_number:
             return
         else:
-            self.force_restart_game()
+            warning_flag_list = num_to_sum(warning_flag_number)
+            if  1 in warning_flag_list or\
+                2 in warning_flag_list or\
+                4 in warning_flag_list or\
+                8 in warning_flag_list:
+                log_with_color(f"{RED}Ball removed, not sensed{RESET}")
+                self.force_restart_game()
 
     def state_discriminator(self,protocol_log_line):
         """
@@ -421,9 +445,10 @@ class RouletteSimulator(StateMachine):
                 line = next(file, None)
                 if line:
                     return line.strip()
-                log_with_color("No more lines to read")
-                self.reset_state_transition_waiting_counter()
-                return ""
+                else:
+                    log_with_color("No more lines to read")
+                    self.reset_state_transition_waiting_counter()
+                    return ""       
         except Exception as e:
             log_with_color(f"Error reading log file: {e}")
             return ""
@@ -452,7 +477,7 @@ class RouletteSimulator(StateMachine):
                 log_with_color(f"{GREEN}Line number: {line_number}{RESET}")
                 print("\n")
                 self.roulette_state_display()
-                data = self.read_ss2_protocol_log(log_file_name,line_number)
+                data = self.read_ss2_protocol_log(LOG_FILE_NAME,line_number)
   
                 if not data:
                     log_with_color("Reached end of log file. Terminating program...")
@@ -474,8 +499,8 @@ class RouletteSimulator(StateMachine):
 
 if __name__ == "__main__":
 
-    global log_file_name 
-    log_file_name = "../log/ss2/ss2_protocol2.log"
+    global LOG_FILE_NAME
+    LOG_FILE_NAME = "../log/ss2/ss2_protocol2.log"
     try:
         roulette = RouletteSimulator()
         log_with_color(f"Roulette simulator is running. Virtual port: {roulette.slaveRoulettePort}")
