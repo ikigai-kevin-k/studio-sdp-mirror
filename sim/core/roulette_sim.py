@@ -5,6 +5,7 @@ import threading
 import random
 import logging
 
+
 #  color constants
 RED = '\033[91m'
 GREEN = '\033[92m'
@@ -73,6 +74,12 @@ class StateMachine:
 
 
 class RouletteSimulator(StateMachine):
+    """
+    TODO:
+    - We need to add a timer to check the physical time cost of each game round 
+      whether exceeds the expected time cost (default: 1 minute)
+      What is the range of tolerance?
+    """
 
     def __init__(self):
         super().__init__()
@@ -81,8 +88,6 @@ class RouletteSimulator(StateMachine):
         self.thread = threading.Thread(target=self.roulette_main_thread, args=(self.masterRoulettePort,))
         self.thread.daemon = True
         self.thread.start()
-
-        # self.line_number = 1
 
     def create_virtual_serial_port(self):
         master, slave = pty.openpty()
@@ -475,6 +480,7 @@ class RouletteSimulator(StateMachine):
 
     def roulette_main_thread(self, master):
         self.line_number = 1
+
         while True:
             try:
                 log_with_color(f"{GREEN}Line number: {self.line_number}{RESET}")
@@ -532,13 +538,36 @@ class TestRouletteSimulatorNonArcade(RouletteSimulator):
         called `check_receive_force_restart_game`.
         Added `check_receive_force_restart_game` to the roulette_main_thread.
         """
+        game_round_time_cost = 0
+        first_x2_line = False
+        first_x5_line = False
         while True:
             try:
                 log_with_color(f"{GREEN}Line number: {self.line_number}{RESET}")
                 print("\n")
                 self.roulette_state_display()
                 data = self.read_ss2_protocol_log(LOG_FILE_NAME)#,self.line_number)
-  
+                
+                """
+                When first encounter "*X;2", start the timer
+                When encounter the end of the "*X;5", stop the timer
+                Calculate the time cost of each game round
+                Reset the timer
+                """
+                if "*X;2" in data and not first_x2_line:
+                    time_line_start = time.time()
+                    first_x2_line = True
+                elif "*X;5" in data and not first_x5_line:
+                    time_line_end = time.time()
+                    first_x5_line = True
+                elif "*X;5" in data and first_x2_line and first_x5_line:
+                    game_round_time_cost = time_line_end - time_line_start
+                    print(f"{YELLOW}time_line_cost:{RESET}",game_round_time_cost)
+                    time_line_start = -1
+                    time_line_end = -1
+                    first_x2_line = False
+                    first_x5_line = False
+
                 if not data:
                     log_with_color("Reached end of log file. Terminating program...")
                     break
@@ -548,6 +577,11 @@ class TestRouletteSimulatorNonArcade(RouletteSimulator):
                     self.state_discriminator(data)
                     self.roulette_write_data_to_sdp(data)
                     self.roulette_read_data_from_sdp()
+                
+
+                # time_line_end = time.time()
+                # time_line_cost = time_line_end - time_line_start
+                # game_round_time_cost += time_line_cost
                 except Exception as e:
                     log_with_color(f"Error processing line {self.line_number}: {e}")
                     break
