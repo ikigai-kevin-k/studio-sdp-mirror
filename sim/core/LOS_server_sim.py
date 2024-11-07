@@ -6,6 +6,31 @@ app = Flask(__name__)
 
 class LOSServerSimulator:
     """
+    TODO
+    Features:
+    1. If has legal token, then send the `roll` request to SDP, then SDP forward the `roll` request by *u 1 to roulette simulator
+        - The legality criteria of the token:
+            - SDP received the initial game parameter by *T <Capital Command> \r\n:
+                 - Wheel speed (*T S\r\n)
+                 - Rotor direction (*T N\r\n) 
+              when the roulette simulator power on or before the new game starts.
+
+        Re-design the token structure:
+        token = {
+            "Rotor speed": {
+                "min": 14.0,
+                "max": 17.5,
+                "unit": "RPM"
+            },
+            "Rotor direction": {
+                "T* G (get game mode value sum)": 1158 // implies non-arcade mode, clockwise only 
+            }
+        }
+
+        If LOS received the token value like this, send the `roll` request to SDP.
+            
+    """
+    """
     Recall API design:
     { 
 
