@@ -17,3 +17,6 @@ New features:
     called `check_receive_force_restart_game`.
 Log example of force restart:
 ![alt text](sim/img/force-restart.png)
+
+The game round timer:
+![alt text](sim/img/game-round-timer.png)
