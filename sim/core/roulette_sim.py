@@ -89,6 +89,7 @@ class RouletteSimulator(StateMachine):
         self.thread.daemon = True
         self.thread.start()
 
+
     def create_virtual_serial_port(self):
         master, slave = pty.openpty()
         s_name = os.ttyname(slave)
@@ -532,7 +533,74 @@ class TestRouletteSimulatorNonArcade(RouletteSimulator):
             return True
         else:
             return False
+
     def roulette_main_thread(self, master):
+        def create_round_timer():
+            timer_state = {
+                'time_line_start': 0,
+                'time_line_end': 0,
+                'first_x2_line': False,
+                'first_x5_line': False,
+                'game_round_time_cost': 0
+                }
+        
+            def update_timer(data):
+                if "*X;2" in data and not timer_state['first_x2_line']:
+                    timer_state['time_line_start'] = time.time()
+                    timer_state['first_x2_line'] = True
+                elif "*X;5" in data and not timer_state['first_x5_line']:
+                    timer_state['time_line_end'] = time.time()
+                    timer_state['first_x5_line'] = True
+                elif "*X;5" in data and timer_state['first_x2_line'] and timer_state['first_x5_line']:
+                    timer_state['game_round_time_cost'] = timer_state['time_line_end'] - timer_state['time_line_start']
+                    print(f"{YELLOW}time_line_cost:{RESET}", timer_state['game_round_time_cost'])
+                    # Reset timer state
+                    timer_state['time_line_start'] = -1
+                    timer_state['time_line_end'] = -1
+                    timer_state['first_x2_line'] = False
+                    timer_state['first_x5_line'] = False
+            
+                return timer_state['game_round_time_cost']
+            
+            return update_timer
+
+        round_timer = create_round_timer()
+        self.line_number = 1
+
+        while True:
+            try:
+                log_with_color(f"{GREEN}Line number: {self.line_number}{RESET}")
+                print("\n")
+                self.roulette_state_display()
+                data = self.read_ss2_protocol_log(LOG_FILE_NAME)
+
+                if not data:
+                    log_with_color("Reached end of log file. Terminating program...")
+                    break
+                
+                try:
+                    if self.check_receive_force_restart_game(data):
+                        continue
+                    
+                    # Update timer
+                    round_timer(data)
+                    
+                    self.state_discriminator(data)
+                    self.roulette_write_data_to_sdp(data)
+                    self.roulette_read_data_from_sdp()
+
+                except Exception as e:
+                    log_with_color(f"Error processing line {self.line_number}: {e}")
+                    break
+            
+                self.line_number += 1
+                time.sleep(self.LOG_FREQUENCY)
+            
+            except OSError as e:
+                log_with_color(f"Serial port error: {e}")
+                break
+
+    def roulette_main_thread_v1(self, master):
         """
         Split the force restart command from the state_discriminator to a separate function,
         called `check_receive_force_restart_game`.
