@@ -61,6 +61,9 @@ Log example of force restart:
 ###  2.3. <a name='QuestionList'></a>Question List
 
 - Check to Temo for considering the live error scenario handling by the flow manager
+
+- SDP-Roulette connection timeout handling
+
 ###  3. <a name='Plan'></a>Plan
 
 ####  3.1. <a name='RewriteLOSrequest'></a>Rewrite LOS request
@@ -68,6 +71,8 @@ Log example of force restart:
 ####  3.2. <a name='SDP'></a>SDP 側錄影片並上傳
 
 目前設定是開3條thread: Upload, Record, Game(State Machine + VideoPlay)
+
+Temporary use desktop camera as video source.
 
 Design:
 ```bash
