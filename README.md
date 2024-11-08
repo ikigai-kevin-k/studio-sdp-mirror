@@ -1,15 +1,19 @@
 <!-- vscode-markdown-toc -->
-* [Usage](#Usage)
-* [New features](#Newfeatures:)
-* [Checklist After Receiving the Physical Machine](#ChecklistAfterReceivingthePhysicalMachine)
-	* [Setup and Configuration Phase](#SetupandConfigurationPhase)
-	* [Gameplay Phase](#GameplayPhase)
+-  [New features](#Newfeatures)
+-  [Checklist After Receiving the Physical Machine](#ChecklistAfterReceivingthePhysicalMachine)
+	-  [Setup and Configuration Phase](#SetupandConfigurationPhase)
+	-  [Gameplay Phase](#GameplayPhase)
+-  [Question List](#QuestionList)
+-  [Plan](#Plan)
+	-  [Rewrite LOS request](#RewriteLOSrequest)
+	-  [SDP 側錄影片並上傳](#SDP)
 
 <!-- vscode-markdown-toc-config
 	numbering=true
 	autoSave=true
 	/vscode-markdown-toc-config -->
-<!-- /vscode-markdown-toc -->##  1. <a name='Usage'></a>Usage
+<!-- /vscode-markdown-toc -->
+##  1. <a name='Usage'></a>Usage
 
 Open four terminals, run the following commands in the following order, respectively:
 ```bash
@@ -24,7 +28,7 @@ The SDP CLI interface:
 The terminal log with color:
 ![terminal log with color](img/correct_log.png)
 
-##  2. <a name='Newfeatures:'></a>New features
+##  1. <a name='Newfeatures'></a>New features
 1. Added `check_receive_force_restart_game` to the roulette_main_thread.
 2. Split the force restart command from the state_discriminator to a separate function,
     called `check_receive_force_restart_game`.
@@ -34,9 +38,9 @@ Log example of force restart:
 3.The game round timer:
 ![alt text](sim/img/game-round-timer.png)
 
-##  3. <a name='ChecklistAfterReceivingthePhysicalMachine'></a>Checklist After Receiving the Physical Machine
+##  2. <a name='ChecklistAfterReceivingthePhysicalMachine'></a>Checklist After Receiving the Physical Machine
 
-###  3.1. <a name='SetupandConfigurationPhase'></a>Setup and Configuration Phase
+###  2.1. <a name='SetupandConfigurationPhase'></a>Setup and Configuration Phase
 
 - Verify successful configuration of *o 1157, which corresponds to arcade mode parameters
 - Confirm ability to adjust GPH parameters
@@ -45,7 +49,7 @@ Log example of force restart:
 - Confirm proper operation of *T S (get wheel speed) and *T N (get rotor direction) commands according to Mihail's designed game flow
 - Check for any instances of commands not receiving responses (no "ok" response)
 
-###  3.2. <a name='GameplayPhase'></a>Gameplay Phase
+###  2.2. <a name='GameplayPhase'></a>Gameplay Phase
 
 - Check if the issue exists where game number remains unchanged after a round (as seen in previous logs)
 - Verify state machine implementation matches roulette_sim
@@ -54,19 +58,19 @@ Log example of force restart:
 - Verify there are no cases of complete log reception failure
 
 
-### Question List
+###  2.3. <a name='QuestionList'></a>Question List
 
 - Check to Temo for considering the live error scenario handling by the flow manager
-### Plan
+###  3. <a name='Plan'></a>Plan
 
-#### Rewrite LOS request
+####  3.1. <a name='RewriteLOSrequest'></a>Rewrite LOS request
 
-#### SDP 側錄影片並上傳
+####  3.2. <a name='SDP'></a>SDP 側錄影片並上傳
 
 目前設定是開3條thread: Upload, Record, Game(State Machine + VideoPlay)
 
 Design:
-
+```bash
      PlayStart    PlayEnd
 Ｇame|------------|------------|------------|
      |            |            |
@@ -79,6 +83,7 @@ Record|------------|-------------|-----------|
                    v              v           v
                    UpStart        UpEnd
 Upload             |-------|      |------|    |------|
+```
 
 ```python
 """
