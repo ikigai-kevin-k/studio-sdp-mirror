@@ -52,3 +52,99 @@ Log example of force restart:
 - In non-arcade mode, verify proper functionality of *u 1 (manual restart) command
 - Check for instances of missing log entries
 - Verify there are no cases of complete log reception failure
+
+
+### Question List
+
+- Check to Temo for considering the live error scenario handling by the flow manager
+### Plan
+
+#### Rewrite LOS request
+
+#### SDP 側錄影片並上傳
+
+目前設定是開3條thread: Upload, Record, Game(State Machine + VideoPlay)
+
+Design:
+
+     PlayStart    PlayEnd
+Ｇame|------------|------------|------------|
+     |            |            |
+     |            |            |
+     v            v            v
+      RecordStart  RecordEnd
+Record|------------|-------------|-----------|
+                   ｜             |           |
+                   ｜             |           |
+                   v              v           v
+                   UpStart        UpEnd
+Upload             |-------|      |------|    |------|
+
+```python
+"""
+Pseudo Code
+"""
+from threading import Thread, Event
+import queue
+
+class ThreadManager:
+    def __init__(self):
+        # Event for thread synchronization
+        self.play_start_event = Event()
+        self.play_end_event = Event()
+        self.record_start_event = Event()
+        self.record_end_event = Event()
+        self.upload_start_event = Event()
+        
+        # Queue for storing video data
+        self.video_queue = queue.Queue()
+        
+        # Initialize three threads
+        self.game_thread = Thread(target=self.game_loop)
+        self.record_thread = Thread(target=self.record_loop)
+        self.upload_thread = Thread(target=self.upload_loop)
+
+    def game_loop(self):
+        while True:
+            # Game Start
+            self.play_start_event.set()
+            self.record_start_event.set()
+            
+            # Game Running...
+            
+            # Game End
+            self.play_end_event.set()
+            self.record_end_event.set()
+
+    def record_loop(self):
+        while True:
+            # Wait for game start signal
+            self.record_start_event.wait()
+            
+            # Start recording
+            current_video = []
+            while not self.record_end_event.is_set():
+                # Record video frame
+                # current_video.append(frame)
+                pass
+                
+            # Record End, put video into queue
+            self.video_queue.put(current_video)
+            self.upload_start_event.set()
+            
+            # Reset event
+            self.record_start_event.clear()
+            self.record_end_event.clear()
+
+    def upload_loop(self):
+        while True:
+            # Wait for upload start signal
+            self.upload_start_event.wait()
+            
+            # Get video from queue and upload
+            video = self.video_queue.get()
+            # Execute upload operation
+            
+            # Reset event
+            self.upload_start_event.clear()
+```
