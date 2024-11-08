@@ -1,6 +1,6 @@
 <!-- vscode-markdown-toc -->
 * [Usage](#Usage)
-* [New features:](#Newfeatures:)
+* [New features](#Newfeatures:)
 * [Checklist After Receiving the Physical Machine](#ChecklistAfterReceivingthePhysicalMachine)
 	* [Setup and Configuration Phase](#SetupandConfigurationPhase)
 	* [Gameplay Phase](#GameplayPhase)
@@ -24,7 +24,7 @@ The SDP CLI interface:
 The terminal log with color:
 ![terminal log with color](img/correct_log.png)
 
-##  2. <a name='Newfeatures:'></a>New features:
+##  2. <a name='Newfeatures:'></a>New features
 1. Added `check_receive_force_restart_game` to the roulette_main_thread.
 2. Split the force restart command from the state_discriminator to a separate function,
     called `check_receive_force_restart_game`.
