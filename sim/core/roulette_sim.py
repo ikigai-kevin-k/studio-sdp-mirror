@@ -589,6 +589,8 @@ class TestRouletteSimulatorNonArcade(RouletteSimulator):
                     self.roulette_write_data_to_sdp(data)
                     self.roulette_read_data_from_sdp()
 
+                # Need press "*u 1\r\n" to continue the game(to continue the while loop)
+
                 except Exception as e:
                     log_with_color(f"Error processing line {self.line_number}: {e}")
                     break
@@ -646,10 +648,12 @@ class TestRouletteSimulatorNonArcade(RouletteSimulator):
                     self.roulette_write_data_to_sdp(data)
                     self.roulette_read_data_from_sdp()
                 
+                if "*X;6" in data:
+                    while True:
+                        user_input = input("Press *u 1 to continue the next game:")
+                        if user_input == "*u 1\r\n":
+                            break   
 
-                # time_line_end = time.time()
-                # time_line_cost = time_line_end - time_line_start
-                # game_round_time_cost += time_line_cost
                 except Exception as e:
                     log_with_color(f"Error processing line {self.line_number}: {e}")
                     break
