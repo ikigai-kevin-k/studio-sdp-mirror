@@ -1,9 +1,9 @@
 <!-- vscode-markdown-toc -->
-* 1. [Usage](#Usage)
-* 2. [New features:](#Newfeatures:)
-* 3. [Checklist After Receiving the Physical Machine](#ChecklistAfterReceivingthePhysicalMachine)
-	* 3.1. [Setup and Configuration Phase](#SetupandConfigurationPhase)
-	* 3.2. [Gameplay Phase](#GameplayPhase)
+* [Usage](#Usage)
+* [New features:](#Newfeatures:)
+* [Checklist After Receiving the Physical Machine](#ChecklistAfterReceivingthePhysicalMachine)
+	* [Setup and Configuration Phase](#SetupandConfigurationPhase)
+	* [Gameplay Phase](#GameplayPhase)
 
 <!-- vscode-markdown-toc-config
 	numbering=true
