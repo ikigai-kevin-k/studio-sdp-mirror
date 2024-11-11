@@ -103,6 +103,9 @@ Event通訊機制為WebSocket：
 - Recorder和Uploader都改為異步類
 (不使用Thread設計，改為純異步操作，可以更好地處理並發情況)
 
+確認SDP/Recorder/Uploader之間完全異步:
+![alt text](async.png)
+
 #### Desktop Camera Recording
 
 To be moved to the individual repository.
@@ -139,6 +142,10 @@ kevin.k@MacBook-Pro ~/s/docker_test_env (dev/kevin/SI-11/real-log-non-arcade) [1
 [ WARN:0@0.008] global cap_v4l.cpp:999 open VIDEOIO(V4L2:/dev/video0): can't open camera by index
 [ERROR:0@0.008] global obsensor_uvc_stream_channel.cpp:158 getStreamChannelGroup Camera index out of range
 ```
+
+Ｗork-around:
+先用測試影片代替
+
 
 ## LOS-SDP interface discussion
 [draft](https://ikigaians.atlassian.net/wiki/spaces/Crystal/pages/221315107/LOS+-+SDP+interface+draft)
