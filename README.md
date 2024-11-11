@@ -102,3 +102,7 @@ Event通訊機制為WebSocket：
 - 使用async/await確保非阻塞操作
 - Recorder和Uploader都改為異步類
 (不使用Thread設計，改為純異步操作，可以更好地處理並發情況)
+
+#### Desktop Camera Recording
+
+![Desktop Camera Recording](output.gif)
