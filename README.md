@@ -105,6 +105,8 @@ Event通訊機制為WebSocket：
 
 #### Desktop Camera Recording
 
+To be moved to the individual repository.
+
 ![Desktop Camera Recording](output.gif)
 
 ## Docker Image Build
@@ -127,4 +129,80 @@ requests==2.32.3
 urllib3==2.2.3
 websockets==14.0
 Werkzeug==3.0.6
+```
+
+Current issue: 
+
+In the docker container, the camera source cannot be found.
+```
+kevin.k@MacBook-Pro ~/s/docker_test_env (dev/kevin/SI-11/real-log-non-arcade) [127]> docker run -p 5000:5000 --privileged studio-sdp-roulette
+[ WARN:0@0.008] global cap_v4l.cpp:999 open VIDEOIO(V4L2:/dev/video0): can't open camera by index
+[ERROR:0@0.008] global obsensor_uvc_stream_channel.cpp:158 getStreamChannelGroup Camera index out of range
+```
+
+## LOS-SDP interface discussion
+[draft](https://ikigaians.atlassian.net/wiki/spaces/Crystal/pages/221315107/LOS+-+SDP+interface+draft)
+![alt text](draft-note.png)
+
+
+```
+curl -X GET -H "Content-Type: application/json" \
+  -H "Bearer: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c" \
+  https://los.url/v1/service/sdp/table/ABO-001
+
+{
+  "gameCode": "ABO-001",
+  "roundId": "ABO-001-20241010-123000000",
+  "state": "opened"
+}
+```
+的實作方式的pseudo code
+```python
+import requests
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class GameResponse:
+    gameCode: str
+    roundId: str
+    state: str
+
+class SDP_API_Client:
+    def __init__(self, base_url: str, bearer_token: str):
+        self.base_url = base_url
+        self.headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {bearer_token}"
+        }
+    
+    def get_game_status(self, game_code: str) -> Optional[GameResponse]:
+        try:
+            url = f"{self.base_url}/v1/service/sdp/table/{game_code}"
+            response = requests.get(url, headers=self.headers)
+            response.raise_for_status()  # 如果狀態碼不是 2xx 會拋出異常
+            
+            data = response.json()
+            return GameResponse(**data)
+            
+        except requests.exceptions.RequestException as e:
+            print(f"請求失敗: {e}")
+            return None
+
+# 使用示例
+def main():
+    # 替換成實際的 URL 和 token
+    base_url = "https://los.url"
+    bearer_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+    
+    client = SDP_API_Client(base_url, bearer_token)
+    result = client.get_game_status("ABO-001")
+    
+    if result:
+        print(f"遊戲代碼: {result.gameCode}")
+        print(f"局號: {result.roundId}")
+        print(f"狀態: {result.state}")
+
+if __name__ == "__main__":
+    main()
 ```
