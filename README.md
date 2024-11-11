@@ -70,91 +70,35 @@ Log example of force restart:
 
 ####  3.2. <a name='SDP'></a>SDP 側錄影片並上傳
 
-目前設定是開3條thread: Upload, Record, Game(State Machine + VideoPlay)
+目前設定是開3條thread: Upload, Recorder, SDP
 
 Temporary use desktop camera as video source.
 
 Design:
 ```bash
      PlayStart    PlayEnd
-Ｇame|------------|------------|------------|
-     |            |            |
-     |            |            |
-     v            v            v
+SDP|------------|------------|------------|
+      |             |                |
+      |             |                |
+      v             v                v
       RecordStart  RecordEnd
-Record|------------|-------------|-----------|
-                   ｜             |           |
-                   ｜             |           |
-                   v              v           v
+Recorder|------------|-------------|-----------|
+                     ｜             |           |
+                     ｜             |           |
+                     v              v           v
                    UpStart        UpEnd
-Upload             |-------|      |------|    |------|
+Uploader             |-------|      |------|    |------|
 ```
 
-```python
-"""
-Pseudo Code
-"""
-from threading import Thread, Event
-import queue
+Event通訊機制為WebSocket：
+- SDP作為client發送遊戲開始/結束事件
+- Server端包含Recorder和Uploader的邏輯
 
-class ThreadManager:
-    def __init__(self):
-        # Event for thread synchronization
-        self.play_start_event = Event()
-        self.play_end_event = Event()
-        self.record_start_event = Event()
-        self.record_end_event = Event()
-        self.upload_start_event = Event()
-        
-        # Queue for storing video data
-        self.video_queue = queue.Queue()
-        
-        # Initialize three threads
-        self.game_thread = Thread(target=self.game_loop)
-        self.record_thread = Thread(target=self.record_loop)
-        self.upload_thread = Thread(target=self.upload_loop)
+通訊流程：
+- 當Server收到"GAME_START"時，直接調用Recorder開始錄製
+- 當收到"GAME_END"時，停止錄製並自動觸發上傳流程
 
-    def game_loop(self):
-        while True:
-            # Game Start
-            self.play_start_event.set()
-            self.record_start_event.set()
-            
-            # Game Running...
-            
-            # Game End
-            self.play_end_event.set()
-            self.record_end_event.set()
-
-    def record_loop(self):
-        while True:
-            # Wait for game start signal
-            self.record_start_event.wait()
-            
-            # Start recording
-            current_video = []
-            while not self.record_end_event.is_set():
-                # Record video frame
-                # current_video.append(frame)
-                pass
-                
-            # Record End, put video into queue
-            self.video_queue.put(current_video)
-            self.upload_start_event.set()
-            
-            # Reset event
-            self.record_start_event.clear()
-            self.record_end_event.clear()
-
-    def upload_loop(self):
-        while True:
-            # Wait for upload start signal
-            self.upload_start_event.wait()
-            
-            # Get video from queue and upload
-            video = self.video_queue.get()
-            # Execute upload operation
-            
-            # Reset event
-            self.upload_start_event.clear()
-```
+使用異步方式處理所有通訊：
+- 使用async/await確保非阻塞操作
+- Recorder和Uploader都改為異步類
+(不使用Thread設計，改為純異步操作，可以更好地處理並發情況)
