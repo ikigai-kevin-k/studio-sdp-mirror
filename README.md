@@ -77,10 +77,10 @@ Temporary use desktop camera as video source.
 Design:
 ```bash
      PlayStart    PlayEnd
-SDP|------------|------------|------------|
-      |             |                |
-      |             |                |
-      v             v                v
+SDP   |-------------|------------|------------|
+      |             |                
+      |             |                
+      v             v                
       RecordStart  RecordEnd
 Recorder|------------|-------------|-----------|
                      ｜             |
