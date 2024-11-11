@@ -135,6 +135,8 @@ class Recorder:
             output_file = f'recording_{timestamp}.mp4'
             fps = 20.0
             frame_size = (int(self.cap.get(3)), int(self.cap.get(4)))
+
+
             out = cv2.VideoWriter(output_file, fourcc, fps, frame_size)
             
             while self.is_recording:
@@ -142,11 +144,17 @@ class Recorder:
                 if ret:
                     out.write(frame)
                     await asyncio.sleep(0.01)  # 避免阻塞事件循環
-                
+            
             # 清理資源
             out.release()
             self.cap.release()
             self.current_video.append(output_file)
+            """
+            TODO:
+            - 將影片上傳到CDN
+            -  recorder通知uploader把影片上傳到一個假的CDN server
+                - 目前可以存到本地的另一個資料夾路徑
+            """
         
         # 在背景啟動錄製
         asyncio.create_task(video_record())

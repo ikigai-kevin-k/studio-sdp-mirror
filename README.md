@@ -105,6 +105,7 @@ Event通訊機制為WebSocket：
 - 適合用於需要定期搜集資訊但可能具有延遲的場景
 
 確認SDP/Recorder/Uploader之間完全異步:
+
 ![alt text](async.png)
 
 #### Desktop Camera Recording
