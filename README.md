@@ -98,10 +98,11 @@ Event通訊機制為WebSocket：
 - 當Server收到"GAME_START"時，直接調用Recorder開始錄製
 - 當收到"GAME_END"時，停止錄製並自動觸發上傳流程
 
-使用異步方式處理所有通訊：
+使用coroutine(async/await)異步方式處理所有網路通訊：
 - 使用async/await確保非阻塞操作
 - Recorder和Uploader都改為異步類
-(不使用Thread設計，改為純異步操作，可以更好地處理並發情況)
+(不使用Thread設計，改為純異步操作，可以更好地處理並發情況,multithread與multiprocessing更適合用於矩陣運算等計算密集場景)
+- 適合用於需要定期搜集資訊但可能具有延遲的場景
 
 確認SDP/Recorder/Uploader之間完全異步:
 ![alt text](async.png)
