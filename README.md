@@ -83,10 +83,10 @@ SDP|------------|------------|------------|
       v             v                v
       RecordStart  RecordEnd
 Recorder|------------|-------------|-----------|
-                     ｜             |           |
-                     ｜             |           |
-                     v              v           v
-                   UpStart        UpEnd
+                     ｜             |
+                     ｜             |           
+                     v              v           
+                   UpStart   UpEnd  UpStrt UpldEnd
 Uploader             |-------|      |------|    |------|
 ```
 
