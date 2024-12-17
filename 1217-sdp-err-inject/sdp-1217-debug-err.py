@@ -644,6 +644,72 @@ class RouletteSimulator(StateMachine):
                         self.current_game_state = "table_closed"
                         self.reset_error_counters()
                 return
+            
+            # 處理 *F 3 錯誤
+            if "*F 3" in data:
+                self.current_data_protocol_mode = "self_test_mode"
+                self.error_state = "NO Ball Position/Winning Num Detected"
+                # Plan
+                # Retry 3 times
+                # If still not detected, raise an error "Retry Failed"
+                # Stop the game
+                # Under Maintenance
+                return
+            
+            if "*F 11" in data or "*F 12" in data or "*F 13" in data or\
+                "*F 21" in data or "*F 22" in data or "*F 23" in data:
+                self.current_data_protocol_mode = "self_test_mode"
+                self.error_state = "Sensor Stuck"
+                # Plan
+                # If self.f11/12/13/21/22/23 > 10
+                # Stop the game
+                # Execute "*SP"
+                return 
+        
+            if "*F 4" in data:
+                self.current_data_protocol_mode = "self_test_mode"
+                self.error_state = "Invalid ball direction"
+                # Plan
+                # retry 1 times
+                # if still not valid, raise an error "Retry Failed"
+                # Stop the game
+                # Under Maintenance
+                return
+            
+            if "*F 1" in data:
+                self.current_data_protocol_mode = "self_test_mode"
+                self.error_state = "Hardware Fault"
+                # Stop the game
+                # Under Maintenance
+                # *V
+                return
+            
+            if "*F 5" in data:
+                self.current_data_protocol_mode = "self_test_mode"
+                self.error_state = "Motor drive issue"
+                # Plan
+                # if f5 > 10
+                # Stop the game
+                # Under Maintenance
+                return
+            
+            if "*F 6" in data:
+                self.current_data_protocol_mode = "self_test_mode"
+                self.error_state = "Encoder failutre/Wheel Nuscakubratuib"
+                # Plan
+                # if f6 > 10
+                # Stop the game
+                # Under Maintenance
+                return
+            
+        
+            if "*F 7" in data:
+                self.current_data_protocol_mode = "self_test_mode"
+                self.error_state = "Ball not reach position"
+                # Plan
+                # Stop the game
+                # Under Maintenance
+                return
 
             # 重置錯誤狀態的條件
             if any(cmd in data for cmd in ["*X;1", "*X;6", "*P 0", "*P 1"]):
