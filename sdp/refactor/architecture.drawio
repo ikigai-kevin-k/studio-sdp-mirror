@@ -1,0 +1,190 @@
+<mxfile host="65bd71144e">
+    <diagram id="8PpzvBUFQMsTt6G4RIt9" name="Page-1">
+        <mxGraphModel dx="987" dy="316" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="2" value="Logger" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="-10" y="110" width="240" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="3" value="Controller" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="260" y="110" width="690" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="4" value="MQTTLogger" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="-10" y="140" width="120" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="5" value="Por&lt;span style=&quot;font-family: monospace; font-size: 0px; text-align: start; text-wrap: nowrap;&quot;&gt;%3CmxGraphModel%3E%3Croot%3E%3CmxCell%20id%3D%220%22%2F%3E%3CmxCell%20id%3D%221%22%20parent%3D%220%22%2F%3E%3CmxCell%20id%3D%222%22%20value%3D%22SDPController%22%20style%3D%22rounded%3D0%3BwhiteSpace%3Dwrap%3Bhtml%3D1%3B%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22260%22%20y%3D%22150%22%20width%3D%22120%22%20height%3D%2220%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3C%2Froot%3E%3C%2FmxGraphModel%3E&lt;/span&gt;tController" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="270" y="140" width="270" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="6" value="SerialPortLogger" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="-10" y="180" width="120" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="7" value="WebSocketLogger" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="-10" y="160" width="120" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="8" value="IDPController" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="540" y="140" width="120" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="10" value="SerialPortController" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="345" y="180" width="120" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="11" value="BarCodeScannerController" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="325" y="200" width="160" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="12" value="GameStateController" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="770" y="140" width="130" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="13" value="GameStateLogger" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="110" y="140" width="120" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="14" value="USBPortLogger" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="-10" y="200" width="120" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="17" value="RoundRecorderController" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="330" y="160" width="150" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="18" value="RouletteController" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="775" y="160" width="120" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="19" value="SciboController" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="775" y="180" width="120" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="20" value="ShakerController" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="650" y="140" width="120" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="23" value="BlackJackController" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="775" y="200" width="120" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="27" value="Module" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+                    <mxGeometry x="-10" y="57" width="60" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="31" value="Check&amp;nbsp;&lt;div&gt;&lt;span style=&quot;background-color: transparent;&quot;&gt;Connection&lt;/span&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="164" y="342" width="66" height="140" as="geometry"/>
+                </mxCell>
+                <mxCell id="32" value="If Roulette" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="230" y="342" width="120" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="33" value="Serial Port Self Test" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="342" width="120" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="34" value="If SciBo" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="230" y="370" width="120" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="35" value="MQTT Self Test for Shaker" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="370" width="158" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="37" value="If BlackJack" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="230" y="398" width="120" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="38" value="USB Self Test for Barcode Scanner" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="398" width="206" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="39" value="" style="endArrow=classic;html=1;" parent="1" edge="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="49.41" y="342" as="sourcePoint"/>
+                        <mxPoint x="49.41" y="776" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="41" value="WebSocket Self Test" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="470" y="342" width="120" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="42" value="IDP" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="230" y="426" width="120" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="43" value="MQTT Self Test" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="426" width="120" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="44" value="Round Recorder" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="230" y="454" width="120" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="45" value="WebSocket Self Test" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="454" width="120" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="46" value="" style="shape=curlyBracket;whiteSpace=wrap;html=1;rounded=1;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" parent="1" vertex="1">
+                    <mxGeometry x="230" y="346" width="20" height="74" as="geometry"/>
+                </mxCell>
+                <mxCell id="47" value="" style="endArrow=classic;html=1;exitX=0;exitY=0.75;exitDx=0;exitDy=0;" parent="1" edge="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="230" y="384" as="sourcePoint"/>
+                        <mxPoint x="213" y="311" as="targetPoint"/>
+                        <Array as="points">
+                            <mxPoint x="213" y="384"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="48" value="arg: game type" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+                    <mxGeometry x="165" y="288" width="105" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="49" value="TimeLine" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+                    <mxGeometry x="26.000000000000085" y="784.9999999999998" width="60" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="51" value="Game&amp;nbsp;&lt;div&gt;Round&lt;/div&gt;&lt;div&gt;Event&lt;/div&gt;&lt;div&gt;Loop&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="164" y="482" width="66" height="299" as="geometry"/>
+                </mxCell>
+                <mxCell id="52" value="If Roulette" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="229.5" y="534" width="120" height="88" as="geometry"/>
+                </mxCell>
+                <mxCell id="53" value="ReadSerialPortLog" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="534" width="120" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="54" value="LOS /start" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="230" y="482" width="120" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="55" value="StateMachine" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="562" width="120" height="27" as="geometry"/>
+                </mxCell>
+                <mxCell id="57" value="LOS /deal" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="230" y="701" width="120" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="58" value="LOS /finish" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="230.5" y="753" width="121" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="59" value="If Scibo" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="230" y="617" width="120" height="57" as="geometry"/>
+                </mxCell>
+                <mxCell id="60" value="Trigger Shaker" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="617" width="120" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="61" value="SendRouletteCommand" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="589" width="144.5" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="62" value="IDP /detect" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="645" width="120" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="63" value="If BlackJack" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="230.5" y="673" width="120" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="65" value="" style="shape=curlyBracket;whiteSpace=wrap;html=1;rounded=1;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" parent="1" vertex="1">
+                    <mxGeometry x="229.5" y="544" width="20" height="145" as="geometry"/>
+                </mxCell>
+                <mxCell id="67" value="RR /start&lt;span style=&quot;font-family: monospace; font-size: 0px; text-align: start; text-wrap: nowrap;&quot;&gt;%3CmxGraphModel%3E%3Croot%3E%3CmxCell%20id%3D%220%22%2F%3E%3CmxCell%20id%3D%221%22%20parent%3D%220%22%2F%3E%3CmxCell%20id%3D%222%22%20value%3D%22LOS%20%2Fstart%22%20style%3D%22rounded%3D0%3BwhiteSpace%3Dwrap%3Bhtml%3D1%3B%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22230%22%20y%3D%22482%22%20width%3D%22120%22%20height%3D%2228%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3C%2Froot%3E%3C%2FmxGraphModel%3E&lt;/span&gt;" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="229.5" y="510" width="120" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="68" value="RR /stop&lt;span style=&quot;font-family: monospace; font-size: 0px; text-align: start; text-wrap: nowrap;&quot;&gt;%3CmxGraphModel%3E%3Croot%3E%3CmxCell%20id%3D%220%22%2F%3E%3CmxCell%20id%3D%221%22%20parent%3D%220%22%2F%3E%3CmxCell%20id%3D%222%22%20value%3D%22LOS%20%2Fstart%22%20style%3D%22rounded%3D0%3BwhiteSpace%3Dwrap%3Bhtml%3D1%3B%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22230%22%20y%3D%22482%22%20width%3D%22120%22%20height%3D%2228%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3C%2Froot%3E%3C%2FmxGraphModel%3&lt;/span&gt;" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="230" y="729" width="120" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="69" value="TBD" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="673" width="120" height="28" as="geometry"/>
+                </mxCell>
+                <mxCell id="71" value="" style="endArrow=classic;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" parent="1" source="51" target="31" edge="1">
+                    <mxGeometry width="50" height="50" relative="1" as="geometry">
+                        <mxPoint x="543" y="529" as="sourcePoint"/>
+                        <mxPoint x="593" y="479" as="targetPoint"/>
+                        <Array as="points">
+                            <mxPoint x="95" y="781"/>
+                            <mxPoint x="95" y="482"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="72" value="Repeat" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" parent="71" vertex="1" connectable="0">
+                    <mxGeometry x="-0.0403" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="73" value="MQTTController" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                    <mxGeometry x="325" y="220" width="160" height="20" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
