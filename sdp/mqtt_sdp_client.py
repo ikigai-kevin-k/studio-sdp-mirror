@@ -4,14 +4,14 @@ import json
 import requests
 from datetime import datetime
 from mqtt_wrapper import MQTTClientWrapper
-from los_api.api import start_post, pause_post, resume_post #, deal_post, finish_post, get_roundID, visibility_post
+from los_api.api import start_post, pause_post, resume_post, get_roundID, deal_post, finish_post #, deal_post, finish_post, get_roundID, visibility_post
 import os
 import logging.handlers
 
 class MqttClient_SDP(MQTTClientWrapper):
     """SDP MQTT Client for sending test commands"""
     
-    def __init__(self, client_id, broker, port, topic=None, keepalive=60):
+    def __init__(self, client_id, broker, port, topic=None, keepalive=60, enable_logging=True):
         """Initialize SDP client"""
         super().__init__(client_id, broker, port, topic, keepalive)
         self.cmdTopic = None
@@ -20,12 +20,15 @@ class MqttClient_SDP(MQTTClientWrapper):
         self.last_response = None
         self.dice_result = None
         self.connected = False
-        
+        self.enable_logging = enable_logging
+
         # LOS API 相關設定
-        self.los_url = 'https://crystal-los.iki-cit.cc/v1/service/sdp/table/'
         self.game_code = 'SDP-003'
         self.token = 'E5LN4END9Q'
-        self.url = self.los_url + self.game_code
+        # 修改 URL 設定，分別設定 get 和 post 的 URL
+        self.get_url = 'https://crystal-los.iki-cit.cc/v1/service/table/' + self.game_code
+        self.url = 'https://crystal-los.iki-cit.cc/v1/service/sdp/table/' + self.game_code
+        
         self.current_round_id = None
         self.is_round_active = False
 
@@ -34,30 +37,36 @@ class MqttClient_SDP(MQTTClientWrapper):
 
     def setup_logger(self):
         """Setup logger with daily rotation"""
-        # Create logs directory if it doesn't exist
-        log_dir = "logs"
-        if not os.path.exists(log_dir):
-            os.makedirs(log_dir)
-
         # Create formatter
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-        # Create TimedRotatingFileHandler
-        log_file = os.path.join(log_dir, "mqtt_sdp.log")
-        file_handler = logging.handlers.TimedRotatingFileHandler(
-            filename=log_file,
-            when='midnight',
-            interval=1,
-            backupCount=30,  # Keep logs for 30 days
-            encoding='utf-8'
-        )
-        file_handler.setFormatter(formatter)
-        file_handler.suffix = "%Y%m%d"  # Log file suffix format: YYYYMMDD
-
-        # Add handler to logger
+        # Create logger instance
         self.logger = logging.getLogger(f'MqttClient_SDP_{self.client_id}')
         self.logger.setLevel(logging.INFO)
-        self.logger.addHandler(file_handler)
+
+        if self.enable_logging:
+            # Create logs directory if it doesn't exist
+            log_dir = "logs"
+            if not os.path.exists(log_dir):
+                os.makedirs(log_dir)
+
+            # Create TimedRotatingFileHandler
+            log_file = os.path.join(log_dir, "mqtt_sdp.log")
+            file_handler = logging.handlers.TimedRotatingFileHandler(
+                filename=log_file,
+                when='midnight',
+                interval=1,
+                backupCount=30,  # Keep logs for 30 days
+                encoding='utf-8'
+            )
+            file_handler.setFormatter(formatter)
+            file_handler.suffix = "%Y%m%d"  # Log file suffix format: YYYYMMDD
+            self.logger.addHandler(file_handler)
+
+        # Always add console handler for basic logging
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        self.logger.addHandler(console_handler)
 
     def on_connect(self, client, userdata, flags, rc):
         """當成功連接到 MQTT broker 時被呼叫"""
@@ -346,18 +355,33 @@ class MqttClient_SDP(MQTTClientWrapper):
 
             while True:  # 無限循環執行遊戲流程
                 try:
-                    # 2. 測試 LOS API 連接
-                    self.logger.info("Testing LOS API connection...")
-
+                    # 檢查上一局的狀態，使用 get_url 而不是 url
+                    self.logger.info("Checking previous round status...")
                     try:
-                        round_id, bet_period = start_post(self.url, self.token)
-                        print(f"round_id: {round_id}, bet_period: {bet_period}")
-
-                        if round_id == -1:
-                            self.logger.error("Failed to start new round")
-                            await asyncio.sleep(5)  # 等待後重試
-                            continue
+                        round_id, status, bet_period = get_roundID(self.get_url, self.token)
+                        self.logger.info(f"round_id: {round_id}, status: {status}, bet_period: {bet_period}")
+                        
+                        # 如果上一局停在 bet-stopped，需要先完成該局
+                        if status == "bet-stopped":
+                            self.logger.info("Detected incomplete previous round, cleaning up...")
+                            resume_post(self.url, self.token)
+                            # 使用 [-1,-1,-1] 作為無效結果
+                            deal_post(self.url, self.token, round_id, [-1,-1,-1])
+                            finish_post(self.url, self.token)
+                            self.logger.info("Previous round cleanup completed")
+                            await asyncio.sleep(2)  # 等待系統處理
                     except Exception as e:
+                        self.logger.error(f"Error checking previous round: {e}")
+                        await asyncio.sleep(5)  # 發生錯誤時等待後重試
+                        continue
+
+                    # 開始新的回合
+                    self.logger.info("Starting new round...")
+                    round_id, bet_period = start_post(self.url, self.token)
+                    print(f"round_id: {round_id}, bet_period: {bet_period}")
+
+                    if round_id == -1:
+                        self.logger.error("Failed to start new round")
                         await asyncio.sleep(5)  # 等待後重試
                         continue
 
@@ -529,9 +553,6 @@ if __name__ == "__main__":
     import os
     import logging.handlers
     
-    # Remove the basic logging configuration since we're using custom logger
-    # logging.basicConfig(...) should be removed
-    
     parser = argparse.ArgumentParser(description='SDP MQTT Client')
     parser.add_argument('--self-test-only', action='store_true',
                       help='Run self test only and exit')
@@ -545,15 +566,17 @@ if __name__ == "__main__":
                       help='Shake duration in seconds')
     parser.add_argument('--result-duration', type=int, default=4,
                       help='Result display duration in seconds')
+    parser.add_argument('--disable-logging', action='store_true',
+                      help='Disable logging to mqtt_sdp.log file')
     
     args = parser.parse_args()
     
     if args.self_test_only:
         asyncio.run(run_test())
     else:
-        # 修改 run_test 函數以接受新的參數
         async def run_test():
-            client = MqttClient_SDP("sdp_test_client", args.broker, args.port)
+            client = MqttClient_SDP("sdp_test_client", args.broker, args.port, 
+                                  enable_logging=not args.disable_logging)  # 使用命令列參數控制日誌
             try:
                 client.connect()
                 client.start_loop()
