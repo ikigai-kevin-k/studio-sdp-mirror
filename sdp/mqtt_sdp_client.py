@@ -4,7 +4,9 @@ import json
 import requests
 from datetime import datetime
 from mqtt_wrapper import MQTTClientWrapper
-from los_api.api import start_post, deal_post, finish_post
+from los_api.api import start_post, pause_post, resume_post #, deal_post, finish_post, get_roundID, visibility_post
+import os
+import logging.handlers
 
 class MqttClient_SDP(MQTTClientWrapper):
     """SDP MQTT Client for sending test commands"""
@@ -26,6 +28,36 @@ class MqttClient_SDP(MQTTClientWrapper):
         self.url = self.los_url + self.game_code
         self.current_round_id = None
         self.is_round_active = False
+
+        # Setup daily rotating file logger
+        self.setup_logger()
+
+    def setup_logger(self):
+        """Setup logger with daily rotation"""
+        # Create logs directory if it doesn't exist
+        log_dir = "logs"
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+
+        # Create formatter
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+        # Create TimedRotatingFileHandler
+        log_file = os.path.join(log_dir, "mqtt_sdp.log")
+        file_handler = logging.handlers.TimedRotatingFileHandler(
+            filename=log_file,
+            when='midnight',
+            interval=1,
+            backupCount=30,  # Keep logs for 30 days
+            encoding='utf-8'
+        )
+        file_handler.setFormatter(formatter)
+        file_handler.suffix = "%Y%m%d"  # Log file suffix format: YYYYMMDD
+
+        # Add handler to logger
+        self.logger = logging.getLogger(f'MqttClient_SDP_{self.client_id}')
+        self.logger.setLevel(logging.INFO)
+        self.logger.addHandler(file_handler)
 
     def on_connect(self, client, userdata, flags, rc):
         """當成功連接到 MQTT broker 時被呼叫"""
@@ -116,7 +148,7 @@ class MqttClient_SDP(MQTTClientWrapper):
         except Exception as e:
             self.logger.error(f"Error in _on_message: {e}")
 
-    def send_detect_command(self, round_id, input_stream="https://192.168.88.213:8088/live/r1234_dice.flv", output_stream=""):
+    def send_detect_command(self, round_id, input_stream="", output_stream=""):
         """Send detect command"""
         try:
             # 重置狀態
@@ -297,7 +329,7 @@ class MqttClient_SDP(MQTTClientWrapper):
             return True
 
         except Exception as e:
-            self.logger.error(f"Error in game cycle: {e}")
+            # self.logger.error(f"Error in game cycle: {e}")
             return False
 
     async def run_self_test(self, betting_duration=8, shake_duration=7, result_duration=4):
@@ -316,15 +348,19 @@ class MqttClient_SDP(MQTTClientWrapper):
                 try:
                     # 2. 測試 LOS API 連接
                     self.logger.info("Testing LOS API connection...")
-                    response = start_post(self.url, self.token)
-                    if isinstance(response, tuple):
-                        round_id = response[0]  # 只取得 round_id 字串，不要 tuple
-                    else:
-                        round_id = response
-                    
-                    if round_id == -1:
-                        self.logger.error("LOS API connection test failed: Could not start new round")
+
+                    try:
+                        round_id, bet_period = start_post(self.url, self.token)
+                        print(f"round_id: {round_id}, bet_period: {bet_period}")
+
+                        if round_id == -1:
+                            self.logger.error("Failed to start new round")
+                            await asyncio.sleep(5)  # 等待後重試
+                            continue
+                    except Exception as e:
+                        await asyncio.sleep(5)  # 等待後重試
                         continue
+
                     self.logger.info(f"LOS API connection test: OK, round_id: {round_id}")
                     
                     # 3. 測試發送 shake 命令
@@ -351,8 +387,30 @@ class MqttClient_SDP(MQTTClientWrapper):
                     success, dice_result = self.send_detect_command(round_id, input_stream="https://192.168.88.213:8088/live/r1234_dice.flv", output_stream="")
                     
                     if not success or dice_result is None:
-                        self.logger.error("Failed to get dice result")
-                        continue
+                        self.logger.error("Failed to get dice result, pausing game...")
+                        # 暫停遊戲
+                        pause_post(self.url, self.token, "IDP detection failed")
+                        
+                        # 重試機制
+                        retry_count = 0
+                        max_retries = 3
+                        retry_delay = 1  # 每次重試間隔秒數
+                        
+                        while retry_count < max_retries:
+                            print("retrying IDP detection.")
+                            self.logger.info(f"Retrying IDP detection (attempt {retry_count + 1}/{max_retries})...")
+                            await asyncio.sleep(retry_delay)
+                            
+                            success, dice_result = self.send_detect_command(round_id, input_stream="https://192.168.88.213:8088/live/r1234_dice.flv", output_stream="")
+                            if success and dice_result is not None:
+                                self.logger.info("IDP detection recovered, resuming game...")
+                                resume_post(self.url, self.token)
+                                
+                            
+                            retry_count += 1
+
+                        if retry_count >= max_retries:
+                            return False
                     
                     self.logger.info(f"Received dice result: {dice_result}")
                     
@@ -370,7 +428,7 @@ class MqttClient_SDP(MQTTClientWrapper):
                     
                     if deal_response.status_code != 200:
                         self.logger.error(f"Deal failed: {deal_response.status_code} - {deal_response.text}")
-                        continue
+                        return False
                         
                     self.logger.info("Deal result sent successfully")
                     time.sleep(result_duration)  # 等待結果處理
@@ -383,7 +441,7 @@ class MqttClient_SDP(MQTTClientWrapper):
                     
                     if finish_response.status_code != 200:
                         self.logger.error(f"Finish failed: {finish_response.status_code} - {finish_response.text}")
-                        continue
+                        return False
                         
                     self.logger.info("Round finished successfully")
                     
@@ -393,14 +451,13 @@ class MqttClient_SDP(MQTTClientWrapper):
                     time.sleep(2)    
 
                 except Exception as e:
-                    self.logger.error(f"Error in game cycle: {e}")
-                    continue
-            
+                    # self.logger.error(f"Error in game cycle: {e}") 
+                    return False
         except KeyboardInterrupt:
             self.logger.info("Self test interrupted by user")
             return True
         except Exception as e:
-            self.logger.error(f"Self test failed with error: {str(e)}")
+            # self.logger.error(f"Self test failed with error: {str(e)}")
             return False
 
 async def main():
@@ -469,12 +526,11 @@ async def run_test():
 if __name__ == "__main__":
     import asyncio
     import argparse
+    import os
+    import logging.handlers
     
-    # 設置日誌級別為 DEBUG 以查看更多信息
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    # Remove the basic logging configuration since we're using custom logger
+    # logging.basicConfig(...) should be removed
     
     parser = argparse.ArgumentParser(description='SDP MQTT Client')
     parser.add_argument('--self-test-only', action='store_true',
