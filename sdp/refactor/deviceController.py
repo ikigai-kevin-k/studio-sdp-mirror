@@ -79,21 +79,34 @@ class IDPController(Controller):
                 }
             }
             
-            self.logger.info(f"Sending detect command for round {round_id}")
-            self.mqtt_client.publish("ikg/idp/dice/command", json.dumps(command))
-            self.logger.info("Command sent successfully")
-            
-            # 等待回應
-            timeout = 7
+            # 設定超時時限
+            timeout = 6.9 # for demo
             start_time = asyncio.get_event_loop().time()
+            retry_interval = 0.1  # for demo, 每 200ms 重試一次
+            attempt = 1
             
             while (asyncio.get_event_loop().time() - start_time) < timeout:
-                if self.dice_result is not None:
-                    self.logger.info(f"Received dice result: {self.dice_result}")
-                    return True, self.dice_result
-                await asyncio.sleep(0.1)
+                # 發送檢測命令
+                self.logger.info(f"Sending detect command (attempt {attempt})")
+                self.mqtt_client.publish("ikg/idp/dice/command", json.dumps(command))
+                
+                # 等待回應的小循環
+                wait_end = min(
+                    start_time + timeout,  # 不超過總超時時間
+                    asyncio.get_event_loop().time() + retry_interval  # 下次重試前的等待時間
+                )
+                
+                while asyncio.get_event_loop().time() < wait_end:
+                    if self.dice_result is not None:
+                        self.logger.info(f"Received dice result on attempt {attempt}: {self.dice_result}")
+                        return True, self.dice_result
+                    await asyncio.sleep(0.05)  # 短暫休眠，避免 CPU 過度使用
+                
+                attempt += 1
             
-            self.logger.warning("No valid response received within timeout")
+            # 超時處理
+            elapsed = asyncio.get_event_loop().time() - start_time
+            self.logger.warning(f"No valid response received within {elapsed:.2f}s after {attempt-1} attempts")
             if self.last_response:
                 self.logger.warning(f"Last response was: {self.last_response}")
             return True, [-1, -1, -1]  # 超時時返回預設值
@@ -138,4 +151,106 @@ class ShakerController(Controller):
     async def cleanup(self):
         """Cleanup shaker controller resources"""
         self.mqtt_client.stop_loop()
-        self.mqtt_client.disconnect() 
+        self.mqtt_client.disconnect()
+
+class BarcodeController(Controller):
+    """Controls barcode scanner operations"""
+    def __init__(self, config: GameConfig):
+        super().__init__(config)
+        # HID 鍵盤掃描碼對照表
+        self.hid_keycode = {
+            0x00: None, 
+            0x04: 'A', 0x05: 'B', 0x06: 'C', 0x07: 'D', 0x08: 'E',
+            0x09: 'F', 0x0A: 'G', 0x0B: 'H', 0x0C: 'I', 0x0D: 'J',
+            0x0E: 'K', 0x0F: 'L', 0x10: 'M', 0x11: 'N', 0x12: 'O',
+            0x13: 'P', 0x14: 'Q', 0x15: 'R', 0x16: 'S', 0x17: 'T',
+            0x18: 'U', 0x19: 'V', 0x1A: 'W', 0x1B: 'X', 0x1C: 'Y',
+            0x1D: 'Z', 0x1E: '1', 0x1F: '2', 0x20: '3', 0x21: '4',
+            0x22: '5', 0x23: '6', 0x24: '7', 0x25: '8', 0x26: '9',
+            0x27: '0', 0x28: 'ENTER'
+        }
+
+        # 修飾鍵對照表
+        self.modifier_keys = {
+            0x01: 'LCTRL',
+            0x02: 'LSHIFT',
+            0x04: 'LALT',
+            0x08: 'LWIN',
+            0x10: 'RCTRL',
+            0x20: 'RSHIFT',
+            0x40: 'RALT',
+            0x80: 'RWIN'
+        }
+        
+        self.device_path = None
+        self.is_running = False
+        self.current_line = []  # 儲存當前行的字符
+        self.callback = None  # 用於處理掃描結果的回調函數
+
+    def decode_hid_data(self, data: bytes) -> Tuple[List[str], List[str]]:
+        """解碼 HID 數據"""
+        modifier = data[0]
+        mods = []
+        if modifier:
+            for bit, name in self.modifier_keys.items():
+                if modifier & bit:
+                    mods.append(name)
+        
+        keys = []
+        for i in range(2, len(data)):
+            if data[i] != 0x00:
+                key = self.hid_keycode.get(data[i], f'UNKNOWN({hex(data[i])})')
+                if key:
+                    keys.append(key)
+        
+        return mods, keys
+
+    async def initialize(self, device_path: str, callback=None):
+        """初始化條碼掃描器"""
+        self.device_path = device_path
+        self.callback = callback
+        self.is_running = True
+        
+        # 啟動掃描處理的非同步任務
+        asyncio.create_task(self._read_barcode())
+        self.logger.info(f"Barcode scanner initialized with device: {device_path}")
+
+    async def _read_barcode(self):
+        """讀取條碼掃描器數據的非同步方法"""
+        try:
+            while self.is_running:
+                with open(self.device_path, 'rb') as f:
+                    while self.is_running:
+                        data = f.read(8)  # HID 報告的標準長度
+                        if data:
+                            mods, keys = self.decode_hid_data(data)
+                            
+                            if keys:
+                                for key in keys:
+                                    if key == 'ENTER':
+                                        # 當遇到 ENTER 時，處理當前行
+                                        if self.current_line:
+                                            barcode = ''.join(self.current_line)
+                                            self.logger.info(f"Scanned barcode: {barcode}")
+                                            if self.callback:
+                                                await self.callback(barcode)
+                                        self.current_line = []
+                                    else:
+                                        # 一般按鍵，加入當前行
+                                        self.current_line.append(key)
+                        
+                        await asyncio.sleep(0.001)  # 短暫休眠避免 CPU 過度使用
+                        
+        except Exception as e:
+            self.logger.error(f"Error reading barcode: {e}")
+        finally:
+            self.logger.info("Barcode reading stopped")
+
+    async def cleanup(self):
+        """清理資源"""
+        self.is_running = False
+        self.logger.info("Barcode controller cleanup completed")
+
+    def set_callback(self, callback):
+        """設置處理掃描結果的回調函數"""
+        self.callback = callback 
