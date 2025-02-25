@@ -12,7 +12,7 @@ from controller import GameType, GameConfig
 from gameStateController import create_game_state_controller
 from deviceController import IDPController, ShakerController
 from mqttController import MQTTController
-from los_api.api import start_post, deal_post, finish_post, visibility_post, get_roundID, resume_post
+from los_api.api import start_post, deal_post, finish_post, visibility_post, get_roundID, resume_post, get_sdp_config
 
 # Configure logging
 logging.basicConfig(
@@ -263,7 +263,7 @@ class SDPGame:
         self.running = False
         await self.cleanup()
 
-async def main():
+def main():
     # 設置命令列參數
     parser = argparse.ArgumentParser(description='SDP Game System')
     parser.add_argument('--self-test-only', action='store_true',
@@ -310,5 +310,32 @@ async def main():
     finally:
         await game.cleanup()
 
+    # Get current SDP config
+    strings, _ = get_sdp_config(game.get_url, game.token)
+    
+    # Parse durations from SDP config
+    try:
+        if strings:
+            config = json.loads(strings)
+            shake_duration = config.get('shake_duration', 7)
+            result_duration = config.get('result_duration', 4)
+        else:
+            # Use default values if no config is found
+            shake_duration = 7
+            result_duration = 4
+            
+        # Update the run_self_test parameters
+        await game.run_self_test(
+            shake_duration=shake_duration,
+            result_duration=result_duration,
+            # ... other parameters ...
+        )
+        
+    except json.JSONDecodeError:
+        print("Error parsing SDP config strings")
+        return
+    
+    # ... rest of the main function ...
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
