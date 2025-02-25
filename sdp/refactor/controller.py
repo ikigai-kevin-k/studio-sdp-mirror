@@ -45,6 +45,8 @@ class GameConfig:
     room_id: str
     broker_host: str
     broker_port: int
+    enable_logging: bool = False
+    log_dir: str = 'logs'
 
 class Controller:
     """Base controller class"""

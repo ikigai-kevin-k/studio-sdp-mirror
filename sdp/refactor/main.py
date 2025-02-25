@@ -5,11 +5,14 @@ import time
 from typing import Optional
 import requests
 import argparse
+import os
+import logging.handlers
 
 from controller import GameType, GameConfig
 from gameStateController import create_game_state_controller
 from deviceController import IDPController, ShakerController
 from mqttController import MQTTController
+from los_api.api import start_post, deal_post, finish_post, visibility_post, get_roundID, resume_post
 
 # Configure logging
 logging.basicConfig(
@@ -17,6 +20,40 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+def setup_logging(enable_logging: bool, log_dir: str):
+    """Setup logging configuration"""
+    if enable_logging:
+        # 確保日誌目錄存在
+        os.makedirs(log_dir, exist_ok=True)
+        
+        # 設置檔案處理器
+        log_file = os.path.join(log_dir, f'sdp_game_{time.strftime("%Y%m%d_%H%M%S")}.log')
+        file_handler = logging.handlers.RotatingFileHandler(
+            log_file,
+            maxBytes=10*1024*1024,  # 10MB
+            backupCount=5,
+            encoding='utf-8'
+        )
+        
+        # 設置格式
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        file_handler.setFormatter(formatter)
+        
+        # 設置根日誌記錄器
+        root_logger = logging.getLogger()
+        root_logger.addHandler(file_handler)
+        
+        # 同時保持控制台輸出
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        root_logger.addHandler(console_handler)
+        
+        root_logger.setLevel(logging.INFO)
+        
+        logging.info(f"Logging to file: {log_file}")
 
 class SDPGame:
     """Main game class for SDP"""
@@ -35,11 +72,12 @@ class SDPGame:
         self.shaker_controller = ShakerController(config)
         self.running = False
         
-        # LOS API configuration
-        self.los_url = 'https://crystal-los.iki-cit.cc/v1/service/sdp/table/'
+        # LOS API configuration - 修改為與 mqtt_sdp_client.py 一致的設定
         self.game_code = config.room_id
         self.token = 'E5LN4END9Q'
-        self.url = f"{self.los_url}{self.game_code}"
+        # 修改 URL 設定，分別設定 get 和 post 的 URL
+        self.get_url = f'https://crystal-los.iki-cit.cc/v1/service/table/{self.game_code}'
+        self.post_url = f'https://crystal-los.iki-cit.cc/v1/service/sdp/table/{self.game_code}'
 
     async def initialize(self):
         """Initialize all controllers"""
@@ -62,35 +100,94 @@ class SDPGame:
         """Run self test for all components"""
         self.logger.info("Starting self test...")
         
-        # 測試 MQTT 連接
+        # 初始化所有控制器（只做一次）
         try:
             await self.mqtt_controller.initialize()
-            self.logger.info("MQTT connection test passed")
-        except Exception as e:
-            self.logger.error(f"MQTT connection test failed: {e}")
-            return False
-
-        # 測試 IDP 控制器
-        try:
-            await self.idp_controller.initialize()
-            self.logger.info("IDP controller test passed")
-        except Exception as e:
-            self.logger.error(f"IDP controller test failed: {e}")
-            await self.mqtt_controller.cleanup()
-            return False
-
-        # 測試搖骰器控制器
-        try:
             await self.shaker_controller.initialize()
-            self.logger.info("Shaker controller test passed")
+            await self.idp_controller.initialize()
+            self.logger.info("All controllers initialized successfully")
         except Exception as e:
-            self.logger.error(f"Shaker controller test failed: {e}")
-            await self.mqtt_controller.cleanup()
-            await self.idp_controller.cleanup()
+            self.logger.error(f"Failed to initialize controllers: {e}")
             return False
 
-        self.logger.info("All self tests passed successfully")
-        return True
+        while True:  # 無限循環執行回合
+            try:
+                # 檢查上一局的狀態
+                self.logger.info("Checking previous round status...")
+                try:
+                    round_id, status, bet_period = get_roundID(self.get_url, self.token)
+                    self.logger.info(f"round_id: {round_id}, status: {status}, bet_period: {bet_period}")
+                    
+                    # 如果上一局停在 bet-stopped，需要先完成該局
+                    if status == "bet-stopped":
+                        self.logger.info("Detected incomplete previous round, cleaning up...")
+                        resume_post(self.post_url, self.token)
+                        deal_post(self.post_url, self.token, round_id, [-1,-1,-1])
+                        finish_post(self.post_url, self.token)
+                        self.logger.info("Previous round cleanup completed")
+                        await asyncio.sleep(2)  # 等待系統處理
+                except Exception as e:
+                    self.logger.error(f"Error checking previous round: {e}")
+                    await asyncio.sleep(5)
+                    continue
+
+                # 開始新的回合
+                self.logger.info("Starting new round...")
+                round_id, bet_period = start_post(self.post_url, self.token)
+                self.logger.info(f"round_id: {round_id}, bet_period: {bet_period}")
+
+                if round_id == -1:
+                    self.logger.error("Failed to start new round")
+                    await asyncio.sleep(5)
+                    continue
+
+                self.logger.info(f"LOS API connection test: OK, round_id: {round_id}")
+                
+                # 等待下注時間結束
+                betting_duration = bet_period  # 使用 API 返回的下注時間
+                self.logger.info(f"Waiting for betting period ({betting_duration} seconds)...")
+                await asyncio.sleep(betting_duration)
+                
+                # 測試搖骰器命令
+                self.logger.info(f"Testing shake command with round ID: {round_id}")
+                await self.shaker_controller.shake(round_id)  # 移除 initialize
+                
+                # 等待搖骰子完成
+                shake_duration = 7
+                self.logger.info(f"Waiting for shake completion ({shake_duration} seconds)...")
+                await asyncio.sleep(shake_duration)
+                
+                # 測試偵測命令
+                self.logger.info("Testing detect command...")
+                success, dice_result = await self.idp_controller.detect(round_id)  # 移除 initialize
+                
+                if success and dice_result:
+                    self.logger.info(f"Received dice result: {dice_result}")
+                    
+                    # 發送結果到 LOS API
+                    self.logger.info("Sending deal result to LOS API...")
+                    deal_post(self.post_url, self.token, round_id, dice_result)
+                    
+                    # 等待結果顯示
+                    result_duration = 4
+                    self.logger.info(f"Waiting for result display ({result_duration} seconds)...")
+                    await asyncio.sleep(result_duration)
+                    
+                    # 結束回合
+                    self.logger.info("Finishing round...")
+                    finish_post(self.post_url, self.token)
+                    
+                    # 等待系統處理
+                    self.logger.info("Waiting before starting next round...")
+                    await asyncio.sleep(2)
+                    
+                else:
+                    self.logger.error("Failed to get dice detection result")
+                    await asyncio.sleep(5)
+                    
+            except Exception as e:
+                self.logger.error(f"Error in game round: {e}")
+                await asyncio.sleep(5)
 
     async def start(self):
         """Start the game system"""
@@ -115,23 +212,10 @@ class SDPGame:
 
     async def start_game_round(self) -> Optional[str]:
         """Start a new game round using LOS API"""
-        try:
-            headers = {
-                'accept': 'application/json',
-                'Bearer': f'Bearer {self.token}',
-                'x-signature': 'los-local-signature',
-                'Content-Type': 'application/json'
-            }
-            response = requests.post(f'{self.url}/start', headers=headers, json={})
-            
-            if response.status_code == 200:
-                data = response.json()
-                round_id = data.get('data', {}).get('table', {}).get('tableRound', {}).get('roundId')
-                return round_id
-            return None
-        except Exception as e:
-            self.logger.error(f"Error starting game round: {e}")
-            return None
+        round_id, bet_period = start_post(self.post_url, self.token)
+        if round_id != -1:
+            return round_id
+        return None
 
     async def run_game_round(self, round_id: str):
         """Run a specific game round"""
@@ -190,21 +274,24 @@ async def main():
                       help='MQTT broker port')
     parser.add_argument('--game-type', type=str, choices=['roulette', 'sicbo', 'blackjack'],
                       default='sicbo', help='Game type to run')
+    parser.add_argument('--enable-logging', action='store_true',
+                      help='Enable MQTT logging to file')
+    parser.add_argument('--log-dir', type=str, default='logs',
+                      help='Directory for log files')
     
     args = parser.parse_args()
 
     # 設置日誌
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    setup_logging(args.enable_logging, args.log_dir)
 
     # 創建遊戲配置
     config = GameConfig(
         game_type=GameType(args.game_type),
-        room_id="SDP-003",  # 使用固定的 room_id
+        room_id="SDP-003",
         broker_host=args.broker,
-        broker_port=args.port
+        broker_port=args.port,
+        enable_logging=args.enable_logging,
+        log_dir=args.log_dir
     )
 
     # 創建遊戲實例
@@ -212,16 +299,10 @@ async def main():
 
     try:
         if args.self_test_only:
-            # 只運行自我測試
-            if await game.run_self_test():
-                logging.info("Self test completed successfully")
-            else:
-                logging.error("Self test failed")
+            await game.run_self_test()  # 移除了成功/失敗的檢查，因為現在是無限循環
         else:
-            # 正常遊戲流程
             if await game.initialize():
-                # TODO: 實現完整的遊戲循環
-                pass
+                await game.start()
     except KeyboardInterrupt:
         logging.info("Game interrupted by user")
     except Exception as e:
