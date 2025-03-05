@@ -3,7 +3,7 @@ import json
 import asyncio
 from typing import Optional, Tuple, List
 from dataclasses import dataclass
-
+import time
 from mqtt_wrapper import MQTTLogger
 from controller import Controller, GameConfig
 
@@ -51,18 +51,23 @@ class IDPController(Controller):
                 response_data = json.loads(payload)
                 if "response" in response_data and response_data["response"] == "result":
                     if "arg" in response_data and "res" in response_data["arg"]:
-                        dice_result_str = response_data["arg"]["res"]
-                        self.dice_result = json.loads(dice_result_str)
-                        self.response_received = True
-                        self.last_response = payload
-                        self.logger.info(f"Updated dice_result: {self.dice_result}")
+                        dice_result = response_data["arg"]["res"]
+                        # 檢查是否為有效的骰子結果 (三個數字)
+                        if isinstance(dice_result, list) and len(dice_result) == 3 and all(isinstance(x, int) for x in dice_result):
+                            self.dice_result = dice_result
+                            self.response_received = True
+                            self.last_response = payload
+                            self.logger.info(f"Got valid dice result: {self.dice_result}")
+                            return  # 立即返回，不再等待更多結果
+                        else:
+                            self.logger.info(f"Received invalid result: {dice_result}, continuing to wait...")
                     
         except json.JSONDecodeError as e:
             self.logger.error(f"Failed to parse message JSON: {e}")
         except Exception as e:
             self.logger.error(f"Error processing message: {e}")
 
-    async def detect(self, round_id: str) -> Tuple[bool, Optional[list]]:
+    def detect(self, round_id: str) -> Tuple[bool, Optional[list]]:
         """Send detect command and wait for response"""
         try:
             # 重置狀態
@@ -74,15 +79,15 @@ class IDPController(Controller):
                 "command": "detect",
                 "arg": {
                     "round_id": round_id,
-                    "input": "https://192.168.88.213:8088/live/r1234_dice.flv",
-                    "output": ""
+                    "input": "rtmp://192.168.88.213:1935/live/r456_dice",
+                    "output": "https://pull-tc.stream.iki-utl.cc/live/r456_dice.flv"
                 }
             }
             
             # 設定超時時限
-            timeout = 6.9 # for demo
+            timeout = 4 # for demo
             start_time = asyncio.get_event_loop().time()
-            retry_interval = 0.1  # for demo, 每 200ms 重試一次
+            retry_interval = 4  
             attempt = 1
             
             while (asyncio.get_event_loop().time() - start_time) < timeout:
@@ -100,16 +105,23 @@ class IDPController(Controller):
                     if self.dice_result is not None:
                         self.logger.info(f"Received dice result on attempt {attempt}: {self.dice_result}")
                         return True, self.dice_result
-                    await asyncio.sleep(0.05)  # 短暫休眠，避免 CPU 過度使用
+                    #  asyncio.sleep(0.05)  # 短暫休眠，避免 CPU 過度使用
+                    time.sleep(0.5)
                 
                 attempt += 1
             
             # 超時處理
             elapsed = asyncio.get_event_loop().time() - start_time
             self.logger.warning(f"No valid response received within {elapsed:.2f}s after {attempt-1} attempts")
+            command = {
+                "command": "timeout",
+                "arg":{
+                }
+            }
+            self.mqtt_client.publish("ikg/idp/dice/command", json.dumps(command))
             if self.last_response:
                 self.logger.warning(f"Last response was: {self.last_response}")
-            return True, [-1, -1, -1]  # 超時時返回預設值
+            return True, [""]  # 超時時返回預設值
             
         except Exception as e:
             self.logger.error(f"Error in detect: {e}")
@@ -124,11 +136,13 @@ class ShakerController(Controller):
     """Controls dice shaker operations"""
     def __init__(self, config: GameConfig):
         super().__init__(config)
+        # Use different MQTT settings for shaker
         self.mqtt_client = MQTTLogger(
             client_id=f"shaker_controller_{config.room_id}",
-            broker=config.broker_host,
+            broker="192.168.88.250",  # Specific broker for shaker
             port=config.broker_port
         )
+        self.mqtt_client.client.username_pw_set("PFC", "wago")  # Specific credentials for shaker
 
     async def initialize(self):
         """Initialize shaker controller"""
@@ -138,6 +152,17 @@ class ShakerController(Controller):
         self.mqtt_client.subscribe("ikg/shaker/response")
 
     async def shake(self, round_id: str):
+        """Shake the dice using Billy-II settings"""
+        # Use the same command format as in quick_shaker_test.py
+        cmd = "/cycle/?pattern=0&parameter1=10&parameter2=0&amplitude=0.41&duration=6"
+        topic = "ikg/sicbo/Billy-II/listens"
+        # topic = "ikg/sicbo/Billy-I/listens" # temporary
+        
+        self.mqtt_client.publish(topic, cmd)
+        self.mqtt_client.publish(topic, "/state")
+        self.logger.info(f"Shake command sent for round {round_id}")
+
+    async def shake_rpi(self, round_id: str):
         """Shake the dice"""
         command = {
             "command": "shake",
