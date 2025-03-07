@@ -1,0 +1,17 @@
+{
+    "shake_duration": 7,
+    "result_duration": 4,
+    "broker": {
+        "host": "206.53.48.180",
+        "port": 1883
+    },
+    "room": {
+        "id": "SDP-003"
+    },
+    "los": {
+        "token": "E5LN4END9Q",
+        "base_url": "https://crystal-los.iki-cit.cc/v1/service",
+        "get_url_template": "https://crystal-los.iki-cit.cc/v1/service/table/{game_code}",
+        "post_url_template": "https://crystal-los.iki-cit.cc/v1/service/sdp/table/{game_code}"
+    }
+} 
