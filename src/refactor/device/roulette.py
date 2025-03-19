@@ -139,6 +139,18 @@ class RouletteStateController(BaseGameStateController):
         self.logger.info("Roulette game cleaned up")
 
 class RealRouletteController(BaseGameStateController):
+    # 添加狀態機等待時間常數
+    P1_MAX_WAITING_TIME = 10
+    P0_MAX_WAITING_TIME = 10
+    P0_MAX_DELAY = 20
+    X1_MAX_WAITING_TIME = 60
+    X2_MAX_WAITING_TIME = float('inf')  # for debug
+    X3_MAX_WAITING_TIME = 60
+    X4_MAX_WAITING_TIME = 120
+    X5_MAX_WAITING_TIME = 30
+    X6_MAX_WAITING_TIME = float('inf')  # for debug
+    LOG_FREQUENCY = 0.5
+    
     def __init__(self, logger: ColorfulLogger, port='/dev/ttyUSB0', baudrate=9600):
         super().__init__(GameType.ROULETTE)
         self.logger = logger
@@ -332,6 +344,18 @@ class RealRouletteController(BaseGameStateController):
             
             # Initialize power state
             await self.initialize_power_state()
+            
+            # 添加自動執行初始化指令
+            log_with_color(f"{MAGENTA}自動執行初始化指令...{RESET}")
+            await asyncio.sleep(1)
+            
+            # 發送初始化指令
+            self.write_to_serial("*T R")
+            await asyncio.sleep(0.5)
+            self.write_to_serial("*T S")
+            await asyncio.sleep(0.5)
+            self.write_to_serial("*T N")
+            await asyncio.sleep(0.5)
             
             # Keep main process running
             while self.running:
