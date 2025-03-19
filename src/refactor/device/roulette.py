@@ -2,9 +2,14 @@ import logging
 import asyncio
 import time
 import random
-from typing import Dict
+import serial
+import threading
+import json
+from typing import Dict, Optional, Any
 from controller import BaseGameStateController, GameType, RouletteState
-from utils import log_with_color, RED, GREEN, BLUE, YELLOW, MAGENTA, RESET
+from utils import log_with_color, RED, GREEN, BLUE, YELLOW, MAGENTA, RESET, check_serial_port, setup_serial_port, check_los_state
+from los_api.api import start_post, deal_post, finish_post, cancel_post
+from logger import ColorfulLogger
 
 class RouletteStateController(BaseGameStateController):
     """Controls Roulette game state transitions"""
@@ -132,3 +137,208 @@ class RouletteStateController(BaseGameStateController):
         self.current_round_id = None
         self.current_result = None
         self.logger.info("Roulette game cleaned up")
+
+class RealRouletteController(BaseGameStateController):
+    def __init__(self, logger: ColorfulLogger, port='/dev/ttyUSB0', baudrate=9600):
+        super().__init__(GameType.ROULETTE)
+        self.logger = logger
+        self.serial_port = None
+        self.port = port
+        self.baudrate = baudrate
+        self.running = True
+        
+        # Game state variables
+        self.win_num = None
+        self.round_id = None
+        self.current_state = RouletteState.TABLE_CLOSED
+        self.power_state = "off"
+        self.protocol_mode = "unknown"
+        self.last_command = None
+        
+        # API configuration
+        self.post_url = 'https://crystal-los.iki-cit.cc/v1/service/sdp/table/SDP-001'
+        self.get_url = 'https://crystal-los.iki-cit.cc/v1/service/table/SDP-001'
+        self.token = 'E5LN4END9Q'
+        
+        # State tracking flags
+        self.u1_sent_success = False
+        self.start_post_success = False
+        self.x1_sequence_started = False
+        self.is_processing_command = False
+        
+        # Command response tracking
+        self.command_responses: Dict[str, Any] = {}
+        self.expected_responses = {
+            'U1': ['u1'],
+            'X1': ['x1'],
+            'P0': ['p0'],
+            'P1': ['p1'],
+            'G0': ['g0'],
+            'S0': ['s0']
+        }
+        
+        # Initialize serial port
+        self.initialize_serial_port()
+
+    def initialize_serial_port(self):
+        """Initialize serial port connection"""
+        if not check_serial_port(self.port):
+            raise Exception(f"Serial port {self.port} is in use")
+            
+        self.serial_port = setup_serial_port(self.port, self.baudrate)
+        self.logger.log_with_color(f"Successfully opened serial port {self.port}", GREEN)
+
+    async def initialize_power_state(self):
+        """Initialize power state of the roulette wheel"""
+        await self.send_command('U1')
+        await asyncio.sleep(1)
+        if self.power_state == "off":
+            await self.send_command('P1')
+            await asyncio.sleep(2)
+
+    def read_from_serial(self):
+        """Read data from serial port"""
+        while self.running:
+            try:
+                if self.serial_port and self.serial_port.in_waiting:
+                    data = self.serial_port.readline().decode().strip()
+                    if data:
+                        self.logger.log_serial_data(data)
+                        self.process_serial_data(data)
+            except Exception as e:
+                self.logger.log_with_color(f"Serial read error: {e}", RED)
+            time.sleep(0.1)
+
+    def process_serial_data(self, data: str):
+        """Process incoming serial data"""
+        try:
+            # Log the received data
+            self.logger.log_with_color(f"Received: {data}", BLUE)
+            
+            # Process different response types
+            if data.startswith('u1'):
+                self.u1_sent_success = True
+                self.protocol_mode = "normal"
+            elif data.startswith('p'):
+                self.power_state = "on" if data == "p1" else "off"
+            elif data.startswith('x1'):
+                self.x1_sequence_started = True
+            elif data.startswith('w'):
+                # Process winning number
+                self.win_num = int(data[1:])
+                asyncio.create_task(self.handle_winning_number())
+            
+            # Update command response tracking
+            if self.last_command and data in self.expected_responses.get(self.last_command, []):
+                self.command_responses[self.last_command] = data
+                self.is_processing_command = False
+                
+        except Exception as e:
+            self.logger.log_with_color(f"Data processing error: {e}", RED)
+
+    async def send_command(self, command: str):
+        """Send command to serial port"""
+        try:
+            while self.is_processing_command:
+                await asyncio.sleep(0.1)
+            
+            self.is_processing_command = True
+            self.last_command = command
+            
+            self.logger.log_with_color(f"Sending command: {command}", YELLOW)
+            self.serial_port.write(f"{command}\r\n".encode())
+            
+            # Wait for response
+            timeout = 5
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                if command in self.command_responses:
+                    response = self.command_responses.pop(command)
+                    self.is_processing_command = False
+                    return response
+                await asyncio.sleep(0.1)
+            
+            self.is_processing_command = False
+            raise TimeoutError(f"Command {command} timed out")
+            
+        except Exception as e:
+            self.is_processing_command = False
+            self.logger.log_with_color(f"Send command error: {e}", RED)
+            raise
+
+    async def handle_winning_number(self):
+        """Handle winning number result"""
+        try:
+            if self.win_num is not None and self.round_id:
+                self.logger.log_with_color(f"Winning number: {self.win_num}", GREEN)
+                await finish_post(self.post_url, self.token, self.round_id, self.win_num)
+                self.win_num = None
+                self.round_id = None
+        except Exception as e:
+            self.logger.log_with_color(f"Handle winning number error: {e}", RED)
+
+    async def start_new_game(self):
+        """Start a new game round"""
+        try:
+            status, round_id, message = await check_los_state(self.get_url, self.token)
+            if status == 200:
+                self.round_id = round_id
+                await start_post(self.post_url, self.token, round_id)
+                await self.send_command('X1')
+                self.logger.log_with_color(f"Started new game round: {round_id}", GREEN)
+            else:
+                self.logger.log_with_color(f"Failed to start game: {message}", RED)
+        except Exception as e:
+            self.logger.log_with_color(f"Start game error: {e}", RED)
+
+    def handle_user_input(self):
+        """Handle user input commands"""
+        while self.running:
+            try:
+                command = input().strip().upper()
+                if command == 'Q':
+                    self.running = False
+                elif command in ['U1', 'P0', 'P1', 'X1', 'G0', 'S0']:
+                    asyncio.create_task(self.send_command(command))
+                elif command == 'START':
+                    asyncio.create_task(self.start_new_game())
+            except Exception as e:
+                self.logger.log_with_color(f"Input handling error: {e}", RED)
+
+    async def cleanup(self):
+        """Cleanup resources"""
+        try:
+            if self.serial_port:
+                if self.power_state == "on":
+                    await self.send_command('P0')
+                self.serial_port.close()
+            self.running = False
+            self.logger.log_with_color("Cleanup completed", GREEN)
+        except Exception as e:
+            self.logger.log_with_color(f"Cleanup error: {e}", RED)
+
+    async def start(self):
+        """Start the roulette controller"""
+        try:
+            # Start serial read thread
+            read_thread = threading.Thread(target=self.read_from_serial)
+            read_thread.daemon = True
+            read_thread.start()
+            
+            # Start input handling thread
+            input_thread = threading.Thread(target=self.handle_user_input)
+            input_thread.daemon = True
+            input_thread.start()
+            
+            # Initialize power state
+            await self.initialize_power_state()
+            
+            # Keep main process running
+            while self.running:
+                await asyncio.sleep(0.1)
+                
+        except Exception as e:
+            self.logger.log_with_color(f"Start error: {e}", RED)
+            raise
+        finally:
+            await self.cleanup()

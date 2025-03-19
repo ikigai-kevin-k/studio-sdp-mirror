@@ -15,6 +15,8 @@ from device.dice_shaker import ShakerConnector
 from proto.mqtt import MQTTConnector
 from los.api import start_post, deal_post, finish_post, visibility_post, get_roundID, resume_post, get_sdp_config, cancel_post
 from logger import setup_logging, get_logger
+from utils import load_config
+from device.roulette import RealRouletteController
 
 ########################################################
 # [v] move configure log to utils
@@ -229,62 +231,50 @@ class SDP:
 
 async def amain():
     """Async main function"""
-    # 設置命令列參數
     parser = argparse.ArgumentParser(description='SDP Game System')
-    parser.add_argument('--broker', type=str,
-                      help='MQTT broker address (overrides config file)')
-    parser.add_argument('--port', type=int,
-                      help='MQTT broker port (overrides config file)')
+    parser.add_argument('--config', type=str, default='conf/roulette_auto_speed.json',
+                      help='Path to configuration file')
     parser.add_argument('--game-type', type=str, choices=['roulette', 'sicbo', 'blackjack'],
-                      default='sicbo', help='Game type to run')
-    parser.add_argument('--enable-logging', action='store_true',
-                      help='Enable MQTT logging to file')
-    parser.add_argument('--log-dir', type=str, default='logs',
-                      help='Directory for log files')
+                      default='roulette', help='Game type to run')
     
     args = parser.parse_args()
-
-    # 設置日誌
-    setup_logging(args.enable_logging, args.log_dir)
-
-    # 從配置檔案載入設定
+    
     try:
-        with open('conf/sicbo_auto.json', 'r') as f:
-            config_data = json.load(f)
+        # Load configuration
+        config_data = load_config(args.config)
         
-        # 使用命令列參數覆蓋配置檔案的值
-        broker = args.broker or config_data['broker']['host']
-        port = args.port or config_data['broker']['port']
-        room_id = config_data['room']['id']
+        # Setup logging
+        setup_logging(config_data.get('enable_logging', True), 
+                     config_data.get('log_dir', 'logs'))
         
-    except Exception as e:
-        logging.warning(f"Failed to load config file: {e}, using default values")
-        broker = args.broker or "206.53.48.180"
-        port = args.port or 1883
-        room_id = "SDP-003"
-
-    # 創建遊戲配置
-    config = GameConfig(
-        game_type=GameType(args.game_type),
-        room_id=room_id,
-        broker_host=broker,
-        broker_port=port,
-        enable_logging=args.enable_logging,
-        log_dir=args.log_dir
-    )
-
-    # 創建遊戲實例
-    game = SDP(config)
-
-    try:
-        await game.run_game_round()
-
+        logger = get_logger('main')
+        
+        # Create game configuration
+        game_config = GameConfig(
+            game_type=GameType(args.game_type),
+            room_id=config_data['room_id'],
+            broker_host=config_data['broker_host'],
+            broker_port=config_data['broker_port'],
+            enable_logging=config_data['enable_logging'],
+            log_dir=config_data['log_dir'],
+            port=config_data['port'],
+            baudrate=config_data['baudrate']
+        )
+        
+        # Create and start game controller
+        if game_config.game_type == GameType.ROULETTE:
+            controller = RealRouletteController(logger, game_config.port, game_config.baudrate)
+            await controller.start()
+        else:
+            logger.error(f"Unsupported game type: {game_config.game_type}")
+            
     except KeyboardInterrupt:
-        logging.info("Game interrupted by user")
+        logger.info("Game interrupted by user")
     except Exception as e:
-        logging.error(f"Game error: {e}")
+        logger.error(f"Game error: {e}")
     finally:
-        await game.cleanup()
+        if 'controller' in locals():
+            await controller.cleanup()
 
 def main():
     """Entry point for the application"""

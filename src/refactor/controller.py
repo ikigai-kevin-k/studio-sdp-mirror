@@ -14,6 +14,7 @@ class RouletteState(Enum):
     TABLE_CLOSED = auto()
     START_GAME = auto()
     PLACE_BET = auto()
+    BALL_LAUNCH = auto()
     NO_MORE_BET = auto()
     WINNING_NUMBER = auto()
     ERROR = auto()
@@ -47,6 +48,8 @@ class GameConfig:
     broker_port: int
     enable_logging: bool = False
     log_dir: str = 'logs'
+    port: str = '/dev/ttyUSB0'
+    baudrate: int = 9600
 
 class Controller:
     """Base controller class"""
@@ -87,6 +90,10 @@ class BaseGameStateController:
 
     def transition_to(self, new_state):
         """Transition to a new state"""
+        raise NotImplementedError
+
+    async def cleanup(self):
+        """Cleanup resources"""
         raise NotImplementedError
 
 def create_game_state_controller(game_type: GameType) -> BaseGameStateController:

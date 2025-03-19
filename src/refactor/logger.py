@@ -3,45 +3,52 @@ import time
 import logging
 import logging.handlers
 
-def setup_logging(enable_logging: bool, log_dir: str):
-    """Setup logging configuration"""
-    # Set basic configuration
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+# Color constants
+RED = '\033[91m'
+GREEN = '\033[92m'
+BLUE = '\033[94m'
+YELLOW = '\033[93m'
+MAGENTA = '\033[95m'
+GRAY = '\033[90m'
+RESET = '\033[0m'
 
-    if enable_logging:
-        # Ensure log directory exists
-        os.makedirs(log_dir, exist_ok=True)
+class ColorfulLogger(logging.Logger):
+    def __init__(self, name: str):
+        super().__init__(name=name)
         
-        # Setup file handler
-        log_file = os.path.join(log_dir, f'sdp_game_{time.strftime("%Y%m%d_%H%M%S")}.log')
-        file_handler = logging.handlers.RotatingFileHandler(
-            log_file,
-            maxBytes=10*1024*1024,  # 10MB
-            backupCount=5,
-            encoding='utf-8'
-        )
+        # Setup terminal handler
+        terminal_handler = logging.StreamHandler()
+        terminal_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        terminal_handler.setFormatter(terminal_formatter)
         
-        # Setup formatter
-        formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
-        file_handler.setFormatter(formatter)
+        # Setup terminal output log file handler
+        terminal_file_handler = logging.FileHandler("./terminal_output.log", mode="w")
+        terminal_file_handler.setFormatter(terminal_formatter)
         
-        # Setup root logger
-        root_logger = logging.getLogger()
-        root_logger.addHandler(file_handler)
+        # Setup serial data log file handler
+        serial_file_handler = logging.FileHandler("./serial_data.log", mode="w")
+        serial_file_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
         
-        # Keep console output
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(formatter)
-        root_logger.addHandler(console_handler)
+        # Setup logger
+        self.setLevel(logging.INFO)
+        self.addHandler(terminal_handler)
+        self.addHandler(terminal_file_handler)
         
-        root_logger.setLevel(logging.INFO)
-        
-        logging.info(f"Logging to file: {log_file}")
+        # Create serial data specific logger
+        self.serial_logger = logging.getLogger("serial_logger")
+        self.serial_logger.setLevel(logging.INFO)
+        self.serial_logger.addHandler(serial_file_handler)
+
+    def log_with_color(self, message: str, color: str = ""):
+        self.info(f"{color}{message}{RESET}")
+
+    def log_serial_data(self, message: str):
+        self.serial_logger.info(message)
+
+def setup_logging(enable_logging: bool, log_dir: str) -> ColorfulLogger:
+    """Setup logging configuration and return ColorfulLogger instance"""
+    os.makedirs(log_dir, exist_ok=True)
+    return ColorfulLogger("roulette_logger")
 
 # Create a function to get logger
 def get_logger(name: str) -> logging.Logger:
