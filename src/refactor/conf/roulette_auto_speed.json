@@ -1,13 +1,25 @@
 {
+    "port": "/dev/ttyUSB0",
+    "baudrate": 9600,
     "game_type": "roulette",
     "room_id": "SDP-001",
     "broker_host": "crystal-los.iki-cit.cc",
-
+    "broker_port": 443,
     "enable_logging": true,
     "log_dir": "logs",
     "los": {
         "token": "E5LN4END9Q",
         "get_url_template": "https://crystal-los.iki-cit.cc/v1/service/table/{game_code}",
         "post_url_template": "https://crystal-los.iki-cit.cc/v1/service/sdp/table/{game_code}"
+    },
+    "machine_config": {
+        "common": {
+            "wheel_speed": 28
+        },
+        "specific": {
+            "gph": 100,
+            "deceleration_distance": 15,
+            "in_rim_jet_duration": 25
+        }
     }
 }
