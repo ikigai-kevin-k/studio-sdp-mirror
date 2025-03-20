@@ -14,12 +14,12 @@
     },
     "machine_config": {
         "common": {
-            "wheel_speed": 28
+            "wheel_speed": [30.0,30.0]
         },
         "specific": {
-            "gph": 100,
-            "deceleration_distance": 15,
-            "in_rim_jet_duration": 25
+            "gph": 600,
+            "deceleration_distance": 1400,
+            "in_rim_jet_duration": [15000,15000]
         }
     }
 }
