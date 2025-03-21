@@ -109,7 +109,52 @@ stateDiagram-v2
     end note
 ```
 
-## Hierarchical Structure
+## LOS API State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> IDLE
+    IDLE --> BETTING: start_post
+    BETTING --> BET_STOPPED: bet_period_expired
+    BET_STOPPED --> DEALING: deal_post
+    DEALING --> FINISHED: finish_post
+    
+    state PAUSED {
+        [*] --> PAUSED_STATE
+        PAUSED_STATE --> [*]: resume_post
+    }
+    
+    BETTING --> PAUSED: pause_post
+    BET_STOPPED --> PAUSED: pause_post
+    DEALING --> PAUSED: pause_post
+    PAUSED --> PREVIOUS_STATE: resume_post
+    
+    state VISIBILITY {
+        VISIBLE --> INVISIBLE: visibility_post[enable=false]
+        INVISIBLE --> VISIBLE: visibility_post[enable=true]
+    }
+    
+    state ERROR {
+        [*] --> CANCELLED
+        CANCELLED --> [*]: cancel_post
+    }
+    
+    BETTING --> ERROR: handle_error
+    BET_STOPPED --> ERROR: handle_error
+    DEALING --> ERROR: handle_error
+    
+    note right of BETTING
+        Countdown bet_period
+        Check table status
+    end note
+    
+    note right of DEALING
+        Send game results
+        Update SDP config
+    end note
+```
+
+## Updated Hierarchical Structure
 
 ```mermaid
 graph TD
@@ -118,9 +163,12 @@ graph TD
     Main --> Blackjack[Blackjack Controller]
     
     Roulette --> RS232[RS232 Communication]
+    Roulette --> LOS_R[LOS API]
     SicBo --> MQTT[MQTT Protocol]
     SicBo --> IDP[IDP Detection]
+    SicBo --> LOS_S[LOS API]
     Blackjack --> HID[HID Scanner]
+    Blackjack --> LOS_B[LOS API]
     
     style Main fill:#f9f,stroke:#333,stroke-width:4px
     style Roulette fill:#bbf,stroke:#333
@@ -130,6 +178,9 @@ graph TD
     style MQTT fill:#dfd,stroke:#333
     style IDP fill:#dfd,stroke:#333
     style HID fill:#dfd,stroke:#333
+    style LOS_R fill:#fdd,stroke:#333
+    style LOS_S fill:#fdd,stroke:#333
+    style LOS_B fill:#fdd,stroke:#333
 ```
 
 ## State Machine Descriptions
@@ -163,3 +214,45 @@ Each game controller manages its specific game logic and device communication:
 - **MQTT**: Message queue for dice shaker control
 - **IDP**: Image detection for dice results
 - **HID**: Human Interface Device for card scanning
+
+## LOS API State Descriptions
+
+### Game Flow States
+- **IDLE**: Initial state waiting for game start
+- **BETTING**: Active betting period with countdown
+- **BET_STOPPED**: Betting period ended, ready for dealing
+- **DEALING**: Processing game results
+- **FINISHED**: Round completed
+
+### Control States
+- **PAUSED**: Game temporarily suspended
+  - Can be triggered from any active state
+  - Requires reason for pause
+  - Resume returns to previous state
+
+### Visibility States
+- **VISIBLE**: Table visible to players
+- **INVISIBLE**: Table hidden from players
+
+### Error Handling
+- **CANCELLED**: Round cancelled due to error
+- Supports round cancellation and recovery
+
+## LOS API Functions
+- **start_post**: Initiate new game round
+- **deal_post**: Submit game results
+- **finish_post**: Complete current round
+- **pause_post**: Temporarily suspend game
+- **resume_post**: Resume suspended game
+- **visibility_post**: Control table visibility
+- **cancel_post**: Cancel current round
+- **get_roundID**: Check current round status
+- **sdp_config_post**: Update game configuration
+
+## Integration Points
+Each game controller (Roulette, SicBo, Blackjack) integrates with LOS API for:
+- Round management
+- Result submission
+- State control
+- Configuration updates
+- Error handling
