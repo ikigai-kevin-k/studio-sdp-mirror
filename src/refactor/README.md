@@ -46,7 +46,7 @@ stateDiagram-v2
         RESULT_READY --> IDLE: reset
     }
     
-    state "Signal Processing" as SP {
+    state "Log Processing" as SP {
         state "X2 Processing" as X2 {
             [*] --> X2_WAITING
             X2_WAITING --> X2_RECEIVED: receive_x2
@@ -116,7 +116,7 @@ stateDiagram-v2
     ERROR --> IDLE: reset
 ```
 
-### Blackjack Controller (HID + LOS Integration)
+### Blackjack Controller (HID + LOS Integration, TODO)
 ```mermaid
 stateDiagram-v2
     [*] --> TABLE_CLOSED
