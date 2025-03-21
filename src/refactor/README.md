@@ -34,14 +34,45 @@ stateDiagram-v2
 
 ## Game Controllers State Machines
 
-### Roulette Controller (using RS232)
+### Roulette Controller (RS232 + LOS Integration)
 ```mermaid
 stateDiagram-v2
     [*] --> IDLE
-    IDLE --> WAITING_START: start_game
-    WAITING_START --> SPINNING: start_spin
-    SPINNING --> RESULT_READY: set_result[is_valid_result]
-    RESULT_READY --> IDLE: reset
+    
+    state "Game Flow" as GF {
+        IDLE --> WAITING_START: start_game
+        WAITING_START --> SPINNING: start_spin
+        SPINNING --> RESULT_READY: set_result[is_valid_result]
+        RESULT_READY --> IDLE: reset
+    }
+    
+    state "Signal Processing" as SP {
+        state "X2 Processing" as X2 {
+            [*] --> X2_WAITING
+            X2_WAITING --> X2_RECEIVED: receive_x2
+            X2_RECEIVED --> X2_CONFIRMED: receive_x2[count >= 2]
+            X2_CONFIRMED --> [*]: start_los_round
+        }
+        
+        state "X5 Processing" as X5 {
+            [*] --> X5_WAITING
+            X5_WAITING --> X5_RECEIVED: receive_x5
+            X5_RECEIVED --> X5_CONFIRMED: receive_x5[count >= 5]
+            X5_CONFIRMED --> [*]: submit_result
+        }
+    }
+    
+    state "LOS Integration" as LOS {
+        state "LOS States" as LS {
+            INIT --> BETTING: start_post
+            BETTING --> BET_STOPPED: bet_period_expired
+            BET_STOPPED --> DEALING: deal_post
+            DEALING --> FINISHED: finish_post
+        }
+    }
+    
+    X2_CONFIRMED --> WAITING_START: trigger_start
+    X5_CONFIRMED --> RESULT_READY: set_wheel_result
     
     state ERROR
     IDLE --> ERROR: handle_error
@@ -49,22 +80,32 @@ stateDiagram-v2
     SPINNING --> ERROR: handle_error
     RESULT_READY --> ERROR: handle_error
     ERROR --> IDLE: reset
-    
-    note right of SPINNING
-        RS232 communication
-        Wheel control
-    end note
 ```
 
-### SicBo Controller (using IDP and MQTT)
+### SicBo Controller (MQTT + IDP + LOS Integration)
 ```mermaid
 stateDiagram-v2
     [*] --> IDLE
-    IDLE --> WAITING_START: start_game
-    WAITING_START --> SHAKING: start_shake
-    SHAKING --> DETECTING: start_detect
-    DETECTING --> RESULT_READY: set_result[is_valid_result]
-    RESULT_READY --> IDLE: reset
+    
+    state "Game Flow" as GF {
+        IDLE --> WAITING_START: start_game
+        WAITING_START --> SHAKING: start_shake
+        SHAKING --> DETECTING: start_detect
+        DETECTING --> RESULT_READY: set_result[is_valid_result]
+        RESULT_READY --> IDLE: reset
+    }
+    
+    state "LOS Integration" as LOS {
+        state "LOS States" as LS {
+            INIT --> BETTING: start_post
+            BETTING --> BET_STOPPED: bet_period_expired
+            BET_STOPPED --> DEALING: deal_post[dice_detected]
+            DEALING --> FINISHED: finish_post
+        }
+    }
+    
+    WAITING_START --> BETTING: trigger_los_start
+    DETECTING --> DEALING: submit_dice_result
     
     state ERROR
     IDLE --> ERROR: handle_error
@@ -73,26 +114,33 @@ stateDiagram-v2
     DETECTING --> ERROR: handle_error
     RESULT_READY --> ERROR: handle_error
     ERROR --> IDLE: reset
-    
-    note right of SHAKING
-        MQTT control shaker
-    end note
-    
-    note right of DETECTING
-        IDP detect dice
-    end note
 ```
 
-### Blackjack Controller (using HID)
+### Blackjack Controller (HID + LOS Integration)
 ```mermaid
 stateDiagram-v2
     [*] --> TABLE_CLOSED
-    TABLE_CLOSED --> START_GAME: open_table
-    START_GAME --> DEAL_CARDS: start_dealing
-    DEAL_CARDS --> PLAYER_TURN: start_player_turn[is_initial_deal_complete]
-    PLAYER_TURN --> DEALER_TURN: start_dealer_turn[is_player_turn_complete]
-    DEALER_TURN --> GAME_RESULT: end_game
-    GAME_RESULT --> TABLE_CLOSED: close_table
+    
+    state "Game Flow" as GF {
+        TABLE_CLOSED --> START_GAME: open_table
+        START_GAME --> DEAL_CARDS: start_dealing
+        DEAL_CARDS --> PLAYER_TURN: start_player_turn[is_initial_deal_complete]
+        PLAYER_TURN --> DEALER_TURN: start_dealer_turn[is_player_turn_complete]
+        DEALER_TURN --> GAME_RESULT: end_game
+        GAME_RESULT --> TABLE_CLOSED: close_table
+    }
+    
+    state "LOS Integration" as LOS {
+        state "LOS States" as LS {
+            INIT --> BETTING: start_post
+            BETTING --> BET_STOPPED: bet_period_expired
+            BET_STOPPED --> DEALING: deal_post[all_cards_scanned]
+            DEALING --> FINISHED: finish_post
+        }
+    }
+    
+    START_GAME --> BETTING: trigger_los_start
+    GAME_RESULT --> DEALING: submit_game_result
     
     state ERROR
     TABLE_CLOSED --> ERROR: handle_error
@@ -102,11 +150,6 @@ stateDiagram-v2
     DEALER_TURN --> ERROR: handle_error
     GAME_RESULT --> ERROR: handle_error
     ERROR --> TABLE_CLOSED: reset
-    
-    note right of DEAL_CARDS
-        HID barcode scanner
-        Card detection
-    end note
 ```
 
 ## LOS API State Machine
@@ -256,3 +299,38 @@ Each game controller (Roulette, SicBo, Blackjack) integrates with LOS API for:
 - State control
 - Configuration updates
 - Error handling
+
+## State Descriptions
+
+### Roulette Signal States
+- **X2 Processing**
+  - X2_WAITING: Waiting for X2 signal
+  - X2_RECEIVED: First X2 signal received
+  - X2_CONFIRMED: Multiple X2 signals confirmed (triggers game start)
+- **X5 Processing**
+  - X5_WAITING: Waiting for X5 signal
+  - X5_RECEIVED: First X5 signal received
+  - X5_CONFIRMED: Multiple X5 signals confirmed (triggers result submission)
+
+### LOS Integration States for Each Game
+- **INIT**: Initial state before round starts
+- **BETTING**: Active betting period
+- **BET_STOPPED**: Betting period ended
+- **DEALING**: Submitting game results
+- **FINISHED**: Round completed
+
+### Integration Points with LOS
+1. **Roulette**:
+   - X2 signals trigger LOS round start
+   - X5 signals trigger result submission
+   - Wheel position validation before result submission
+
+2. **SicBo**:
+   - Shake command triggers LOS round start
+   - IDP detection triggers result submission
+   - Dice validation before result submission
+
+3. **Blackjack**:
+   - Table opening triggers LOS round start
+   - Card scanning during dealing phase
+   - Final hand results trigger round completion
