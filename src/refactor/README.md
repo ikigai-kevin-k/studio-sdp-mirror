@@ -40,25 +40,25 @@ stateDiagram-v2
     [*] --> IDLE
     
     state "Game Flow" as GF {
-        IDLE --> WAITING_START: start_game
-        WAITING_START --> SPINNING: start_spin
-        SPINNING --> RESULT_READY: set_result[is_valid_result]
-        RESULT_READY --> IDLE: reset
+        IDLE --> WAITING_START: start_game/start_post
+        WAITING_START --> SPINNING: start_spin[bet_period_expired]
+        SPINNING --> RESULT_READY: set_result[is_valid_result]/deal_post
+        RESULT_READY --> IDLE: reset/finish_post
     }
     
-    state "Log Processing" as SP {
+    state "Signal Processing" as SP {
         state "X2 Processing" as X2 {
             [*] --> X2_WAITING
             X2_WAITING --> X2_RECEIVED: receive_x2
             X2_RECEIVED --> X2_CONFIRMED: receive_x2[count >= 2]
-            X2_CONFIRMED --> [*]: start_los_round
+            X2_CONFIRMED --> [*]
         }
         
         state "X5 Processing" as X5 {
             [*] --> X5_WAITING
             X5_WAITING --> X5_RECEIVED: receive_x5
             X5_RECEIVED --> X5_CONFIRMED: receive_x5[count >= 5]
-            X5_CONFIRMED --> [*]: submit_result
+            X5_CONFIRMED --> [*]
         }
     }
     
@@ -80,6 +80,16 @@ stateDiagram-v2
     SPINNING --> ERROR: handle_error
     RESULT_READY --> ERROR: handle_error
     ERROR --> IDLE: reset
+    
+    note right of WAITING_START
+        LOS round started
+        Waiting for bet period
+    end note
+    
+    note right of RESULT_READY
+        Submit result to LOS
+        Complete round
+    end note
 ```
 
 ### SicBo Controller (MQTT + IDP + LOS Integration)

@@ -156,7 +156,8 @@ class RealRouletteController(BaseGameStateController):
             'trigger': 'start_game',
             'source': [RouletteState.IDLE, RouletteState.RESULT_READY],
             'dest': RouletteState.WAITING_START,
-            'before': 'before_start_game'
+            'before': 'before_start_game',
+            'after': 'after_start_game'
         },
         {
             'trigger': 'start_spin',
@@ -169,7 +170,8 @@ class RealRouletteController(BaseGameStateController):
             'source': RouletteState.SPINNING,
             'dest': RouletteState.RESULT_READY,
             'conditions': ['is_valid_result'],
-            'before': 'before_set_result'
+            'before': 'before_set_result',
+            'after': 'after_set_result'
         },
         {
             'trigger': 'handle_error',
@@ -347,3 +349,20 @@ class RealRouletteController(BaseGameStateController):
         """Cleanup resources"""
         if self.serial:
             self.serial.cleanup()
+
+    async def after_start_game(self, event):
+        """Send start_post after entering WAITING_START state"""
+        try:
+            self.round_id, self.bet_period = await start_post(self.post_url, self.token)
+            if self.round_id == -1:
+                self.handle_error("Failed to start LOS round")
+        except Exception as e:
+            self.handle_error(f"LOS start error: {e}")
+
+    async def after_set_result(self, event):
+        """Send deal_post and finish_post after result is ready"""
+        try:
+            await deal_post(self.post_url, self.token, self.round_id, self.win_num)
+            await finish_post(self.post_url, self.token)
+        except Exception as e:
+            self.handle_error(f"LOS result submission error: {e}")
