@@ -4,6 +4,7 @@ from pygments.formatters import TerminalFormatter
 from pygments.lexers import JsonLexer
 import json
 import time
+from typing import Tuple
 
 
 def start_post(url, token):
@@ -311,6 +312,19 @@ def cancel_post(url, token):
 
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
+
+def create_los_urls(base_url: str, game_code: str) -> Tuple[str, str]:
+    """Create LOS API URLs"""
+    get_url = f"{base_url}/v1/service/table/{game_code}"
+    post_url = f"{base_url}/v1/service/sdp/table/{game_code}"
+    return get_url, post_url
+
+def check_los_state(url: str, token: str) -> Tuple[int, str, str]:
+    """Check LOS system state"""
+    try:
+        return get_roundID(url, token)
+    except Exception as e:
+        raise Exception(f"Failed to get LOS state: {e}")
 
 if __name__ == "__main__":
 

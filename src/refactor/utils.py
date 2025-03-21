@@ -1,7 +1,11 @@
 import serial
 import asyncio
 import json
-from typing import Tuple, Dict, Any
+import subprocess
+from typing import Tuple, Dict, Any, Optional
+import os
+import logging
+from datetime import datetime
 from los_api.api import get_roundID
 
 def load_config(config_path: str) -> Dict[str, Any]:
@@ -12,10 +16,47 @@ def load_config(config_path: str) -> Dict[str, Any]:
     except Exception as e:
         raise Exception(f"Failed to load config file: {e}")
 
+def check_process_exists(process_name: str) -> bool:
+    """Check if a process exists by name"""
+    try:
+        output = subprocess.check_output(['pgrep', '-f', process_name])
+        return bool(output)
+    except subprocess.CalledProcessError:
+        return False
+
+def ensure_directory_exists(path: str) -> None:
+    """Ensure directory exists, create if not"""
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+def get_timestamp() -> str:
+    """Get current timestamp in formatted string"""
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
+def parse_command_args(command: str) -> tuple[str, list[str]]:
+    """Parse command and its arguments"""
+    parts = command.split()
+    return parts[0], parts[1:] if len(parts) > 1 else []
+
+def validate_numeric_range(value: float, min_val: float, max_val: float) -> bool:
+    """Validate if a numeric value is within range"""
+    return min_val <= value <= max_val
+
+def format_log_message(level: str, message: str) -> str:
+    """Format log message with timestamp and level"""
+    timestamp = get_timestamp()
+    return f"[{timestamp}] {level}: {message}"
+
+def safe_cast(value: str, to_type: type, default: Any = None) -> Any:
+    """Safely cast value to specified type"""
+    try:
+        return to_type(value)
+    except (ValueError, TypeError):
+        return default
+
 def check_serial_port(port: str) -> bool:
     """Check if serial port is available"""
     try:
-        import subprocess
         result = subprocess.run(['lsof', port], capture_output=True, text=True)
         return not bool(result.stdout)
     except Exception:

@@ -2,6 +2,7 @@ import os
 import time
 import logging
 import logging.handlers
+from utils import ensure_directory_exists, get_timestamp
 
 # Color constants
 RED = '\033[91m'
@@ -45,12 +46,16 @@ class ColorfulLogger(logging.Logger):
     def log_serial_data(self, message: str):
         self.serial_logger.info(message)
 
-def setup_logging(enable_logging: bool, log_dir: str) -> ColorfulLogger:
-    """Setup logging configuration and return ColorfulLogger instance"""
-    os.makedirs(log_dir, exist_ok=True)
-    return ColorfulLogger("roulette_logger")
+def setup_logging(enable_logging: bool, log_dir: str) -> None:
+    """Setup logging configuration"""
+    if enable_logging:
+        ensure_directory_exists(log_dir)
+        configure_logging(log_dir)
 
-# Create a function to get logger
+def configure_logging(log_dir: str) -> None:
+    """Configure logging handlers and formatters"""
+    # ... (existing logging configuration code) ...
+
 def get_logger(name: str) -> logging.Logger:
-    """Get a logger instance with the specified name"""
+    """Get logger instance with specified name"""
     return logging.getLogger(name)

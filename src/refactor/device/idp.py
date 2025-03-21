@@ -3,11 +3,73 @@ import json
 import asyncio
 from typing import Optional, Tuple
 import time
+from transitions import Machine
 from proto.mqtt import MQTTLogger
 from controller import Controller, GameConfig
 
+class IDPState:
+    """IDP states definition"""
+    IDLE = 'idle'
+    DETECTING = 'detecting'
+    PROCESSING = 'processing'
+    RESULT_READY = 'result_ready'
+    ERROR = 'error'
+    TIMEOUT = 'timeout'
+
 class IDPConnector(Controller):
-    """Controls IDP (Image Detection Processing) operations"""
+    """Controls IDP (Image Detection Processing) operations with state machine"""
+    
+    # Define states
+    states = [
+        IDPState.IDLE,
+        IDPState.DETECTING,
+        IDPState.PROCESSING,
+        IDPState.RESULT_READY,
+        IDPState.ERROR,
+        IDPState.TIMEOUT
+    ]
+    
+    # Define transitions
+    transitions = [
+        {
+            'trigger': 'start_detection',
+            'source': IDPState.IDLE,
+            'dest': IDPState.DETECTING,
+            'before': 'before_detection',
+            'after': 'after_detection'
+        },
+        {
+            'trigger': 'process_result',
+            'source': IDPState.DETECTING,
+            'dest': IDPState.PROCESSING,
+            'conditions': ['is_valid_response']
+        },
+        {
+            'trigger': 'complete_processing',
+            'source': IDPState.PROCESSING,
+            'dest': IDPState.RESULT_READY,
+            'conditions': ['is_valid_result']
+        },
+        {
+            'trigger': 'handle_timeout',
+            'source': [IDPState.DETECTING, IDPState.PROCESSING],
+            'dest': IDPState.TIMEOUT,
+            'before': 'before_timeout'
+        },
+        {
+            'trigger': 'handle_error',
+            'source': '*',
+            'dest': IDPState.ERROR,
+            'before': 'before_error'
+        },
+        {
+            'trigger': 'reset',
+            'source': '*',
+            'dest': IDPState.IDLE,
+            'before': 'before_reset'
+        }
+    ]
+
     def __init__(self, config: GameConfig):
         super().__init__(config)
         self.mqtt_client = MQTTLogger(
@@ -15,9 +77,25 @@ class IDPConnector(Controller):
             broker=config.broker_host,
             port=config.broker_port
         )
+        
+        # Initialize state machine
+        self.machine = Machine(
+            model=self,
+            states=self.states,
+            transitions=self.transitions,
+            initial=IDPState.IDLE,
+            auto_transitions=False,
+            send_event=True
+        )
+        
+        # State data
         self.response_received = False
         self.last_response = None
         self.dice_result = None
+        self.current_round_id = None
+        self.error_message = None
+        self.detection_start_time = None
+        self.timeout_duration = 4  # seconds
 
     async def initialize(self):
         """Initialize IDP controller"""
@@ -40,88 +118,119 @@ class IDPConnector(Controller):
             
         except Exception as e:
             self.logger.error(f"Error in _on_message: {e}")
+            self.handle_error()
 
-    def _process_message(self, topic, payload):
+    def _process_message(self, topic: str, payload: str):
         """Process received message"""
         try:
-            self.logger.info(f"Processing message from {topic}: {payload}")
-            
             if topic == "ikg/idp/dice/response":
                 response_data = json.loads(payload)
                 if "response" in response_data and response_data["response"] == "result":
                     if "arg" in response_data and "res" in response_data["arg"]:
-                        dice_result = response_data["arg"]["res"]
-                        # Check if valid dice result (three numbers)
-                        if isinstance(dice_result, list) and len(dice_result) == 3 and all(isinstance(x, int) for x in dice_result):
-                            self.dice_result = dice_result
-                            self.response_received = True
-                            self.last_response = payload
-                            self.logger.info(f"Got valid dice result: {self.dice_result}")
-                            return  # Return immediately, don't wait for more results
-                        else:
-                            self.logger.info(f"Received invalid result: {dice_result}, continuing to wait...")
-                    
+                        self.last_response = payload
+                        if self.state == IDPState.DETECTING:
+                            self.process_result()
+                            
         except json.JSONDecodeError as e:
             self.logger.error(f"Failed to parse message JSON: {e}")
+            self.handle_error()
         except Exception as e:
             self.logger.error(f"Error processing message: {e}")
+            self.handle_error()
 
-    def detect(self, round_id: str) -> Tuple[bool, Optional[list]]:
-        """Send detect command and wait for response"""
+    def before_detection(self, event):
+        """Actions before starting detection"""
+        self.response_received = False
+        self.last_response = None
+        self.dice_result = None
+        self.detection_start_time = time.time()
+
+    def after_detection(self, event):
+        """Actions after starting detection"""
+        self.current_round_id = event.kwargs.get('round_id')
+        command = {
+            "command": "detect",
+            "arg": {
+                "round_id": self.current_round_id,
+                "input": "rtmp://192.168.88.213:1935/live/r456_dice",
+                "output": "https://pull-tc.stream.iki-utl.cc/live/r456_dice.flv"
+            }
+        }
+        self.mqtt_client.publish("ikg/idp/dice/command", json.dumps(command))
+
+    def is_valid_response(self, event):
+        """Check if received response is valid"""
         try:
-            # Reset state
-            self.response_received = False
-            self.last_response = None
-            self.dice_result = None
+            response_data = json.loads(self.last_response)
+            return ("response" in response_data and 
+                   response_data["response"] == "result" and 
+                   "arg" in response_data and 
+                   "res" in response_data["arg"])
+        except:
+            return False
+
+    def is_valid_result(self, event):
+        """Check if processed result is valid"""
+        try:
+            response_data = json.loads(self.last_response)
+            dice_result = response_data["arg"]["res"]
+            if (isinstance(dice_result, list) and 
+                len(dice_result) == 3 and 
+                all(isinstance(x, int) for x in dice_result)):
+                self.dice_result = dice_result
+                return True
+            return False
+        except:
+            return False
+
+    def before_timeout(self, event):
+        """Actions before timeout"""
+        self.logger.warning(f"Detection timeout after {self.timeout_duration}s")
+        command = {
+            "command": "timeout",
+            "arg": {}
+        }
+        self.mqtt_client.publish("ikg/idp/dice/command", json.dumps(command))
+
+    def before_error(self, event):
+        """Actions before error state"""
+        self.error_message = event.kwargs.get('error', 'Unknown error')
+        self.logger.error(f"Entering error state: {self.error_message}")
+
+    def before_reset(self, event):
+        """Actions before reset"""
+        self.response_received = False
+        self.last_response = None
+        self.dice_result = None
+        self.current_round_id = None
+        self.error_message = None
+        self.detection_start_time = None
+
+    async def detect(self, round_id: str) -> Tuple[bool, Optional[list]]:
+        """Start detection process"""
+        try:
+            # Reset state if needed
+            if self.state != IDPState.IDLE:
+                self.reset()
             
-            command = {
-                "command": "detect",
-                "arg": {
-                    "round_id": round_id,
-                    "input": "rtmp://192.168.88.213:1935/live/r456_dice",
-                    "output": "https://pull-tc.stream.iki-utl.cc/live/r456_dice.flv"
-                }
-            }
+            # Start detection
+            self.start_detection(round_id=round_id)
             
-            # Set timeout limit
-            timeout = 4  # for demo
-            start_time = asyncio.get_event_loop().time()
-            retry_interval = 4  
-            attempt = 1
-            
-            while (asyncio.get_event_loop().time() - start_time) < timeout:
-                # Send detection command
-                self.logger.info(f"Sending detect command (attempt {attempt})")
-                self.mqtt_client.publish("ikg/idp/dice/command", json.dumps(command))
+            # Wait for result with timeout
+            while True:
+                if self.state == IDPState.RESULT_READY:
+                    return True, self.dice_result
+                elif self.state in [IDPState.ERROR, IDPState.TIMEOUT]:
+                    return False, None
+                elif time.time() - self.detection_start_time > self.timeout_duration:
+                    self.handle_timeout()
+                    return False, None
+                    
+                await asyncio.sleep(0.1)
                 
-                # Wait for response mini-loop
-                wait_end = min(
-                    start_time + timeout,  # Don't exceed total timeout
-                    asyncio.get_event_loop().time() + retry_interval  # Wait time before next retry
-                )
-                
-                while asyncio.get_event_loop().time() < wait_end:
-                    if self.dice_result is not None:
-                        self.logger.info(f"Received dice result on attempt {attempt}: {self.dice_result}")
-                        return True, self.dice_result
-                    time.sleep(0.5)
-                
-                attempt += 1
-            
-            # Timeout handling
-            elapsed = asyncio.get_event_loop().time() - start_time
-            self.logger.warning(f"No valid response received within {elapsed:.2f}s after {attempt-1} attempts")
-            command = {
-                "command": "timeout",
-                "arg": {}
-            }
-            self.mqtt_client.publish("ikg/idp/dice/command", json.dumps(command))
-            if self.last_response:
-                self.logger.warning(f"Last response was: {self.last_response}")
-            return True, [""]  # Return default value on timeout
-            
         except Exception as e:
             self.logger.error(f"Error in detect: {e}")
+            self.handle_error(error=str(e))
             return False, None
 
     async def cleanup(self):
