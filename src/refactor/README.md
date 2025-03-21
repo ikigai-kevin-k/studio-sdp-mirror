@@ -40,10 +40,10 @@ stateDiagram-v2
     [*] --> IDLE
     
     state "Game Flow" as GF {
-        IDLE --> WAITING_START: start_game/start_post
+        IDLE --> WAITING_START: start_game
         WAITING_START --> SPINNING: start_spin[bet_period_expired]
-        SPINNING --> RESULT_READY: set_result[is_valid_result]/deal_post
-        RESULT_READY --> IDLE: reset/finish_post
+        SPINNING --> RESULT_READY: set_result[is_valid_result]
+        RESULT_READY --> IDLE: reset
     }
     
     state "Signal Processing" as SP {
@@ -73,6 +73,10 @@ stateDiagram-v2
     
     X2_CONFIRMED --> WAITING_START: trigger_start
     X5_CONFIRMED --> RESULT_READY: set_wheel_result
+    
+    WAITING_START --> BETTING: start_post
+    RESULT_READY --> DEALING: deal_post
+    RESULT_READY --> FINISHED: finish_post
     
     state ERROR
     IDLE --> ERROR: handle_error
