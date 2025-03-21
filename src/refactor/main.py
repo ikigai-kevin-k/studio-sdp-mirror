@@ -2,6 +2,7 @@ import asyncio
 import logging
 import json
 import argparse
+from transitions import Machine
 from controller import GameType, GameConfig
 from device.dice_shaker import DiceShakerController
 from device.roulette import RealRouletteController
@@ -17,46 +18,141 @@ GAME_CONFIG_MAPPING = {
     'blackjack': 'conf/blackjack.json'
 }
 
+class MainState:
+    """Main program states"""
+    INITIALIZING = 'initializing'
+    RUNNING = 'running'
+    ERROR = 'error'
+    STOPPING = 'stopping'
+    STOPPED = 'stopped'
+
 class GameRunner:
-    """Game runner class to manage different game types"""
+    """Game runner class with state machine"""
+    
+    states = [
+        MainState.INITIALIZING,
+        MainState.RUNNING,
+        MainState.ERROR,
+        MainState.STOPPING,
+        MainState.STOPPED
+    ]
+    
+    transitions = [
+        {
+            'trigger': 'start_init',
+            'source': '*',
+            'dest': MainState.INITIALIZING,
+            'before': 'before_init'
+        },
+        {
+            'trigger': 'start_running',
+            'source': MainState.INITIALIZING,
+            'dest': MainState.RUNNING,
+            'conditions': ['is_initialized'],
+            'before': 'before_running'
+        },
+        {
+            'trigger': 'handle_error',
+            'source': '*',
+            'dest': MainState.ERROR,
+            'before': 'before_error'
+        },
+        {
+            'trigger': 'start_stopping',
+            'source': [MainState.RUNNING, MainState.ERROR],
+            'dest': MainState.STOPPING,
+            'before': 'before_stopping'
+        },
+        {
+            'trigger': 'complete_stop',
+            'source': MainState.STOPPING,
+            'dest': MainState.STOPPED,
+            'before': 'before_complete_stop'
+        }
+    ]
+
     def __init__(self, game_type: str, config_path: str):
         self.game_type = game_type
-        self.config = load_config(config_path)
-        self.logger = ColorfulLogger('GameRunner')  # 使用 ColorfulLogger
+        self.config_path = config_path
+        self.config = None
+        self.logger = ColorfulLogger('GameRunner')
         self.controller = None
+        self.error_message = None
+        self.initialized = False
+        
+        # Initialize state machine
+        self.machine = Machine(
+            model=self,
+            states=self.states,
+            transitions=self.transitions,
+            initial=MainState.INITIALIZING,
+            auto_transitions=False,
+            send_event=True
+        )
 
-    async def initialize(self):
-        """Initialize game controller based on game type"""
+    def before_init(self, event):
+        """Actions before initialization"""
+        self.logger.info(f"Initializing {self.game_type} game system...")
+        self.initialized = False
+        self.error_message = None
+
+    def before_running(self, event):
+        """Actions before running"""
+        self.logger.info(f"Starting {self.game_type} game...")
+
+    def before_error(self, event):
+        """Actions before error state"""
+        self.error_message = event.kwargs.get('error', 'Unknown error')
+        self.logger.error(f"Error occurred: {self.error_message}")
+
+    def before_stopping(self, event):
+        """Actions before stopping"""
+        self.logger.info("Stopping game system...")
+
+    def before_complete_stop(self, event):
+        """Actions before complete stop"""
+        self.logger.info("Game system stopped")
+
+    def is_initialized(self, event) -> bool:
+        """Check if system is properly initialized"""
+        return self.initialized and self.controller is not None
+
+    async def initialize(self) -> bool:
+        """Initialize game system"""
         try:
-            # 設置日誌
+            # Load configuration
+            self.config = load_config(self.config_path)
+            
+            # Setup logging
             setup_logging(
                 self.config.get('enable_logging', True),
                 self.config.get('log_dir', 'logs')
             )
 
-            # 創建遊戲配置
+            # Create game configuration
             game_config = GameConfig(
                 game_type=self._get_game_type(),
                 room_id=self.config.get('room', {}).get('id') or self.config.get('room_id'),
                 broker_host=self.config.get('broker', {}).get('host') or self.config.get('broker_host'),
                 broker_port=self.config.get('broker', {}).get('port') or self.config.get('broker_port'),
                 enable_logging=self.config.get('enable_logging', True),
-                log_dir=self.config.get('log_dir', 'logs'),
+                log_dir=self.config.get('log_dir', 'logs/sdp'),
                 port=self.config.get('port', '/dev/ttyUSB0'),
                 baudrate=self.config.get('baudrate', 9600)
             )
 
-            # 創建對應的遊戲控制器
+            # Create and initialize game controller
             self.controller = self._create_controller(game_config)
             if not self.controller:
                 raise Exception(f"Failed to create controller for game type: {self.game_type}")
 
-            # 初始化控制器
             await self.controller.initialize()
+            self.initialized = True
+            self.start_running()
             return True
 
         except Exception as e:
-            self.logger.error(f"Initialization error: {e}")
+            self.handle_error(error=str(e))
             return False
 
     def _get_game_type(self) -> GameType:
@@ -75,7 +171,7 @@ class GameRunner:
             if self.game_type.startswith('roulette'):
                 return RealRouletteController(self.logger, game_config)
             elif self.game_type == 'sicbo':
-                return DiceShakerController(game_config)  # 更新為新的控制器名稱
+                return DiceShakerController(game_config)
             elif self.game_type == 'blackjack':
                 return BlackJackStateController(game_config)
             return None
@@ -89,16 +185,21 @@ class GameRunner:
             if not self.controller:
                 raise Exception("Controller not initialized")
 
-            self.logger.info(f"Starting {self.game_type} game...")
             await self.controller.start()
 
         except KeyboardInterrupt:
             self.logger.info("Game interrupted by user")
+            await self.stop()
         except Exception as e:
-            self.logger.error(f"Game error: {e}")
-            raise
+            self.handle_error(error=str(e))
         finally:
             await self.cleanup()
+
+    async def stop(self):
+        """Stop the game system"""
+        self.start_stopping()
+        await self.cleanup()
+        self.complete_stop()
 
     async def cleanup(self):
         """Cleanup resources"""
