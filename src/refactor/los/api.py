@@ -5,10 +5,14 @@ from pygments.lexers import JsonLexer
 import json
 import time
 from typing import Tuple
+import logging
 
 
-def start_post(url, token):
-    # Set up HTTP headers
+def start_post(url: str, token: str) -> Tuple[str, int]:
+    """
+    Send start post request to LOS
+    Returns: (round_id, bet_period)
+    """
     headers = {
         'accept': 'application/json',
         'Bearer': f'Bearer {token}',
@@ -16,74 +20,68 @@ def start_post(url, token):
         'Content-Type': 'application/json'
     }
 
-    # Define payload for the POST request
-    data = {}
+    data = {}  # 空的 JSON payload
     response = requests.post(f'{url}/start', headers=headers, json=data)
 
-    # Check if the response status code indicates success
     if response.status_code != 200:
-        # print(f"Error: {response.status_code} - {response.text}")
-        return -1, -1
+        logging.error(f"Failed to get round ID. Status: {response.status_code}, Response: {response.text}")
+        return "-1", 0
 
     try:
-        # Parse the response JSON
         response_data = response.json()
+        round_id = response_data.get('data', {}).get('table', {}).get('tableRound', {}).get('roundId')
+        bet_period = response_data.get('data', {}).get('table', {}).get('betPeriod', 30)
         
-    except json.JSONDecodeError:
-        print("Error: Unable to decode JSON response.")
-        return -1, -1
+        if not round_id:
+            logging.error("Round ID not found in response")
+            return "-1", 0
+            
+        return round_id, bet_period
+        
+    except Exception as e:
+        logging.error(f"Error in start_post: {str(e)}")
+        return "-1", 0
 
-    # Extract roundId from the nested JSON structure
-    round_id = response_data.get('data', {}).get('table', {}).get('tableRound', {}).get('roundId')
-    betPeriod = response_data.get('data', {}).get('table', {}).get('betPeriod')
-
-    # Handle cases where roundId is not found
-    if not round_id:
-        print("Error: roundId not found in response.")
-        return -1, -1
-
-    # Format the JSON for pretty printing and apply syntax highlighting
-    json_str = json.dumps(response_data, indent=2)
-    colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
-    print(colored_json)
-
-    return round_id ,betPeriod
-
-def deal_post(url, token, round_id, result):
+def deal_post(url: str, token: str, round_id: str, result: str) -> bool:
+    """Send deal post request to LOS"""
     headers = {
         'accept': 'application/json',
-        'Bearer': token,
+        'Bearer': f'Bearer {token}',
         'x-signature': 'los-local-signature',
         'Content-Type': 'application/json'
     }
 
+    # 修正結果格式為 sicBo
     data = {
-        "roundId": f'{round_id}', # replaced with the roundId receive from start request
-        "sicBo": result # for test, to be replaced with the actual values read from log file
+        "roundId": round_id,
+        "sicBo": result  # 使用正確的 key 名稱
     }
 
-    response = requests.post(f'{url}/deal', headers=headers, json=data)
-    json_str = json.dumps(response.json(), indent=2)
+    try:
+        response = requests.post(f'{url}/deal', headers=headers, json=data)
+        json_str = json.dumps(response.json(), indent=2)
+        colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
+        print(colored_json)
+        return response.status_code == 200
+    except Exception as e:
+        logging.error(f"Error in deal_post: {str(e)}")
+        return False
 
-
-    colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
-    print(colored_json)
-
-def finish_post(url, token):
+def finish_post(url: str, token: str) -> bool:
+    """Send finish post request to LOS"""
     headers = {
         'accept': 'application/json',
-        'Bearer': token,
+        'Bearer': f'Bearer {token}',
         'x-signature': 'los-local-signature',
         'Content-Type': 'application/json'
     }
 
-    data = {}
+    data = {}  # 空的 JSON payload
     response = requests.post(f'{url}/finish', headers=headers, json=data)
     json_str = json.dumps(response.json(), indent=2)
-
-
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
+    return response.status_code == 200
 
 def visibility_post(url, token, enable):
     headers = {
