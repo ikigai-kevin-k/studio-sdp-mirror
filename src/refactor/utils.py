@@ -85,3 +85,19 @@ def create_los_urls(base_url: str, game_code: str) -> Tuple[str, str]:
     get_url = f"{base_url}/v1/service/table/{game_code}"
     post_url = f"{base_url}/v1/service/sdp/table/{game_code}"
     return get_url, post_url
+
+
+# ANSI escape codes for colors
+RED = '\033[91m'
+GREEN = '\033[92m'
+BLUE = '\033[94m'
+YELLOW = '\033[93m'
+MAGENTA = '\033[95m'
+RESET = '\033[0m'
+
+def log_with_color(message, color=None):
+    """Print log message with color"""
+    if color:
+        print(f"{color}{message}{RESET}")
+    else:
+        print(message) 
