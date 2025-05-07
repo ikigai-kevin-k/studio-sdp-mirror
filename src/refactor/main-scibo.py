@@ -287,7 +287,7 @@ class SDPGame:
                         for table in self.table_configs:
                             post_url = f"{table['post_url']}{table['game_code']}"
                             print("Send broadcast post")
-                            broadcast_post(post_url, self.token, "dice.reroll", "players", {"afterSeconds": 4})
+                            broadcast_post(post_url, self.token, "dice.reroll", "players", 4)
                         
                         await self.shaker_controller.shake(first_round_id)
                         await asyncio.sleep(SHAKE_TIME+0.5)

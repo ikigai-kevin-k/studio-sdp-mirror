@@ -455,7 +455,7 @@ def execute_broadcast_post(table, token):
     """執行 broadcast_post 通知重新發射"""
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
-        result = broadcast_post(post_url, token, "roulette.relaunch", "players", None)
+        result = broadcast_post(post_url, token, "roulette.relaunch", "players", 20)
         print(f"成功發送 broadcast_post (relaunch) for {table['name']}")
         log_to_file(f"成功發送 broadcast_post (relaunch) for {table['name']}", "Broadcast >>>")
         return result

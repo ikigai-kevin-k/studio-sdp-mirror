@@ -325,7 +325,7 @@ def cancel_post(url: str, token: str) -> None:
     except Exception as e:
         print(f"Unexpected error in cancel_post: {e}")
 
-def broadcast_post(url, token, broadcast_type, audience="players", metadata=None):
+def broadcast_post(url, token, broadcast_type, audience="players", afterSeconds=20):
     """
     Send a broadcast message to the table
     
@@ -348,9 +348,11 @@ def broadcast_post(url, token, broadcast_type, audience="players", metadata=None
 
     data = {
         "msgId": msg_id,
-        "type": broadcast_type,
-        "audience": audience,
-        "metadata": metadata or {}
+        "metadata": {
+            "type": broadcast_type,
+            "audience": audience,
+            "afterSeconds": afterSeconds
+        }
     }
 
     response = requests.post(f'{url}/broadcast', headers=headers, json=data)
