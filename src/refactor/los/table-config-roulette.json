@@ -1,0 +1,14 @@
+[
+    {
+    "name": "SDP",
+    "get_url": "https://crystal-los.iki-cit.cc/v1/service/table/",
+    "post_url": "https://crystal-los.iki-cit.cc/v1/service/sdp/table/",
+    "game_code": "SDP-001"
+    },
+    {
+    "name": "ARO",
+    "get_url": "https://crystal-los.iki-uat.cc/v1/service/table/",
+    "post_url": "https://crystal-los.iki-uat.cc/v1/service/sdp/table/",
+    "game_code": "ARO-001"
+    }
+]

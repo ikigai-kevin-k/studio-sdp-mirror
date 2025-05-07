@@ -1,0 +1,20 @@
+{
+    "speed_roulette": {
+        "operation_mode": "135",
+        "gph": "161",
+        "wheel_speed": "16.0 18.0",
+        "deceleration_distance": "1475",
+        "in_rim_jet_duration": "23000 23000",
+        "T_n": "3999",
+        "T_m": "2.0"
+    },
+    "vip_roulette": {
+        "operation_mode": "1167",
+        "gph": "150",
+        "wheel_speed": "16.0 18.0",
+        "deceleration_distance": "1475",
+        "in_rim_jet_duration": "33000 36000",
+        "T_n": "3600",
+        "T_m": "2.0"
+    }
+}
