@@ -5,16 +5,69 @@ from pygments.lexers import JsonLexer
 import json
 import time
 
-# SDP-003 for test
-# accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiIzYWVmNDc2YS1lZTkxLTQ1ODEtOTk1Yy01NjkzNWQ3NzZmYjIiLCJnYW1lQ29kZSI6WyJTRFAtMDAzIl0sInJvbGUiOiJzZHAiLCJleHBpcmVzQXQiOjE3NDgwNTExNTU3MjEsImNyZWF0ZWRBdCI6MTc0Nzk2NDc1NTcyMiwiaWF0IjoxNzQ3OTY0NzU1fQ.9qPv2qCtyLqb6J0Nl47hhCbcO2C4nhrv5jkSJ4nJbfo'
+def session_get(url: str, game_code: str) -> str:
+    """
+    Get session token from LOS API
+    
+    Args:
+        url (str): Base URL of the LOS API
+        game_code (str): Game code (e.g., "SBO-001")
+    
+    Returns:
+        str: Session token if successful, None otherwise
+    """
+    headers = {
+        'accept': 'application/json',
+        'x-signature': 'los-local-signature',
+        'Content-Type': 'application/json'
+    }
 
-# CIT SBO-001
-# accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiJmMzk5ODQ5OC0xNDMzLTQzMDMtYmZiZi1kNmZhNmIxODRkZmQiLCJnYW1lQ29kZSI6WyJTQk8tMDAxIl0sInJvbGUiOiJzZHAiLCJleHBpcmVzQXQiOjE3NDgzMTQzMzk0MjIsImNyZWF0ZWRBdCI6MTc0ODIyNzkzOTQyMywiaWF0IjoxNzQ4MjI3OTM5fQ.9e0Zg66u9kWF1g9eEDMtWW0IRVcIp2Ze0UK6zQ8kJfI'
-# accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiJiZTI4YjRiNy1jN2M0LTRhMTEtYjVmYy05YTI3OTU3ZDBlZDkiLCJnYW1lQ29kZSI6WyJTQk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NDgzOTYzNzM2NDksImlhdCI6MTc0ODM5NjM3M30.kPEssfH3b_teUHHNa1kGNrPq88ZrhF7l72cTODGFEwg'
-# accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI2YjY3ZjFiZi03NGI1LTQ0NGQtOWRjOS1hMGViMTI1MjU3NDEiLCJnYW1lQ29kZSI6WyJTQk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NDg0MDAxMjQ4MDEsImlhdCI6MTc0ODQwMDEyNH0.wgCKas02lserT3DTA19e4Rv2nyYhj-XRVyZEm_rEiqQ'
+    data = {
+        "gameCode": [game_code],
+        "role": "sdp"
+    }
 
-# UAT SBO-001
-accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiIyZTA3NjVjMS0zZDQ1LTRiZGEtOTg2Yi03MjU4NTE1YmE1YzgiLCJnYW1lQ29kZSI6WyJTQk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NDk1Mzk0Mzc5NzksImlhdCI6MTc0OTUzOTQzN30.zS_0SvnH0Ez-1-lasRwJpjZviWYK7j7Z5NVbxAI_BW8'
+    try:
+        response = requests.post(
+            f'{url}/sessions',
+            headers=headers,
+            json=data,
+            verify=False
+        )
+        
+        if response.status_code != 200:
+            print(f"Error: {response.status_code} - {response.text}")
+            return None
+            
+        response_data = response.json()
+        
+        # Format and display the response
+        json_str = json.dumps(response_data, indent=2)
+        colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
+        print(colored_json)
+        
+        # Extract token from response
+        token = response_data.get('data', {}).get('token')
+        if not token:
+            print("Error: Token not found in response")
+            return None
+            
+        return token
+        
+    except requests.exceptions.RequestException as e:
+        print(f"Network error in session_get: {e}")
+        return None
+    except json.JSONDecodeError as e:
+        print(f"JSON decode error in session_get: {e}")
+        return None
+    except Exception as e:
+        print(f"Unexpected error in session_get: {e}")
+        return None
+
+# Global accessToken variable
+base_url = 'https://crystal-los.iki-uat.cc/v2/service'
+gameCode = 'SBO-001'
+accessToken = session_get(base_url, gameCode)
 
 def start_post_v2_uat(url, token):
     # Set up HTTP headers
@@ -24,7 +77,6 @@ def start_post_v2_uat(url, token):
         'x-signature': 'los-local-signature',
         'Content-Type': 'application/json',
         'Cookie': f'accessToken={accessToken}',
-        # 'timecode': '26000' # 8 + 15 + 3 = 26
     }
 
     # Define payload for the POST request
@@ -73,7 +125,6 @@ def deal_post_v2_uat(url, token, round_id, result):
 
     data = {
         "roundId": f'{round_id}',
-        #"roulette": result  # 修改: 使用 "roulette" 而不是 "sicBo"，直接傳入數字的string
         "sicBo": result
     }
 
@@ -399,27 +450,30 @@ if __name__ == "__main__":
     import random
     cnt = 0
     while cnt < 1:
-        results = [1,2,3] #str(random.randint(0, 36))
-        get_url = 'https://crystal-los.iki-cit.cc/v2/service/tables/'
-        post_url = 'https://crystal-los.iki-cit.cc/v2/service/tables/'
-
-        # get_url =  "https://crystal-los.iki-uat.cc/v1/service/table/"
-        # post_url = "https://crystal-los.iki-uat.cc/v1/service/sdp/table/"
-
-        # gameCode = 'SDP-003'
-        # gameCode = 'SDP-001'
-        # gameCode = 'SDP-003'
+        results = [1, 2, 3]  # str(random.randint(0, 36))
+        base_url = 'https://crystal-los.iki-uat.cc/v2/service'
+        get_url = f'{base_url}/tables/'
+        post_url = f'{base_url}/tables/'
+        
         gameCode = 'SBO-001'
+        
+        # Get session token
+        global accessToken
+        accessToken = session_get(base_url, gameCode)
+        if not accessToken:
+            print("Failed to get session token")
+            break
+            
         get_url = get_url + gameCode
         post_url = post_url + gameCode
         token = 'E5LN4END9Q'
 
         # broadcast_post(post_url, token, "roulette.relaunch", "players", 20)
         # broadcast_post(post_url, token, "dice.reshake", "sdp", 20)
-        # print("================Start================\n")
+        print("================Start================\n")
         round_id, betPeriod = start_post_v2_uat(post_url, token)
-        round_id, status, betPeriod =  get_roundID_v2_uat(get_url, token)
-        print(round_id, status, betPeriod) 
+        round_id, status, betPeriod = get_roundID_v2_uat(get_url, token)
+        print(round_id, status, betPeriod)
 
         # betPeriod = 10
         # print(round_id, status, betPeriod) 
