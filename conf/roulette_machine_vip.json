@@ -1,0 +1,29 @@
+{
+    "game_type": "roulette_vip",
+    "room": {
+        "id": "roulette_vip_001",
+        "name": "VIP Roulette"
+    },
+    "broker": {
+        "host": "localhost",
+        "port": 1883
+    },
+    "serial": {
+        "port": "/dev/ttyUSB0",
+        "baudrate": 9600
+    },
+    "machine_config": {
+        "common": {
+            "wheel_speed": 0.8
+        },
+        "specific": {
+            "gph": 100,
+            "deceleration_distance": 50,
+            "in_rim_jet_duration": 200
+        }
+    },
+    "enable_logging": true,
+    "log_dir": "logs",
+    "result_duration": 30,
+    "timeout_duration": 60
+}

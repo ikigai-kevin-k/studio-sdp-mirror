@@ -1,0 +1,441 @@
+import asyncio
+import logging
+import json
+import time
+from typing import Optional
+import requests
+import argparse
+import os
+import logging.handlers
+import subprocess
+import websockets
+
+from controller import GameType, GameConfig
+from gameStateController import create_game_state_controller
+from deviceController import IDPController, ShakerController
+from mqttController import MQTTController
+from los_api.api_v2 import start_post_v2, deal_post_v2, finish_post_v2, pause_post_v2, get_roundID_v2, broadcast_post_v2
+from los_api.api_v2_uat import start_post_v2_uat, deal_post_v2_uat, finish_post_v2_uat, pause_post_v2_uat, get_roundID_v2_uat, broadcast_post_v2_uat, get_sdp_config_v2_uat
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+def setup_logging(enable_logging: bool, log_dir: str):
+    """Setup logging configuration"""
+    if enable_logging:
+        # ensure log directory exists
+        os.makedirs(log_dir, exist_ok=True)
+        
+        # set up file handler
+        log_file = os.path.join(log_dir, f'SDP002_{time.strftime("%m%d")}.log')
+        file_handler = logging.handlers.RotatingFileHandler(
+            log_file,
+            maxBytes=10*1024*1024,  # 10MB
+            backupCount=5,
+            encoding='utf-8'
+        )
+        
+        # set up formatter
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        file_handler.setFormatter(formatter)
+        
+        # set up root logger
+        root_logger = logging.getLogger()
+        root_logger.addHandler(file_handler)
+        
+        # keep console output
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        root_logger.addHandler(console_handler)
+        
+        root_logger.setLevel(logging.INFO)
+        
+        logging.info(f"Logging to file: {log_file}")
+
+def load_table_config(config_file='conf/table-config-scibo.json'):
+    """Load table configuration from JSON file"""
+    try:
+        with open(config_file, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading table config: {e}")
+        return []
+
+class SDPGame:
+    """Main game class for SDP"""
+    def __init__(self, config: GameConfig):
+        self.config = config
+        self.logger = logging.getLogger("SDPGame")
+        
+        # initialize controllers
+        self.game_controller = create_game_state_controller(config.game_type)
+        self.mqtt_controller = MQTTController(
+            client_id=f"sdp_controller_{config.room_id}",
+            broker=config.broker_host,
+            port=config.broker_port
+        )
+        self.idp_controller = IDPController(config)
+        self.shaker_controller = ShakerController(config)
+        self.running = False
+        
+        # load all table configs
+        self.table_configs = load_table_config()
+        self.token = 'E5LN4END9Q'
+        self.logger.info(f"Loaded {len(self.table_configs)} table configurations")
+        
+        self.stream_started = False
+        
+        # WebSocket client
+        self.ws_client = None
+        self.ws_connected = False
+
+    async def initialize(self):
+        """Initialize all controllers"""
+        try:
+            await self.mqtt_controller.initialize()
+            await self.idp_controller.initialize()
+            await self.shaker_controller.initialize()
+            
+            # set up MQTT controller for SicBo game
+            if self.config.game_type == GameType.SICBO:
+                await self.game_controller.set_mqtt_controller(self.mqtt_controller)
+                
+            self.logger.info("All controllers initialized successfully")
+            return True
+        except Exception as e:
+            self.logger.error(f"Initialization failed: {e}")
+            return False
+
+    async def connect_to_recorder(self, uri='ws://localhost:8765'):
+        """Connect to the stream recorder via WebSocket"""
+        try:
+            self.ws_client = await websockets.connect(uri)
+            self.ws_connected = True
+            self.logger.info(f"Connected to stream recorder at {uri}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to connect to stream recorder: {e}")
+            self.ws_connected = False
+            return False
+    
+    async def send_to_recorder(self, message):
+        """Send message to stream recorder"""
+        if not self.ws_connected or not self.ws_client:
+            self.logger.warning("Not connected to stream recorder, attempting to reconnect...")
+            await self.connect_to_recorder()
+            
+        if self.ws_connected:
+            try:
+                await self.ws_client.send(message)
+                response = await self.ws_client.recv()
+                self.logger.info(f"Recorder response: {response}")
+                return True
+            except Exception as e:
+                self.logger.error(f"Error sending message to recorder: {e}")
+                self.ws_connected = False
+                return False
+        return False
+
+    async def run_sicbo_game(self):
+        """Run self test for all components"""
+        self.logger.info("Starting self test...")
+        
+        # initialize all controllers (only once)
+        try:
+            await self.mqtt_controller.initialize()
+            await self.shaker_controller.initialize()
+            await self.idp_controller.initialize()
+            # connect to recorder
+            await self.connect_to_recorder()
+            self.logger.info("All controllers initialized successfully")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize controllers: {e}")
+            return False
+
+        while True:  # infinite loop for game round
+            try:
+                # check previous round status
+                self.logger.info("Checking previous round status...")
+                try:
+                    # check status for all tables
+                    for table in self.table_configs:
+                        get_url = f"{table['get_url']}{table['game_code']}"
+                        if table['name'] == 'CIT':
+                            round_id, status, bet_period = get_roundID_v2(get_url, self.token)
+                            self.logger.info(f"Table {table['name']} - round_id: {round_id}, status: {status}, bet_period: {bet_period}")
+                        else:
+                            # round_id, status, bet_period = get_roundID(get_url, self.token)
+                            round_id, status, bet_period = get_roundID_v2_uat(get_url, self.token)
+                            self.logger.info(f"Table {table['name']} - round_id: {round_id}, status: {status}, bet_period: {bet_period}")
+                        
+                except Exception as e:
+                    self.logger.error(f"Error checking previous round: {e}")
+                    await asyncio.sleep(5)
+                    continue
+
+                # start new round
+                self.logger.info("Starting new round...")
+                round_start_time = time.time()
+                
+                # send start request to all tables
+                round_ids = []
+                for table in self.table_configs:
+                    post_url = f"{table['post_url']}{table['game_code']}"
+                    if table['name'] == 'CIT':
+                        print("====================")
+                        print("[DEBUG] CIT start_post_v2")
+                        print("====================")
+                        round_id, bet_period = start_post_v2(post_url, self.token)
+                        print("====================")
+                        print(round_id, bet_period)
+                        print("====================")
+                    else:
+                        print("====================")
+                        print("[DEBUG] UAT start_post")
+                        print("====================")
+                        round_id, bet_period = start_post_v2_uat(post_url, self.token)
+                        print("====================")
+                        print(round_id, bet_period)
+                        print("====================")
+                    if round_id != -1:
+                        round_ids.append((table, round_id, bet_period))
+                        self.logger.info(f"Started round {round_id} for {table['name']} with bet period {bet_period}")
+                
+                if not round_ids:
+                    self.logger.error("Failed to start round on any table")
+                    await asyncio.sleep(5)
+                    continue
+                
+                # notify recorder to start recording
+                if round_ids:
+                    # use first table's round_id as recording identifier
+                    first_table, first_round_id, _ = round_ids[0]
+                    await self.send_to_recorder(f"start_recording:{first_round_id}")
+                
+                # wait for betting period
+                betting_duration = 3 #  for the new setting 5s on the new subnet on dice-pc
+                self.logger.info(f"Waiting for betting period ({betting_duration:.1f} seconds)...")
+                time.sleep(betting_duration)
+
+                # notify recorder to start recording
+                if round_ids:
+                    # use first table's round_id as recording identifier
+                    first_table, first_round_id, _ = round_ids[0]
+                    await self.send_to_recorder(f"start_recording:{first_round_id}")            
+
+                # test shake command
+                SHAKE_TIME = 9
+                self.logger.info(f"Testing shake command with round ID: {first_round_id}")
+                await self.shaker_controller.shake(first_round_id) # Temporarily comment for test
+                await asyncio.sleep(SHAKE_TIME) # for dice pc idp
+
+                # test detect command
+                max_retries = 3
+                retry_count = 0
+                
+                while retry_count < max_retries:
+                    self.logger.info(f"Testing detect command... (attempt {retry_count + 1})")
+                    # time.sleep(2.5)
+                    success, dice_result = self.idp_controller.detect(first_round_id)
+                    
+                    is_valid_result = (
+                        success and 
+                        dice_result and 
+                        isinstance(dice_result, list) and 
+                        all(isinstance(x, int) and x > 0 for x in dice_result)
+                    )
+
+
+                    # for test, temporarily set is_valid_result to False
+                    # is_valid_result = False
+
+                    if is_valid_result:
+                        self.logger.info(f"Sending dice result to all tables: {dice_result}")
+                        deal_time = time.time()
+                        start_to_deal_time = deal_time - round_start_time
+                        self.logger.info(f"Start to deal time: {start_to_deal_time:.1f} seconds")
+
+                        # notify recorder to stop recording
+                        await self.send_to_recorder("stop_recording")
+
+                        time.sleep(1+2.5) # +2.5 to avoid idp timeout
+                        # send deal and finish request to all tables
+                        for table, round_id, _ in round_ids:
+                            post_url = f"{table['post_url']}{table['game_code']}"
+                            if table['name'] == 'CIT':
+                                deal_post_v2(post_url, self.token, round_id, dice_result)
+                            else:
+                                deal_post_v2_uat(post_url, self.token, round_id, dice_result)
+
+                        time.sleep(2)
+
+                        for table, round_id, _ in round_ids:
+                            post_url = f"{table['post_url']}{table['game_code']}"
+                            if table['name'] == 'CIT':
+                                finish_post_v2(post_url, self.token)
+                            else:
+                                finish_post_v2_uat(post_url, self.token)
+                            
+                        # notify recorder to stop recording
+                        await self.send_to_recorder("stop_recording")
+                            
+                        # calculate actual round duration
+                        round_duration = time.time() - round_start_time
+                        self.logger.info(f"Round completed for {table['name']} in {round_duration:.1f} seconds")
+                        
+                        # if round duration is less than expected, wait for remaining time
+                        TOTAL_ROUND_TIME = 16# not 19, 5+7+4 = 16s
+                        if round_duration < TOTAL_ROUND_TIME:
+                            remaining_time = TOTAL_ROUND_TIME - round_duration
+                            self.logger.info(f"Waiting {remaining_time:.1f} seconds to complete round for {table['name']}")
+                            await asyncio.sleep(remaining_time)
+                        
+                        break  # if get valid result, break the loop
+                    
+                    else:
+                        self.logger.info("Invalid result received, retrying shake and detect...")
+                        # re-shake
+                        for table in self.table_configs:
+                            post_url = f"{table['post_url']}{table['game_code']}"
+                            if table['name'] == 'CIT':
+                                broadcast_post_v2(post_url, self.token, "dice.reroll", "players", {"afterSeconds": 4})
+                            else:
+                                broadcast_post_v2_uat(post_url, self.token, "dice.reroll", "players", {"afterSeconds": 4})
+                        
+                        await self.shaker_controller.shake(first_round_id)
+                        await asyncio.sleep(SHAKE_TIME+0.5)
+                        retry_count += 1
+                        if retry_count >= max_retries:
+                            # self.logger.error("Max retries reached, cancelling round")
+                            self.logger.info("Max retries reached, pause round")
+                            for table, round_id, _ in round_ids:
+                                post_url = f"{table['post_url']}{table['game_code']}"
+                                
+                                # change to: pause_post, then start polling, until status is "finished" or "canceled", then start a new round
+                                if table['name'] == 'CIT':
+                                    pause_post_v2(post_url, self.token, "IDP cannot detect  the result for 3 times")
+                                    print("after pause_post_v2, status_cit:", status_cit)
+                                else:
+                                    # pause_post(post_url, self.token, "IDP cannot detect  the result for 3 times")
+                                    pause_post_v2_uat(post_url, self.token, "IDP cannot detect  the result for 3 times")
+                                    print("after pause_post, status_uat:", status_uat)
+                                
+                                # start polling, until status is "finished" or "canceled", then start a new round
+                                while True:
+
+                                    print("keep polling")
+
+                                    if table['name'] == 'CIT':
+                                        _, status_cit, _ = get_roundID_v2(post_url, self.token)
+                                        print("status:", status_cit)
+                                    else:
+                                        _, status_uat, _ = get_roundID_v2_uat(post_url, self.token)
+                                        print("status:", status_uat)
+
+                                    if (status_cit == "finished" or status_cit == "canceled") and (status_uat == "finished" or status_uat == "canceled"):
+                                        break
+                                    
+                                    time.sleep(1)
+                                # back to the beginning of the infinite loop
+                            break
+
+            except Exception as e:
+                self.logger.error(f"Error in game round: {e}")
+                await asyncio.sleep(5)
+
+    async def cleanup(self):
+        """Cleanup all resources"""
+        self.logger.info("Cleaning up resources")
+        
+        # close WebSocket connection
+        if self.ws_client:
+            try:
+                await self.ws_client.close()
+                self.logger.info("WebSocket connection closed")
+            except Exception as e:
+                self.logger.error(f"Error closing WebSocket connection: {e}")
+        
+        # clean up in reverse order of initialization
+        await self.shaker_controller.cleanup()
+        await self.idp_controller.cleanup()
+        await self.mqtt_controller.cleanup()
+        if hasattr(self.game_controller, 'cleanup'):
+            await self.game_controller.cleanup()
+
+    async def stop(self):
+        """Stop the game system"""
+        self.logger.info("Stopping game system")
+        self.running = False
+        await self.cleanup()
+
+async def amain():
+    """Async main function"""
+    # 設置命令列參數
+    parser = argparse.ArgumentParser(description='SDP Game System')
+    parser.add_argument('--broker', type=str, default='206.53.48.180',
+                      help='MQTT broker address (default: 206.53.48.180)')
+    parser.add_argument('--port', type=int, default=1883,
+                      help='MQTT broker port (default: 1883)')
+    parser.add_argument('--game-type', type=str, choices=['roulette', 'sicbo', 'blackjack'],
+                      default='sicbo', help='Game type to run (default: sicbo)')
+    parser.add_argument('--enable-logging', action='store_true', default=True,
+                      help='Enable MQTT logging to file (default: True)')
+    parser.add_argument('--log-dir', type=str, default='./logs',
+                      help='Directory for log files (default: ./logs)')
+    parser.add_argument('--get-url', type=str, default='https://los-api-uat.sdp.com.tw/api/v2/sdp/config',
+                      help='Get URL for SDP config (default: https://los-api-uat.sdp.com.tw/api/v2/sdp/config)')
+    parser.add_argument('--token', type=str, default='E5LN4END9Q',
+                      help='Token for SDP config (default: E5LN4END9Q)')
+    args = parser.parse_args()
+
+    # set up logging - directly use default values
+    setup_logging(True, args.log_dir)
+
+    # get SDP config from LOS API
+    try:
+        sdp_config = get_sdp_config_v2_uat(url=args.get_url, token=args.token)
+        # use SDP config to override default values, but keep command line parameters priority
+        broker = args.broker or sdp_config.get('broker_host')
+        port = args.port or sdp_config.get('broker_port')
+        room_id = sdp_config.get('room_id')
+        # can add other config parameters
+    except Exception as e:
+        logging.warning(f"Failed to get SDP config: {e}, using default values")
+        broker = args.broker
+        port = args.port
+        room_id = "SBO-001"
+
+    # create game config
+    config = GameConfig(
+        game_type=GameType(args.game_type),
+        room_id=room_id,
+        broker_host=broker,
+        broker_port=port,
+        enable_logging=args.enable_logging,
+        log_dir=args.log_dir
+    )
+
+    # create game instance
+    game = SDPGame(config)
+
+    try:
+        await game.run_sicbo_game()
+
+    except KeyboardInterrupt:
+        logging.info("Game interrupted by user")
+    except Exception as e:
+        logging.error(f"Game error: {e}")
+    finally:
+        await game.cleanup()
+
+def main():
+    """Entry point for the application"""
+    asyncio.run(amain())
+
+if __name__ == "__main__":
+    main()
