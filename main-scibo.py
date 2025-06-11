@@ -9,6 +9,8 @@ import os
 import logging.handlers
 import subprocess
 import websockets
+import urllib3
+from requests.exceptions import ConnectionError
 
 from controller import GameType, GameConfig
 from gameStateController import create_game_state_controller
@@ -16,6 +18,8 @@ from deviceController import IDPController, ShakerController
 from mqttController import MQTTController
 from los_api.api_v2 import start_post_v2, deal_post_v2, finish_post_v2, pause_post_v2, get_roundID_v2, broadcast_post_v2
 from los_api.api_v2_uat import start_post_v2_uat, deal_post_v2_uat, finish_post_v2_uat, pause_post_v2_uat, get_roundID_v2_uat, broadcast_post_v2_uat, get_sdp_config_v2_uat
+from networkChecker import networkChecker
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -57,7 +61,7 @@ def setup_logging(enable_logging: bool, log_dir: str):
         
         logging.info(f"Logging to file: {log_file}")
 
-def load_table_config(config_file='conf/table-config-scibo.json'):
+def load_table_config(config_file='los_api/table-config-scibo.json'):
     """Load table configuration from JSON file"""
     try:
         with open(config_file, 'r') as f:
@@ -65,6 +69,34 @@ def load_table_config(config_file='conf/table-config-scibo.json'):
     except Exception as e:
         logger.error(f"Error loading table config: {e}")
         return []
+
+async def retry_with_network_check(func, *args, max_retries=5, retry_delay=5):
+    """
+    Retry a function with network error checking.
+    
+    Args:
+        func: The function to retry
+        *args: Arguments to pass to the function
+        max_retries: Maximum number of retries
+        retry_delay: Delay between retries in seconds
+    
+    Returns:
+        The result of the function if successful
+    """
+    retry_count = 0
+    while retry_count < max_retries:
+        try:
+            return await func(*args) if asyncio.iscoroutinefunction(func) else func(*args)
+        except (ConnectionError, urllib3.exceptions.NewConnectionError, urllib3.exceptions.MaxRetryError) as e:
+            is_network_error, error_message = networkChecker(e)
+            if is_network_error:
+                logger.error(f"Network error occurred: {error_message}")
+                logger.info(f"Waiting {retry_delay} seconds before retry...")
+                await asyncio.sleep(retry_delay)
+                retry_count += 1
+                continue
+            raise
+    raise Exception(f"Max retries ({max_retries}) reached while attempting to execute {func.__name__}")
 
 class SDPGame:
     """Main game class for SDP"""
@@ -166,12 +198,14 @@ class SDPGame:
                     for table in self.table_configs:
                         get_url = f"{table['get_url']}{table['game_code']}"
                         if table['name'] == 'CIT':
-                            round_id, status, bet_period = get_roundID_v2(get_url, self.token)
-                            self.logger.info(f"Table {table['name']} - round_id: {round_id}, status: {status}, bet_period: {bet_period}")
+                            round_id, status, bet_period = await retry_with_network_check(
+                                get_roundID_v2, get_url, self.token
+                            )
                         else:
-                            # round_id, status, bet_period = get_roundID(get_url, self.token)
-                            round_id, status, bet_period = get_roundID_v2_uat(get_url, self.token)
-                            self.logger.info(f"Table {table['name']} - round_id: {round_id}, status: {status}, bet_period: {bet_period}")
+                            round_id, status, bet_period = await retry_with_network_check(
+                                get_roundID_v2_uat, get_url, self.token
+                            )
+                        self.logger.info(f"Table {table['name']} - round_id: {round_id}, status: {status}, bet_period: {bet_period}")
                         
                 except Exception as e:
                     self.logger.error(f"Error checking previous round: {e}")
@@ -190,15 +224,19 @@ class SDPGame:
                         print("====================")
                         print("[DEBUG] CIT start_post_v2")
                         print("====================")
-                        round_id, bet_period = start_post_v2(post_url, self.token)
+                        round_id, bet_period = await retry_with_network_check(
+                            start_post_v2, post_url, self.token
+                        )
                         print("====================")
                         print(round_id, bet_period)
                         print("====================")
                     else:
                         print("====================")
-                        print("[DEBUG] UAT start_post")
+                        print("[DEBUG] UAT start_post_v2")
                         print("====================")
-                        round_id, bet_period = start_post_v2_uat(post_url, self.token)
+                        round_id, bet_period = await retry_with_network_check(
+                            start_post_v2_uat, post_url, self.token
+                        )
                         print("====================")
                         print(round_id, bet_period)
                         print("====================")
@@ -268,18 +306,26 @@ class SDPGame:
                         for table, round_id, _ in round_ids:
                             post_url = f"{table['post_url']}{table['game_code']}"
                             if table['name'] == 'CIT':
-                                deal_post_v2(post_url, self.token, round_id, dice_result)
+                                await retry_with_network_check(
+                                    deal_post_v2, post_url, self.token, round_id, dice_result
+                                )
                             else:
-                                deal_post_v2_uat(post_url, self.token, round_id, dice_result)
+                                await retry_with_network_check(
+                                    deal_post_v2_uat, post_url, self.token, round_id, dice_result
+                                )
 
                         time.sleep(2)
 
                         for table, round_id, _ in round_ids:
                             post_url = f"{table['post_url']}{table['game_code']}"
                             if table['name'] == 'CIT':
-                                finish_post_v2(post_url, self.token)
+                                await retry_with_network_check(
+                                    finish_post_v2, post_url, self.token
+                                )
                             else:
-                                finish_post_v2_uat(post_url, self.token)
+                                await retry_with_network_check(
+                                    finish_post_v2_uat, post_url, self.token
+                                )
                             
                         # notify recorder to stop recording
                         await self.send_to_recorder("stop_recording")
