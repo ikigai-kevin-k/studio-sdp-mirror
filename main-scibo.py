@@ -349,9 +349,9 @@ class SDPGame:
                         for table in self.table_configs:
                             post_url = f"{table['post_url']}{table['game_code']}"
                             if table['name'] == 'CIT':
-                                broadcast_post_v2(post_url, self.token, "dice.reroll", "players", {"afterSeconds": 4})
+                                broadcast_post_v2(post_url, self.token, "Issue detected. Respining ball.", "players", {"afterSeconds": 4})
                             else:
-                                broadcast_post_v2_uat(post_url, self.token, "dice.reroll", "players", {"afterSeconds": 4})
+                                broadcast_post_v2_uat(post_url, self.token, "Issue detected. Respining ball.", "players", {"afterSeconds": 4})
                         
                         await self.shaker_controller.shake(first_round_id)
                         await asyncio.sleep(SHAKE_TIME+0.5)
