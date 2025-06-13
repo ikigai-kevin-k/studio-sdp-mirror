@@ -4,7 +4,9 @@ import time
 from datetime import datetime
 import sys
 sys.path.append('.')  # 確保可以導入 los_api
-from los_api.api import start_post, deal_post, finish_post, get_roundID, cancel_post
+from los_api.vr.api_v2_vr import start_post_v2, deal_post_v2, finish_post_v2, broadcast_post_v2
+from los_api.vr.api_v2_uat_vr import start_post_v2_uat, deal_post_v2_uat, finish_post_v2_uat, broadcast_post_v2_uat
+from los_api.vr.api_v2_prd_vr import start_post_v2_prd, deal_post_v2_prd, finish_post_v2_prd, broadcast_post_v2_prd
 import json
 
 ser = serial.Serial(

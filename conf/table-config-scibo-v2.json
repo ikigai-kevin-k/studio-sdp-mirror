@@ -10,5 +10,11 @@
   "get_url": "https://crystal-los.iki-uat.cc/v2/service/table/",
   "post_url": "https://crystal-los.iki-uat.cc/v2/service/sdp/table/",
   "game_code": "SBO-001"
-}
+  },
+  {
+  "name": "PRD",
+  "get_url": "https://crystal-los.iki-prd.cc/v2/service/tables/",
+  "post_url": "https://crystal-los.iki-prd.cc/v2/service/tables/",
+  "game_code": "SBO-001"
+  }
 ]
