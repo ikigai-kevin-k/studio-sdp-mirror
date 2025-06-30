@@ -16,6 +16,12 @@
     "get_url": "https://crystal-los.iki-prd.cc/v2/service/tables/",
     "post_url": "https://crystal-los.iki-prd.cc/v2/service/tables/",
     "game_code": "ARO-002"
-    }
+    },
+    {
+      "name": "STG",
+      "get_url": "https://crystal-los.iki-stg.cc/v2/service/tables/",
+      "post_url": "https://crystal-los.iki-stg.cc/v2/service/tables/",
+      "game_code": "ARO-002"
+  }
   ]
   

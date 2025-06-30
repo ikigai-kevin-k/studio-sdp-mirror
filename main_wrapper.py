@@ -10,11 +10,11 @@ from device.blackjack import BlackJackStateController
 from logger import setup_logging, get_logger, ColorfulLogger
 from utils import load_config
 
-# 定義遊戲類型與配置文件的對應關係
+# define the mapping of game type and config file
 GAME_CONFIG_MAPPING = {
-    'sicbo': 'conf/sicbo_auto.json',
-    'roulette_speed': 'conf/roulette_machine_speed.json',
-    'roulette_vip': 'conf/roulette_machine_vip.json',
+    'sicbo': 'conf/table-config-scibo-v2.json',
+    'roulette_speed': 'conf/table-config-speed-roulette-v2.json',
+    'roulette_vip': 'conf/table-config-vip-roulette-v2.json',
     'blackjack': 'conf/blackjack_machine.json'
 }
 
@@ -217,10 +217,10 @@ async def amain():
     
     args = parser.parse_args()
     
-    # 決定使用哪個配置文件
+    # decide which config file to use
     config_file = args.config if args.config else GAME_CONFIG_MAPPING[args.game_type]
     
-    # 創建並運行遊戲
+    # create and run the game
     runner = GameRunner(args.game_type, config_file)
     if await runner.initialize():
         await runner.run()
