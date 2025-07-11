@@ -23,6 +23,15 @@ from los_api.api_v2_sb_stg import start_post_v2_stg, deal_post_v2_stg, finish_po
 from los_api.api_v2_sb_qat import start_post_v2_qat, deal_post_v2_qat, finish_post_v2_qat, pause_post_v2_qat, get_roundID_v2_qat, broadcast_post_v2_qat, get_sdp_config_v2_qat
 from networkChecker import networkChecker
 
+import sentry_sdk
+
+sentry_sdk.init(
+    dsn="https://63a51b0fa2f4c419adaf46fafea61e89@o4509115379679232.ingest.us.sentry.io/4509643182440448",
+    # Add data like request headers and IP for users,
+    # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+    send_default_pii=True,
+)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
