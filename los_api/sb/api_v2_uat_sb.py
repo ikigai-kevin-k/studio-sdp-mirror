@@ -67,7 +67,9 @@ def session_get(url: str, game_code: str) -> str:
 # Global accessToken variable
 base_url = 'https://crystal-los.iki-uat.cc/v2/service'
 gameCode = 'SBO-001'
-accessToken = session_get(base_url, gameCode)
+# accessToken = session_get(base_url, gameCode)
+# UAT SBO-001
+accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiIyZTA3NjVjMS0zZDQ1LTRiZGEtOTg2Yi03MjU4NTE1YmE1YzgiLCJnYW1lQ29kZSI6WyJTQk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NDk1Mzk0Mzc5NzksImlhdCI6MTc0OTUzOTQzN30.zS_0SvnH0Ez-1-lasRwJpjZviWYK7j7Z5NVbxAI_BW8'
 
 def start_post_v2_uat(url, token):
     # Set up HTTP headers
@@ -77,6 +79,7 @@ def start_post_v2_uat(url, token):
         'x-signature': 'los-local-signature',
         'Content-Type': 'application/json',
         'Cookie': f'accessToken={accessToken}',
+        'Connection': 'close'
     }
 
     # Define payload for the POST request
@@ -113,7 +116,7 @@ def start_post_v2_uat(url, token):
     return round_id ,betPeriod
 
 def deal_post_v2_uat(url, token, round_id, result):
-    timecode = str(int(time.time() * 1000)+5000)
+    timecode = str(int(time.time() * 1000))
     headers = {
         'accept': 'application/json',
         'Bearer': token,
@@ -121,6 +124,7 @@ def deal_post_v2_uat(url, token, round_id, result):
         'Content-Type': 'application/json',
         'timecode': timecode,
         'Cookie': f'accessToken={accessToken}',
+        'Connection': 'close'
     }
 
     data = {
@@ -149,6 +153,7 @@ def finish_post_v2_uat(url, token):
         'x-signature': 'los-local-signature',
         'Content-Type': 'application/json',
         'Cookie': f'accessToken={accessToken}',
+        'Connection': 'close'
     }
     data = {}
     response = requests.post(f'{url}/finish', headers=headers, json=data, verify=False)
@@ -165,6 +170,7 @@ def visibility_post_uat(url, token, enable):
         'x-signature': 'los-local-signature',
         'Content-Type': 'application/json',
         'Cookie': f'accessToken={accessToken}',
+        'Connection': 'close'
     }
     print("enable: ", enable)
 
@@ -192,6 +198,7 @@ def get_roundID_v2_uat(url, token):
         'x-signature': 'los-local-signature',
         'Content-Type': 'application/json',
         'Cookie': f'accessToken={accessToken}',
+        'Connection': 'close'
     }
 
     # Define payload for the POST request
@@ -235,6 +242,7 @@ def pause_post_v2_uat(url, token, reason):
         'x-signature': 'los-local-signature',
         'Content-Type': 'application/json',
         'Cookie': f'accessToken={accessToken}',
+        'Connection': 'close'
     }
 
     data = {
@@ -253,7 +261,8 @@ def resume_pos_v2_uat(url, token):
         'Bearer': token,
         'x-signature': 'los-local-signature',
         'Content-Type': 'application/json',
-        'Cookie': f'accessToken={accessToken}'
+        'Cookie': f'accessToken={accessToken}',
+        'Connection': 'close'
     }
 
     data = {}  # Empty payload as per API specification
@@ -281,7 +290,8 @@ def sdp_config_post_v2_uat(url, token, config_data):
         'Bearer': token,
         'x-signature': 'los-local-signature',
         'Content-Type': 'application/json',
-        'Cookie': f'accessToken={accessToken}'
+        'Cookie': f'accessToken={accessToken}',
+        'Connection': 'close'
     }
 
     response = requests.post(f'{base_url}/sdp-config', headers=headers, json=config_data, verify=False)
@@ -307,7 +317,8 @@ def get_sdp_config_v2_uat(url, token):
         'Bearer': f'Bearer {token}',
         'x-signature': 'los-local-signature',
         'Content-Type': 'application/json',
-        'Cookie': f'accessToken={accessToken}'
+        'Cookie': f'accessToken={accessToken}',
+        'Connection': 'close'
     }
 
     response = requests.get(f'{url}', headers=headers, verify=False)
@@ -354,7 +365,7 @@ def update_sdp_config_from_file_v2_uat(url, token, config_file='sdp.config'):
             "number": 0  # Default value as it's not used for durations
         }
         
-        sdp_config_post(url, token, config_data)
+        # sdp_config_post(url, token, config_data)
         return True
         
     except FileNotFoundError:
@@ -377,7 +388,8 @@ def cancel_post_v2_uat(url: str, token: str) -> None:
             'Bearer': token,
             'x-signature': 'los-local-signature',
             'Content-Type': 'application/json',
-            'Cookie': f'accessToken={accessToken}'
+            'Cookie': f'accessToken={accessToken}',
+            'Connection': 'close'
         }
         data = {}
         response = requests.post(f"{url}/cancel", headers=headers, json=data, verify=False)
@@ -423,7 +435,8 @@ def broadcast_post_v2_uat(url, token, broadcast_type, audience="players", afterS
         'Bearer': token,
         'x-signature': 'los-local-signature',
         'Content-Type': 'application/json',
-        'Cookie': f'accessToken={accessToken}'
+        'Cookie': f'accessToken={accessToken}',
+        'Connection': 'close'
     }
 
     # Generate a unique message ID using timestamp
@@ -450,19 +463,24 @@ if __name__ == "__main__":
     import random
     cnt = 0
     while cnt < 1:
-        results = [1, 2, 3]  # str(random.randint(0, 36))
-        base_url = 'https://crystal-los.iki-uat.cc/v2/service'
-        get_url = f'{base_url}/tables/'
-        post_url = f'{base_url}/tables/'
-        
+        results = [1,2,3] #str(random.randint(0, 36))
+        get_url = 'https://crystal-los.iki-uat.cc/v2/service/tables/'
+        post_url = 'https://crystal-los.iki-uat.cc/v2/service/tables/'
+
+        # get_url =  "https://crystal-los.iki-uat.cc/v1/service/table/"
+        # post_url = "https://crystal-los.iki-uat.cc/v1/service/sdp/table/"
+
+        # gameCode = 'SDP-003'
+        # gameCode = 'SDP-001'
+        # gameCode = 'SDP-003'
         gameCode = 'SBO-001'
         
-        # Get session token
-        global accessToken
-        accessToken = session_get(base_url, gameCode)
-        if not accessToken:
-            print("Failed to get session token")
-            break
+        # # Get session token
+        # global accessToken
+        # accessToken = session_get(base_url, gameCode)
+        # if not accessToken:
+        #     print("Failed to get session token")
+        #     break
             
         get_url = get_url + gameCode
         post_url = post_url + gameCode
@@ -470,10 +488,10 @@ if __name__ == "__main__":
 
         # broadcast_post(post_url, token, "roulette.relaunch", "players", 20)
         # broadcast_post(post_url, token, "dice.reshake", "sdp", 20)
-        print("================Start================\n")
-        round_id, betPeriod = start_post_v2_uat(post_url, token)
-        round_id, status, betPeriod = get_roundID_v2_uat(get_url, token)
-        print(round_id, status, betPeriod)
+        # print("================Start================\n")
+        # round_id, betPeriod = start_post_v2_uat(post_url, token)
+        round_id, status, betPeriod =  get_roundID_v2_uat(get_url, token)
+        print(round_id, status, betPeriod) 
 
         # betPeriod = 10
         # print(round_id, status, betPeriod) 
@@ -501,11 +519,11 @@ if __name__ == "__main__":
         # time.sleep(1)
 
 
-        # print("================Deal================\n")
+        print("================Deal================\n")
         # time.sleep(13)
-        # deal_post_v2(post_url, token, round_id, results)
-        # print("================Finish================\n")
-        # finish_post_v2(post_url, token)
+        deal_post_v2_uat(post_url, token, round_id, results)
+        print("================Finish================\n")
+        finish_post_v2_uat(post_url, token)
 
         # print("================Cancel================\n")
         # cancel_post(post_url, token)

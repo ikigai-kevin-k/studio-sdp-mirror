@@ -14,7 +14,10 @@ class IDPController(Controller):
         self.mqtt_client = MQTTLogger(
             client_id=f"idp_controller_{config.room_id}",
             # broker=config.broker_host,
-            broker="192.168.88.213",
+            # broker="192.168.88.213",
+            # broker="192.168.88.180",
+            # broker="206.53.48.180", # orginal vps broker
+            broker="192.168.88.180", # new strong pc broker
             port=config.broker_port
         )
         self.response_received = False
@@ -81,15 +84,16 @@ class IDPController(Controller):
                 "command": "detect",
                 "arg": {
                     "round_id": round_id,
-                    "input": "rtmp://192.168.88.213:1935/live/r456_dice",
+                    # "input": "rtmp://192.168.88.213:1935/live/r456_dice",
+                    "input": "rtmp://192.168.88.180:1935/live/r123_dice",
                     "output": "https://pull-tc.stream.iki-utl.cc/live/r456_dice.flv"
                 }
             }
             
             # 設定超時時限
-            timeout = 4 # for demo
+            timeout = 5 # for demo
             start_time = asyncio.get_event_loop().time()
-            retry_interval = 4  
+            retry_interval = 5  
             attempt = 1
             
             while (asyncio.get_event_loop().time() - start_time) < timeout:
@@ -142,7 +146,8 @@ class ShakerController(Controller):
         self.mqtt_client = MQTTLogger(
             client_id=f"shaker_controller_{config.room_id}",
             # broker="192.168.88.250",  # Specific broker for shaker
-            broker="192.168.88.213",
+            # broker="192.168.88.213",
+            broker="192.168.88.180",
             # broker="206.53.48.180",
             # broker="rnd-al.local",
             port=config.broker_port
@@ -157,14 +162,15 @@ class ShakerController(Controller):
         self.mqtt_client.subscribe("ikg/shaker/response")
 
     async def shake(self, round_id: str):
-        """Shake the dice using Billy-II settings"""
+        """Shake the dice using Billy-III settings"""
         # Use the same command format as in quick_shaker_test.py
-        cmd = "/cycle/?pattern=0&parameter1=10&parameter2=0&amplitude=0.41&duration=6"
-        topic = "ikg/sicbo/Billy-II/listens"
+        cmd = "/cycle/?pattern=0&parameter1=10&parameter2=0&amplitude=0.41&duration=9.59" # for current dice pc setting
+        topic = "ikg/sicbo/Billy-III/listens"
         # topic = "ikg/sicbo/Billy-I/listens" # temporary
         
         self.mqtt_client.publish(topic, cmd)
         self.mqtt_client.publish(topic, "/state")
+        # TODO: if the shaker is not responding, we need to wait for a while and then send the command again
         self.logger.info(f"Shake command sent for round {round_id}")
 
     async def shake_rpi(self, round_id: str):

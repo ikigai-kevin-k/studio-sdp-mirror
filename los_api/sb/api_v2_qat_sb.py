@@ -5,10 +5,11 @@ from pygments.lexers import JsonLexer
 import json
 import time
 
-# PRD SBO-001
-accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiJjYmY3OWJmOS0wMjYyLTRiMDAtYmNmMy00M2I1YTcxMjQ1MzciLCJnYW1lQ29kZSI6WyJTQk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NDk3OTQzMzUxMzcsImlhdCI6MTc0OTc5NDMzNX0.0Ovu6zw0ephieazrCuaKOfwsANt2OGgzmffExjyoq6Y'
+#QAT SBO-001
+# accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI5YTRjNzM5ZC00OWY0LTQ1ZWQtYmVkNi0wYzZkYmQyNzc2NTAiLCJnYW1lQ29kZSI6W10sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NTA0MTI0MTI4NzEsImlhdCI6MTc1MDQxMjQxMn0.mXjNdwf5iKHeEpLkOlOxzIpLvTQ5aUaKDFMMq_4VS5Q'
+accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiJjYTU3ODI4MS0xMjQwLTQwZTQtOWIzOS0xZmNhYjQxYzdhZGIiLCJnYW1lQ29kZSI6WyJTQk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NTIxMTExMjg1NTAsImlhdCI6MTc1MjExMTEyOH0.BM6gWZHU_33txKQu_Y323oaaPkwCirmmAR_Fugzd7UE'
 
-def start_post_v2_prd(url, token):
+def start_post_v2_qat(url, token):
     # Set up HTTP headers
     headers = {
         'accept': 'application/json',
@@ -53,7 +54,7 @@ def start_post_v2_prd(url, token):
 
     return round_id ,betPeriod
 
-def deal_post_v2_prd(url, token, round_id, result):
+def deal_post_v2_qat(url, token, round_id, result):
     timecode = str(int(time.time() * 1000))
     headers = {
         'accept': 'application/json',
@@ -75,7 +76,7 @@ def deal_post_v2_prd(url, token, round_id, result):
 
     if response.status_code != 200:
         print("====================")
-        print("[DEBUG] deal_post_v2")
+        print("[DEBUG] deal_post_v2_qat")
         print("====================")
         print(f"Error: {response.status_code} - {response.text}")
         print("====================")
@@ -85,7 +86,7 @@ def deal_post_v2_prd(url, token, round_id, result):
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
-def finish_post_v2_prd(url, token):
+def finish_post_v2_qat(url, token):
     headers = {
         'accept': 'application/json',
         'Bearer': token,
@@ -102,7 +103,7 @@ def finish_post_v2_prd(url, token):
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
-def visibility_post_prd(url, token, enable):
+def visibility_post_qat(url, token, enable):
     headers = {
         'accept': 'application/json',
         'Bearer': token,
@@ -126,7 +127,7 @@ def visibility_post_prd(url, token, enable):
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
-def get_roundID_v2_prd(url, token):
+def get_roundID_v2_qat(url, token):
     # Set up HTTP headers
 
     # print("URL:", url)
@@ -174,7 +175,7 @@ def get_roundID_v2_prd(url, token):
 
     return round_id, status, betPeriod
 
-def pause_post_v2_prd(url, token, reason):
+def pause_post_v2_qat(url, token, reason):
     headers = {
         'accept': 'application/json',
         'Bearer': token,
@@ -194,7 +195,7 @@ def pause_post_v2_prd(url, token, reason):
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
-def resume_pos_v2_prd(url, token):
+def resume_post_v2_qat(url, token):
     headers = {
         'accept': 'application/json',
         'Bearer': token,
@@ -211,7 +212,7 @@ def resume_pos_v2_prd(url, token):
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
-def sdp_config_post_v2_prd(url, token, config_data):
+def sdp_config_post_v2_qat(url, token, config_data):
     """
     Update SDP configuration for a specific table
     
@@ -240,7 +241,7 @@ def sdp_config_post_v2_prd(url, token, config_data):
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
-def get_sdp_config_v2_prd(url, token):
+def get_sdp_config_v2_qat(url, token):
     """
     Get SDP configuration from the table status
     
@@ -269,17 +270,20 @@ def get_sdp_config_v2_prd(url, token):
         response_data = response.json()
         sdp_config = response_data.get('data', {}).get('table', {}).get('sdpConfig', {})
         
+        # strings = sdp_config.get('strings')
+        # number = sdp_config.get('number')
+        
+        # return strings, number
         broker_host = sdp_config.get('broker_host')
         broker_port = sdp_config.get('broker_port')
         room_id = sdp_config.get('room_id')
         
         return broker_host, broker_port, room_id
-
     except json.JSONDecodeError:
         print("Error: Unable to decode JSON response.")
         return None, None
 
-def update_sdp_config_from_file_v2_prd(url, token, config_file='sdp.config'):
+def update_sdp_config_from_file_v2_qat(url, token, config_file='sdp.config'):
     """
     Read configuration from sdp.config file and update SDP configuration
     
@@ -317,7 +321,7 @@ def update_sdp_config_from_file_v2_prd(url, token, config_file='sdp.config'):
         print(f"Error updating SDP config: {str(e)}")
         return False
 
-def cancel_post_v2_prd(url: str, token: str) -> None:
+def cancel_post_v2_qat(url: str, token: str) -> None:
     """
     取消當前局次
     """
@@ -358,7 +362,7 @@ def cancel_post_v2_prd(url: str, token: str) -> None:
     except Exception as e:
         print(f"Unexpected error in cancel_post: {e}")
 
-def broadcast_post_v2_prd(url, token, broadcast_type, audience="players", afterSeconds=20): #, metadata=None):
+def broadcast_post_v2_qat(url, token, broadcast_type, audience="players", afterSeconds=20): #, metadata=None):
     """
     Send a broadcast message to the table
     
@@ -403,8 +407,11 @@ if __name__ == "__main__":
     cnt = 0
     while cnt < 1:
         results = [1,2,3] #str(random.randint(0, 36))
-        get_url = 'https://crystal-los.crystal.live/v2/service/tables/'
-        post_url = 'https://crystal-los.crystal.live/v2/service/tables/'
+        # get_url = 'https://crystal-los.iki-qat.cc/v2/service/tables/'
+        # post_url = 'https://crystal-los.iki-qat.cc/v2/service/tables/'
+        get_url = 'https://crystal-table.iki-qat.cc/v2/service/tables/'
+        post_url = 'https://crystal-table.iki-qat.cc/v2/service/tables/'
+
 
         # get_url =  "https://crystal-los.iki-uat.cc/v1/service/table/"
         # post_url = "https://crystal-los.iki-uat.cc/v1/service/sdp/table/"
@@ -417,59 +424,58 @@ if __name__ == "__main__":
         post_url = post_url + gameCode
         token = 'E5LN4END9Q'
 
-        round_id, status, betPeriod =  get_roundID_v2_prd(get_url, token)
-        print(round_id, status, betPeriod)
-        # # broadcast_post(post_url, token, "roulette.relaunch", "players", 20)
-        # # broadcast_post(post_url, token, "dice.reshake", "sdp", 20)
-        # # print("================Start================\n")
-        # round_id, betPeriod = start_post_v2_prd(post_url, token)
-        # round_id, status, betPeriod =  get_roundID_v2_prd(get_url, token)
-        # print(round_id, status, betPeriod) 
+        # broadcast_post(post_url, token, "roulette.relaunch", "players", 20)
+        # broadcast_post(post_url, token, "dice.reshake", "sdp", 20)
+        # print("================Start================\n")
+        round_id, betPeriod = start_post_v2_qat(post_url, token)
+        round_id, status, betPeriod =  get_roundID_v2_qat(get_url, token)
+        print(round_id, status, betPeriod) 
 
-        # # betPeriod = 10
-        # # print(round_id, status, betPeriod) 
-        # # while betPeriod >= 0: #or status !='bet-stopped':
-        #     # print("Bet Period count down:", betPeriod)
-        #     # time.sleep(1)
-        #     # betPeriod = betPeriod - 1
-        #     # _, status, _ =  get_roundID(get_url, token)
-        #     # print(status)
-
-        # # print("================Pause================\n")
-        # # pause_post(post_url, token, "test")
-        # # time.sleep(1)
+        # betPeriod = 10
         
-        # # print("================Resume================\n")
-        # # resume_post(post_url, token)  
-        # # time.sleep(1)
+        # print(round_id, status, betPeriod) 
+        # while betPeriod >= 0: #or status !='bet-stopped':
+        #     print("Bet Period count down:", betPeriod)
+        #     time.sleep(1)
+        #     betPeriod = betPeriod - 1
+        #     _, status, _ =  get_roundID_v2_qat(get_url, token)
+        #     print(status)
 
-        # # print("================Invisibility================\n")
-        # # visibility_post(post_url, token, False)
-        # # time.sleep(1)
+        # print("================Pause================\n")
+        # pause_post(post_url, token, "test")
+        # time.sleep(1)
+        
+        # print("================Resume================\n")
+        # resume_post(post_url, token)  
+        # time.sleep(1)
 
-        # # print("================Visibility================\n")
-        # # visibility_post(post_url, token, True)
-        # # time.sleep(1)
+        # print("================Invisibility================\n")
+        # visibility_post(post_url, token, False)
+        # time.sleep(1)
+
+        # print("================Visibility================\n")
+        # visibility_post(post_url, token, True)
+        # time.sleep(1)
 
 
         print("================Deal================\n")
-        # time.sleep(13)
-        deal_post_v2_prd(post_url, token, round_id, results)
+        # time.sleep(11)
+        deal_post_v2_qat(post_url, token, round_id, results)
         print("================Finish================\n")
-        finish_post_v2_prd(post_url, token)
+        finish_post_v2_qat(post_url, token)
 
-        # # print("================Cancel================\n")
-        # # cancel_post(post_url, token)
+        # print("================Cancel================\n")
+        # cancel_post(post_url, token)
 
-        # # Add example usage
-        # # config_data = {
-        # #     "shake_duration": 7,
-        # #     "result_duration": 4
-        # # } 
-        # # sdp_config_post(sdp_url, token, config_data)
+        # Add example usage
+        # config_data = {
+        #     "shake_duration": 7,
+        #     "result_duration": 4
+        # } 
+        # sdp_config_post(sdp_url, token, config_data)
 
-        # # Example usage of get_sdp_config
-        # # strings, number = get_sdp_config(get_url, token)
-        # # print(f"SDP Config - strings: {strings}, number: {number}")
+        # Example usage of get_sdp_config
+        # strings, number = get_sdp_config(get_url, token)
+        # print(f"SDP Config - strings: {strings}, number: {number}")
 
         cnt+=1

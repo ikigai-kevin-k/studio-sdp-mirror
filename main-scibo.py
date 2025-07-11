@@ -16,9 +16,11 @@ from controller import GameType, GameConfig
 from gameStateController import create_game_state_controller
 from deviceController import IDPController, ShakerController
 from mqttController import MQTTController
-from los_api.api_v2 import start_post_v2, deal_post_v2, finish_post_v2, pause_post_v2, get_roundID_v2, broadcast_post_v2
-from los_api.api_v2_uat import start_post_v2_uat, deal_post_v2_uat, finish_post_v2_uat, pause_post_v2_uat, get_roundID_v2_uat, broadcast_post_v2_uat, get_sdp_config_v2_uat
-from los_api.api_v2_prd import start_post_v2_prd, deal_post_v2_prd, finish_post_v2_prd, pause_post_v2_prd, get_roundID_v2_prd, broadcast_post_v2_prd, get_sdp_config_v2_prd
+from los_api.api_v2_sb import start_post_v2, deal_post_v2, finish_post_v2, pause_post_v2, get_roundID_v2, broadcast_post_v2
+from los_api.api_v2_sb_uat import start_post_v2_uat, deal_post_v2_uat, finish_post_v2_uat, pause_post_v2_uat, get_roundID_v2_uat, broadcast_post_v2_uat, get_sdp_config_v2_uat
+from los_api.api_v2_sb_prd import start_post_v2_prd, deal_post_v2_prd, finish_post_v2_prd, pause_post_v2_prd, get_roundID_v2_prd, broadcast_post_v2_prd, get_sdp_config_v2_prd
+from los_api.api_v2_sb_stg import start_post_v2_stg, deal_post_v2_stg, finish_post_v2_stg, pause_post_v2_stg, get_roundID_v2_stg, broadcast_post_v2_stg, get_sdp_config_v2_stg
+from los_api.api_v2_sb_qat import start_post_v2_qat, deal_post_v2_qat, finish_post_v2_qat, pause_post_v2_qat, get_roundID_v2_qat, broadcast_post_v2_qat, get_sdp_config_v2_qat
 from networkChecker import networkChecker
 
 # Configure logging
@@ -62,7 +64,7 @@ def setup_logging(enable_logging: bool, log_dir: str):
         
         logging.info(f"Logging to file: {log_file}")
 
-def load_table_config(config_file='los_api/table-config-scibo.json'):
+def load_table_config(config_file='conf/table-config-scibo-v2.json'):
     """Load table configuration from JSON file"""
     try:
         with open(config_file, 'r') as f:
@@ -211,6 +213,14 @@ class SDPGame:
                             round_id, status, bet_period = await retry_with_network_check(
                                 get_roundID_v2_prd, get_url, self.token
                             )
+                        elif table['name'] == 'STG':
+                            round_id, status, bet_period = await retry_with_network_check(
+                                get_roundID_v2_stg, get_url, self.token
+                            )
+                        elif table['name'] == 'QAT':
+                            round_id, status, bet_period = await retry_with_network_check(
+                                get_roundID_v2_qat, get_url, self.token
+                            )
                         self.logger.info(f"Table {table['name']} - round_id: {round_id}, status: {status}, bet_period: {bet_period}")
                         
                 except Exception as e:
@@ -252,6 +262,20 @@ class SDPGame:
                         print("====================")
                         round_id, bet_period = await retry_with_network_check(
                             start_post_v2_prd, post_url, self.token
+                        )
+                    elif table['name'] == 'STG':
+                        print("====================")
+                        print("[DEBUG] STG start_post_v2")
+                        print("====================")
+                        round_id, bet_period = await retry_with_network_check(
+                            start_post_v2_stg, post_url, self.token
+                        )
+                    elif table['name'] == 'QAT':
+                        print("====================")
+                        print("[DEBUG] QAT start_post_v2")
+                        print("====================")
+                        round_id, bet_period = await retry_with_network_check(
+                            start_post_v2_qat, post_url, self.token
                         )
                     if round_id != -1:
                         round_ids.append((table, round_id, bet_period))
@@ -315,7 +339,7 @@ class SDPGame:
                         # notify recorder to stop recording
                         await self.send_to_recorder("stop_recording")
 
-                        time.sleep(1+2.5) # +2.5 to avoid idp timeout
+                        time.sleep(1+0.5) # to avoid idp timeout
                         # send deal and finish request to all tables
                         for table, round_id, _ in round_ids:
                             post_url = f"{table['post_url']}{table['game_code']}"
@@ -330,6 +354,14 @@ class SDPGame:
                             elif table['name'] == 'PRD':
                                 await retry_with_network_check(
                                     deal_post_v2_prd, post_url, self.token, round_id, dice_result
+                                )
+                            elif table['name'] == 'STG':
+                                await retry_with_network_check(
+                                    deal_post_v2_stg, post_url, self.token, round_id, dice_result
+                                )
+                            elif table['name'] == 'QAT':
+                                await retry_with_network_check(
+                                    deal_post_v2_qat, post_url, self.token, round_id, dice_result
                                 )
 
                         time.sleep(2)
@@ -347,6 +379,14 @@ class SDPGame:
                             elif table['name'] == 'PRD':
                                 await retry_with_network_check(
                                     finish_post_v2_prd, post_url, self.token
+                                )
+                            elif table['name'] == 'STG':
+                                await retry_with_network_check(
+                                    finish_post_v2_stg, post_url, self.token
+                                )
+                            elif table['name'] == 'QAT':
+                                await retry_with_network_check(
+                                    finish_post_v2_qat, post_url, self.token
                                 )
                         # notify recorder to stop recording
                         await self.send_to_recorder("stop_recording")
@@ -375,7 +415,10 @@ class SDPGame:
                                 broadcast_post_v2_uat(post_url, self.token, "Issue detected. Respining ball.", "players", {"afterSeconds": 4})
                             elif table['name'] == 'PRD':
                                 broadcast_post_v2_prd(post_url, self.token, "Issue detected. Respining ball.", "players", {"afterSeconds": 4})
-                        
+                            elif table['name'] == 'STG':
+                                broadcast_post_v2_stg(post_url, self.token, "Issue detected. Respining ball.", "players", {"afterSeconds": 4})
+                            elif table['name'] == 'QAT':
+                                broadcast_post_v2_qat(post_url, self.token, "Issue detected. Respining ball.", "players", {"afterSeconds": 4})              
                         await self.shaker_controller.shake(first_round_id)
                         await asyncio.sleep(SHAKE_TIME+0.5)
                         retry_count += 1
@@ -396,6 +439,12 @@ class SDPGame:
                                 elif table['name'] == 'PRD':
                                     pause_post_v2_prd(post_url, self.token, "IDP cannot detect  the result for 3 times")
                                     print("after pause_post, status_prd:", status_prd)
+                                elif table['name'] == 'STG':
+                                    pause_post_v2_stg(post_url, self.token, "IDP cannot detect  the result for 3 times")
+                                    print("after pause_post, status_stg:", status_stg)
+                                elif table['name'] == 'QAT':
+                                    pause_post_v2_qat(post_url, self.token, "IDP cannot detect  the result for 3 times")
+                                    print("after pause_post, status_qat:", status_qat)
                                 # start polling, until status is "finished" or "canceled", then start a new round
                                 while True:
 
@@ -410,6 +459,12 @@ class SDPGame:
                                     elif table['name'] == 'PRD':
                                         _, status_prd, _ = get_roundID_v2_prd(post_url, self.token)
                                         print("status:", status_prd)
+                                    elif table['name'] == 'STG':
+                                        _, status_stg, _ = get_roundID_v2_stg(post_url, self.token)
+                                        print("status:", status_stg)
+                                    elif table['name'] == 'QAT':
+                                        _, status_qat, _ = get_roundID_v2_qat(post_url, self.token)
+                                        print("status:", status_qat)
 
                                     if (status_cit == "finished" or status_cit == "canceled") and (status_uat == "finished" or status_uat == "canceled"):
                                         break
@@ -451,8 +506,8 @@ async def amain():
     """Async main function"""
     # 設置命令列參數
     parser = argparse.ArgumentParser(description='SDP Game System')
-    parser.add_argument('--broker', type=str, default='206.53.48.180',
-                      help='MQTT broker address (default: 206.53.48.180)')
+    parser.add_argument('--broker', type=str, default='192.168.88.180',
+                      help='MQTT broker address (default: 192.168.88.180)')
     parser.add_argument('--port', type=int, default=1883,
                       help='MQTT broker port (default: 1883)')
     parser.add_argument('--game-type', type=str, choices=['roulette', 'sicbo', 'blackjack'],
