@@ -440,7 +440,7 @@ if __name__ == "__main__":
 
 
         print("================Deal================\n")
-        time.sleep(13)
+        # time.sleep(13)
         deal_post_v2_stg(post_url, token, round_id, results)
         print("================Finish================\n")
         finish_post_v2_stg(post_url, token)

@@ -382,8 +382,8 @@ if __name__ == "__main__":
     cnt = 0
     while cnt < 1:
         results = "0" #str(random.randint(0, 36))
-        get_url = 'https://crystal-los.iki-cit.cc/v2/service/tables/'
-        post_url = 'https://crystal-los.iki-cit.cc/v2/service/tables/'
+        get_url = 'https://crystal-table.iki-cit.cc/v2/service/tables/'
+        post_url = 'https://crystal-table.iki-cit.cc/v2/service/tables/'
 
         # get_url =  "https://crystal-los.iki-uat.cc/v1/service/table/"
         # post_url = "https://crystal-los.iki-uat.cc/v1/service/sdp/table/"
@@ -428,11 +428,11 @@ if __name__ == "__main__":
         # time.sleep(1)
 
 
-        # print("================Deal================\n")
+        print("================Deal================\n")
         # time.sleep(13)
-        # deal_post_v2(post_url, token, round_id, results)
-        # print("================Finish================\n")
-        # finish_post_v2(post_url, token)
+        deal_post_v2(post_url, token, round_id, results)
+        print("================Finish================\n")
+        finish_post_v2(post_url, token)
 
         # print("================Cancel================\n")
         # cancel_post(post_url, token)

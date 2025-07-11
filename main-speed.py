@@ -7,12 +7,22 @@ import random
 import json
 import asyncio
 import websockets
-sys.path.append('.')  # ensure los_api can be imported
+sys.path.append('.')  # Ensure los_api can be imported
 from los_api.sr.api_v2_sr import start_post_v2, deal_post_v2, finish_post_v2, broadcast_post_v2
 from los_api.sr.api_v2_uat_sr import start_post_v2_uat, deal_post_v2_uat, finish_post_v2_uat, broadcast_post_v2_uat
 from los_api.sr.api_v2_prd_sr import start_post_v2_prd, deal_post_v2_prd, finish_post_v2_prd, broadcast_post_v2_prd
 from los_api.sr.api_v2_stg_sr import start_post_v2_stg, deal_post_v2_stg, finish_post_v2_stg, broadcast_post_v2_stg
+from los_api.sr.api_v2_qat_sr import start_post_v2_qat, deal_post_v2_qat, finish_post_v2_qat, broadcast_post_v2_qat
 from concurrent.futures import ThreadPoolExecutor
+
+import sentry_sdk
+
+sentry_sdk.init(
+    dsn="https://63a51b0fa2f4c419adaf46fafea61e89@o4509115379679232.ingest.us.sentry.io/4509643182440448",
+    # Add data like request headers and IP for users,
+    # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+    send_default_pii=True,
+)
 
 ser = serial.Serial(
     port='/dev/ttyUSB0',
@@ -31,12 +41,12 @@ def log_to_file(message, direction):
         timestamp = get_timestamp()
         f.write(f"[{timestamp}] {direction} {message}\n")
 
-# load table config
+# Load table configuration
 def load_table_config():
     with open('conf/table-config-speed-roulette-v2.json', 'r') as f:
         return json.load(f)
 
-# add LOS API related variables
+# Add LOS API related variables
 tables = load_table_config()
 x2_count = 0
 x5_count = 0
@@ -52,27 +62,27 @@ ws_connected = False
 
 # WebSocket connection function
 async def connect_to_recorder(uri='ws://localhost:8765'):
-    """connect to stream recorder's WebSocket server"""
+    """Connect to the stream recorder's WebSocket server"""
     global ws_client, ws_connected
     try:
         ws_client = await websockets.connect(uri)
         ws_connected = True
-        print(f"[{get_timestamp()}] connected to stream recorder: {uri}")
-        log_to_file(f"connected to stream recorder: {uri}", "WebSocket >>>")
+        print(f"[{get_timestamp()}] Connected to stream recorder: {uri}")
+        log_to_file(f"Connected to stream recorder: {uri}", "WebSocket >>>")
         return True
     except Exception as e:
-        print(f"[{get_timestamp()}] failed to connect to stream recorder: {e}")
-        log_to_file(f"failed to connect to stream recorder: {e}", "WebSocket >>>")
+        # print(f"[{get_timestamp()}] Failed to connect to stream recorder: {e}")
+        # log_to_file(f"Failed to connect to stream recorder: {e}", "WebSocket >>>")
         ws_connected = False
         return False
 
-# send WebSocket message function
+# Send WebSocket message function
 async def send_to_recorder(message):
-    """send message to stream recorder"""
+    """Send message to stream recorder"""
     global ws_client, ws_connected
     if not ws_connected or not ws_client:
-        print(f"[{get_timestamp()}] not connected to stream recorder, trying to reconnect...")
-        log_to_file("not connected to stream recorder, trying to reconnect...", "WebSocket >>>")
+        # print(f"[{get_timestamp()}] Not connected to stream recorder, attempting to reconnect...")
+        # log_to_file("Not connected to stream recorder, attempting to reconnect...", "WebSocket >>>")
         await connect_to_recorder()
         
     if ws_connected:
@@ -83,36 +93,36 @@ async def send_to_recorder(message):
             log_to_file(f"Recorder response: {response}", "WebSocket >>>")
             return True
         except Exception as e:
-            print(f"[{get_timestamp()}] failed to send message to recorder: {e}")
-            log_to_file(f"failed to send message to recorder: {e}", "WebSocket >>>")
+            print(f"[{get_timestamp()}] Failed to send message to recorder: {e}")
+            log_to_file(f"Failed to send message to recorder: {e}", "WebSocket >>>")
             ws_connected = False
             return False
     return False
 
-# start WebSocket connection asynchronously
+# Start WebSocket connection async function
 async def init_websocket():
-    """initialize WebSocket connection"""
+    """Initialize WebSocket connection"""
     await connect_to_recorder()
 
-# start WebSocket connection in main thread
+# Start WebSocket connection in main thread
 def start_websocket():
-    """start WebSocket connection in main thread"""
+    """Start WebSocket connection in main thread"""
     asyncio.run(init_websocket())
 
-# start WebSocket connection in a separate thread
+# Start WebSocket connection in a separate thread
 websocket_thread = threading.Thread(target=start_websocket)
 websocket_thread.daemon = True
 websocket_thread.start()
 
-# send start recording message function
+# Function to send start recording message
 def send_start_recording(round_id):
-    """send start recording message"""
+    """Send start recording message"""
     asyncio.run(send_to_recorder(f"start_recording:{round_id}"))
 
-# send stop recording message function
+# Function to send stop recording message
 def send_stop_recording():
-    """send stop recording message"""
-    # use thread to execute asynchronous operation, avoid blocking main thread
+    """Send stop recording message"""
+    # Use a thread to execute async operation, avoid blocking main thread
     threading.Thread(target=lambda: asyncio.run(send_to_recorder("stop_recording"))).start()
 
 def read_from_serial():
@@ -123,7 +133,7 @@ def read_from_serial():
             print("Receive >>>", data)
             log_to_file(data, "Receive >>>")
             
-            # handle *X;2 count
+            # Handle *X;2 count
             if "*X;2" in data:
                 current_time = time.time()
                 if current_time - last_x2_time > 5:
@@ -132,35 +142,35 @@ def read_from_serial():
                     x2_count += 1
                 last_x2_time = current_time
                 
-                # check if warning_flag is 8, if so, send broadcast_post
+                # Check if warning_flag is 8, if so send broadcast_post
                 try:
                     parts = data.split(';')
-                    if len(parts) >= 5:  # ensure there are enough parts to get warning_flag
+                    if len(parts) >= 5:  # Ensure there are enough parts to get warning_flag
                         warning_flag = parts[4]
                         current_time = time.time()
                         
-                        # check if warning_flag needs to send broadcast
+                        # Check if warning_flag requires broadcast
                         if int(warning_flag) == 8 or int(warning_flag) == 2 or warning_flag == 'A':
-                            # check if it has been 10 seconds or the first time to send
+                            # Check if 10 seconds have passed or it's the first broadcast
                             if not hasattr(execute_broadcast_post, 'last_broadcast_time') or \
                                (current_time - execute_broadcast_post.last_broadcast_time) >= 10:
                                 
-                                print(f"\nwarning_flag is not 0, send broadcast_post to notify relaunch...")
-                                log_to_file("warning_flag is not 0, send broadcast_post to notify relaunch", "Broadcast >>>")
+                                print(f"\nDetected warning_flag not equal to 0, sending broadcast_post to notify relaunch...")
+                                log_to_file("Detected warning_flag not equal to 0, sending broadcast_post to notify relaunch", "Broadcast >>>")
                                 
-                                # send broadcast_post to each table
+                                # Send broadcast_post to each table
                                 with ThreadPoolExecutor(max_workers=len(tables)) as executor:
                                     futures = [executor.submit(execute_broadcast_post, table, token) for table in tables]
                                     for future in futures:
-                                        future.result()  # wait for all requests to complete
+                                        future.result()  # Wait for all requests to complete
                                 
-                                # update the last broadcast time
+                                # Update last send time
                                 execute_broadcast_post.last_broadcast_time = current_time
                             else:
-                                print(f"already sent broadcast {current_time - execute_broadcast_post.last_broadcast_time:.1f} seconds ago, waiting for time interval...")
+                                print(f"Already sent broadcast {current_time - execute_broadcast_post.last_broadcast_time:.1f} seconds ago, waiting for time interval...")
                 except Exception as e:
-                    print(f"error parsing warning_flag or sending broadcast_post: {e}")
-                    log_to_file(f"error parsing warning_flag or sending broadcast_post: {e}", "Error >>>")
+                    print(f"Error parsing warning_flag or sending broadcast_post: {e}")
+                    log_to_file(f"Error parsing warning_flag or sending broadcast_post: {e}", "Error >>>")
                 
                 if x2_count >= 1 and not start_post_sent:
                     time.sleep(2) # for the show result animation time
@@ -177,29 +187,29 @@ def read_from_serial():
                         print(f"finish_to_start_time: {finish_to_start_time}")
                         log_to_file(f"finish_to_start_time: {finish_to_start_time}", "Receive >>>")
 
-                        # execute start_post for all tables asynchronously
+                        # Asynchronously process start_post for all tables
                         with ThreadPoolExecutor(max_workers=len(tables)) as executor:
                             futures = [executor.submit(execute_start_post, table, token) for table in tables]
                             for future in futures:
-                                future.result()  # wait for all requests to complete
+                                future.result()  # Wait for all requests to complete
 
                         start_post_sent = True
                         deal_post_sent = False
 
-                        print("\nsend *u 1 command...")
+                        print("\nSending *u 1 command...")
                         ser.write(("*u 1\r\n").encode())
                         log_to_file("*u 1", "Send <<<")
-                        print("sent *u 1 command\n")
+                        print("*u 1 command sent\n")
                         
-                        # 在發送 *u 1 指令後兩秒開始錄製
+                        # Start recording two seconds after sending *u 1 command
                         if tables and len(tables) > 0 and 'round_id' in tables[0]:
                             round_id = tables[0]['round_id']
-                            print(f"[{get_timestamp()}] prepare to start recording round_id: {round_id}, will start in 2 seconds")
-                            log_to_file(f"prepare to start recording round_id: {round_id}, will start in 2 seconds", "WebSocket >>>")
-                            # use thread to delay execution of recording, avoid blocking main process
+                            print(f"[{get_timestamp()}] Preparing to start recording round_id: {round_id}, will start in two seconds")
+                            log_to_file(f"Preparing to start recording round_id: {round_id}, will start in two seconds", "WebSocket >>>")
+                            # Use thread to delay recording execution, avoid blocking main process
                             threading.Timer(2.0, lambda: send_start_recording(round_id)).start()
                     except Exception as e:
-                        print(f"error sending start_post: {e}")
+                        print(f"start_post error: {e}")
                     print("======================================\n")
             
             elif "*X;3" in data and not isLaunch:
@@ -212,9 +222,9 @@ def read_from_serial():
                 print(f"start_to_launch_time: {start_to_launch_time}")
                 log_to_file(f"start_to_launch_time: {start_to_launch_time}", "Receive >>>")
                 
-                # remove the code that starts recording when the ball is launched, because it has already started recording after the *u 1 command
+                # Removed code that starts recording when ball launches, as it now starts two seconds after *u 1 command
 
-            # handle *X;5 count
+            # Handle *X;5 count
             elif "*X;5" in data and not deal_post_sent:
                 current_time = time.time()
                 if current_time - last_x5_time > 5:
@@ -228,7 +238,7 @@ def read_from_serial():
                         parts = data.split(';')
                         if len(parts) >= 4:
                             win_num = int(parts[3])
-                            print(f"win_num: {win_num}")
+                            print(f"Winning number for this round: {win_num}")
 
                             print("\n================Deal================")
                             
@@ -241,20 +251,21 @@ def read_from_serial():
                                 print(f"launch_to_deal_time: {launch_to_deal_time}")
                                 log_to_file(f"launch_to_deal_time: {launch_to_deal_time}", "Receive >>>")
 
-                                # stop recording - change to non-blocking execution
-                                print(f"[{get_timestamp()}] stop recording")
-                                log_to_file("stop recording", "WebSocket >>>")
-                                send_stop_recording()  # now this function will not block main thread
+                                # Stop recording - changed to non-blocking execution
+                                print(f"[{get_timestamp()}] Stop recording")
+                                log_to_file("Stop recording", "WebSocket >>>")
+                                send_stop_recording()  # This function now doesn't block the main thread
 
-                                # execute deal_post for all tables asynchronously
+                                # Asynchronously process deal_post for all tables
+                                time.sleep(0.5)
                                 with ThreadPoolExecutor(max_workers=len(tables)) as executor:
                                     futures = [executor.submit(execute_deal_post, table, token, win_num) for table in tables]
                                     for future in futures:
-                                        future.result()  # wait for all requests to complete
+                                        future.result()  # Wait for all requests to complete
 
                                 deal_post_sent = True
                             except Exception as e:
-                                print(f"error sending deal_post: {e}")
+                                print(f"deal_post error: {e}")
                             
                             print("======================================\n")
                             
@@ -279,22 +290,22 @@ def read_from_serial():
                                 log_time_intervals(finish_to_start_time, start_to_launch_time, 
                                                  launch_to_deal_time, deal_to_finish_time)
 
-                                # execute finish_post for all tables asynchronously
+                                # Asynchronously process finish_post for all tables
                                 with ThreadPoolExecutor(max_workers=len(tables)) as executor:
                                     futures = [executor.submit(execute_finish_post, table, token) for table in tables]
                                     for future in futures:
-                                        future.result()  # wait for all requests to complete
+                                        future.result()  # Wait for all requests to complete
 
-                                # reset all flags and counters
+                                # Reset all flags and counters
                                 start_post_sent = False
                                 x2_count = 0
                                 x5_count = 0
                                 isLaunch = 0
                             except Exception as e:
-                                print(f"error sending finish_post: {e}")
+                                print(f"finish_post error: {e}")
                             print("======================================\n")
                     except Exception as e:
-                        print(f"error parsing win_num: {e}")
+                        print(f"Error parsing winning number: {e}")
 
 def send_command_and_wait(command, timeout=2):
     """Send a command and wait for the expected response"""
@@ -346,8 +357,8 @@ def get_config():
         print(f"\nQuerying {desc}...")
         value = send_command_and_wait(cmd)
         if value:
-            config_results[desc] = value  # 只存數值部分
-            print(f"Stored value: {desc} = {value}")  # 用於調試
+            config_results[desc] = value  # Store only the value part
+            print(f"Stored value: {desc} = {value}")  # For debugging
         time.sleep(0.5)  # Add delay between commands
     
     # Print all results together
@@ -364,7 +375,7 @@ def write_to_serial():
     while True:
         try:
             text = input("Send <<< ")
-            if text.lower() in ["get_config", "gc"]:  # add "gc" as an abbreviation
+            if text.lower() in ["get_config", "gc"]:  # Added "gc" as abbreviation
                 get_config()
             else:
                 ser.write((text + '\r\n').encode())
@@ -383,7 +394,7 @@ def log_time_intervals(finish_to_start, start_to_launch, launch_to_deal, deal_to
         f.write(f"deal_to_finish_time: {deal_to_finish}\n")
         f.write("-" * 50 + "\n")
     
-    # check if the time interval exceeds the limit
+    # Check if time intervals exceed limits
     try:
         error_message = None
         if finish_to_start > 4:
@@ -396,86 +407,123 @@ def log_time_intervals(finish_to_start, start_to_launch, launch_to_deal, deal_to
             error_message = f"Assertion Error: deal_to_finish_time ({deal_to_finish:.2f}s) > 2s"
         
         if error_message:
-            # get current round_id
+            # Get current round_id
             current_round_id = "unknown"
             if tables and len(tables) > 0 and 'round_id' in tables[0]:
                 current_round_id = tables[0]['round_id']
             
-            # log error to log file, include round_id
+            # Log error to log file, including round_id
             with open('assertion_errors.log', 'a', encoding='utf-8') as f:
                 timestamp = get_timestamp()
                 f.write(f"[{timestamp}] Round ID: {current_round_id} - {error_message}\n")
             
-            # log error to main log file
+            # Also log to main log file
             log_to_file(f"{error_message} (Round ID: {current_round_id})", "ERROR >>>")
             
-            # print error message to console, but do not exit the program
+            # Output error message to console, but don't terminate program
             print(f"\n[{get_timestamp()}] {error_message} (Round ID: {current_round_id})")
-            print("time interval exceeds limit, but the program continues to execute")
+            print("Time interval exceeds limit, but program continues to run")
             
-            # remove the part that terminates the program
+            # Removed program termination part
             # sys.exit(1)
     except Exception as e:
-        log_to_file(f"error checking time interval: {e}", "ERROR >>>")
-        print(f"error checking time interval: {e}")
+        log_to_file(f"Error checking time intervals: {e}", "ERROR >>>")
+        print(f"Error checking time intervals: {e}")
 
 def execute_finish_post(table, token):
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
-        result = finish_post(post_url, token)
-        print(f"finish_post for {table['name']}")
+        if table['name'] == 'UAT':
+            result = finish_post_v2_uat(post_url, token)
+        elif table['name'] == 'PRD':
+            result = finish_post_v2_prd(post_url, token)
+        elif table['name'] == 'STG':
+            result = finish_post_v2_stg(post_url, token)
+        elif table['name'] == 'QAT':
+            result = finish_post_v2_qat(post_url, token)
+        else:
+            result = finish_post_v2(post_url, token)
+        print(f"Successfully ended this game round for {table['name']}")
         return result
     except Exception as e:
-        print(f"error sending finish_post for {table['name']}: {e}")
+        print(f"Error executing finish_post for {table['name']}: {e}")
         return None
 
 def execute_start_post(table, token):
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
-        round_id, betPeriod = start_post(post_url, token)
+        if table['name'] == 'UAT':
+            round_id, betPeriod = start_post_v2_uat(post_url, token)
+        elif table['name'] == 'PRD':
+            round_id, betPeriod = start_post_v2_prd(post_url, token)
+        elif table['name'] == 'STG':
+            round_id, betPeriod = start_post_v2_stg(post_url, token)
+        elif table['name'] == 'QAT':
+            round_id, betPeriod = start_post_v2_qat(post_url, token)
+        else:
+            round_id, betPeriod = start_post_v2(post_url, token)
+
         if round_id != -1:
             table['round_id'] = round_id
-            print(f"start_post for {table['name']}, round_id: {round_id}, betPeriod: {betPeriod}")
+            print(f"Successfully called start_post for {table['name']}, round_id: {round_id}, betPeriod: {betPeriod}")
             return round_id, betPeriod
         else:
-            print(f"error sending start_post for {table['name']}")
+            print(f"Failed to call start_post for {table['name']}")
             return -1, 0
     except Exception as e:
-        print(f"error sending start_post for {table['name']}: {e}")
+        print(f"Error executing start_post for {table['name']}: {e}")
         return -1, 0
 
 def execute_deal_post(table, token, win_num):
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
-        result = deal_post(post_url, token, table['round_id'], str(win_num))
-        print(f"deal_post for {table['name']}: {win_num}")
+        if table['name'] == 'UAT':
+            result = deal_post_v2_uat(post_url, token, table['round_id'], str(win_num))
+        elif table['name'] == 'PRD':
+            result = deal_post_v2_prd(post_url, token, table['round_id'], str(win_num))
+        elif table['name'] == 'STG':
+            result = deal_post_v2_stg(post_url, token, table['round_id'], str(win_num))
+        elif table['name'] == 'QAT':
+            result = deal_post_v2_qat(post_url, token, table['round_id'], str(win_num))
+        else:
+            result = deal_post_v2(post_url, token, table['round_id'], str(win_num))
+        print(f"Successfully sent winning result for {table['name']}: {win_num}")
         return result
     except Exception as e:
-        print(f"error sending deal_post for {table['name']}: {e}")
+        print(f"Error executing deal_post for {table['name']}: {e}")
         return None
 
 def execute_broadcast_post(table, token):
-    """execute broadcast_post to notify relaunch"""
+    """Execute broadcast_post to notify relaunch"""
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
-        result = broadcast_post(post_url, token, "roulette.relaunch", "players", 20)
-        print(f"send broadcast_post (relaunch) for {table['name']}")
-        log_to_file(f"send broadcast_post (relaunch) for {table['name']}", "Broadcast >>>")
+        if table['name'] == 'UAT':
+            result = broadcast_post_v2_uat(post_url, token, "roulette.relaunch", "players", 20) #, None)
+        elif table['name'] == 'PRD':
+            result = broadcast_post_v2_prd(post_url, token, "roulette.relaunch", "players", 20) #, None)
+        elif table['name'] == 'STG':
+            result = broadcast_post_v2_stg(post_url, token, "roulette.relaunch", "players", 20) #, None)
+        elif table['name'] == 'QAT':
+            result = broadcast_post_v2_qat(post_url, token, "roulette.relaunch", "players", 20) #, None)
+        else:
+            result = broadcast_post_v2(post_url, token, "roulette.relaunch", "players", 20) #, None)
+        print(f"Successfully sent broadcast_post (relaunch) for {table['name']}")
+        log_to_file(f"Successfully sent broadcast_post (relaunch) for {table['name']}", "Broadcast >>>")
         return result
     except Exception as e:
-        print(f"error sending broadcast_post for {table['name']}: {e}")
-        log_to_file(f"error sending broadcast_post for {table['name']}: {e}", "Error >>>")
+        print(f"Error executing broadcast_post for {table['name']}: {e}")
+        log_to_file(f"Error executing broadcast_post for {table['name']}: {e}", "Error >>>")
         return None
 
-# create and start read thread
+# Create and start read thread
 read_thread = threading.Thread(target=read_from_serial)
 read_thread.daemon = True
 read_thread.start()
 
-# main thread handles writing
+# Main thread handles writing
 try:
     write_to_serial()
 except KeyboardInterrupt:
-    print("\nprogram terminated")
+    print("\nProgram ended")
 finally:
     ser.close()
