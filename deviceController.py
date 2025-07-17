@@ -153,25 +153,148 @@ class ShakerController(Controller):
             port=config.broker_port
         )
         self.mqtt_client.client.username_pw_set("PFC", "wago")  # Specific credentials for shaker
+        
+        # 搖骰器狀態追蹤
+        self.shaker_state = None  # 當前搖骰器狀態 (S0, S1, S2, S90)
+        self.state_received = False  # 是否收到狀態回應
+        self.all_messages = []  # 儲存所有收到的訊息
+
+    def _on_message(self, client, userdata, message):
+        """Handle received messages from shaker"""
+        try:
+            payload = message.payload.decode()
+            self.logger.info(f"[MQTT] Topic: {message.topic}")
+            self.logger.info(f"[MQTT] Payload: {payload}")
+            
+            # 儲存訊息
+            self.all_messages.append({
+                'topic': message.topic,
+                'payload': payload,
+                'time': time.strftime('%H:%M:%S')
+            })
+            
+            # 檢查搖骰器狀態回應
+            if message.topic == "ikg/sicbo/Billy-III/listens":
+                if payload == "/state":
+                    self.logger.info("[STATUS] State request sent")
+            elif message.topic == "ikg/sicbo/Billy-III/says":
+                if payload.startswith("S"):  # 檢查狀態回應 (S0, S1, S2, S90)
+                    self.shaker_state = payload
+                    self.state_received = True
+                    if payload == "S0":
+                        self.logger.info("[STATUS] Shaker is IDLE")
+                    elif payload == "S1":
+                        self.logger.info("[STATUS] Shaker is SHAKING")
+                    elif payload == "S2":
+                        self.logger.info("[STATUS] Shaker received SHAKE COMMAND")
+                    elif payload == "S90":
+                        self.logger.warning("[STATUS] Shaker has MULTIPLE ERRORS in motion program")
+                    else:
+                        self.logger.info(f"[STATUS] Received unknown state response: {payload}")
+            
+            self.logger.info("-" * 50)
+            
+        except Exception as e:
+            self.logger.error(f"Error in _on_message: {e}")
 
     async def initialize(self):
         """Initialize shaker controller"""
         if not self.mqtt_client.connect():
             raise Exception("Failed to connect to MQTT broker")
         self.mqtt_client.start_loop()
-        self.mqtt_client.subscribe("ikg/shaker/response")
+        
+        # 設置訊息處理回調
+        self.mqtt_client.client.on_message = self._on_message
+        
+        # 訂閱搖骰器相關主題
+        topics_to_subscribe = [
+            "ikg/sicbo/Billy-III/listens",
+            "ikg/sicbo/Billy-III/says",
+            "ikg/sicbo/Billy-III/status",
+            "ikg/sicbo/Billy-III/response",
+            "ikg/sicbo/Billy-III/#",  # Billy-III 的所有子主題
+        ]
+        
+        for topic in topics_to_subscribe:
+            self.mqtt_client.subscribe(topic)
+            self.logger.info(f"Subscribed to: {topic}")
 
     async def shake(self, round_id: str):
-        """Shake the dice using Billy-III settings"""
+        """Shake the dice using Billy-III settings and monitor state changes"""
+        # 重置狀態追蹤
+        self.all_messages = []
+        self.state_received = False
+        self.shaker_state = None
+        
         # Use the same command format as in quick_shaker_test.py
         cmd = "/cycle/?pattern=0&parameter1=10&parameter2=0&amplitude=0.41&duration=9.59" # for current dice pc setting
         topic = "ikg/sicbo/Billy-III/listens"
         # topic = "ikg/sicbo/Billy-I/listens" # temporary
         
-        self.mqtt_client.publish(topic, cmd)
+        # 先檢查當前狀態
+        self.logger.info("Checking current shaker state...")
         self.mqtt_client.publish(topic, "/state")
-        # TODO: if the shaker is not responding, we need to wait for a while and then send the command again
-        self.logger.info(f"Shake command sent for round {round_id}")
+        
+        # 等待狀態回應
+        timeout = 10  # 10 秒超時
+        start_time = time.time()
+        while not self.state_received and (time.time() - start_time) < timeout:
+            await asyncio.sleep(0.1)
+        
+        if not self.state_received:
+            self.logger.warning("Did not receive initial state response")
+        else:
+            self.logger.info(f"Initial shaker state: {self.shaker_state}")
+        
+        # 發送搖動命令
+        self.logger.info(f"Sending shake command for round {round_id}")
+        self.mqtt_client.publish(topic, cmd)
+        
+        # 重置狀態追蹤
+        self.state_received = False
+        self.shaker_state = None
+        
+        # 等待搖動開始 (S2 -> S1)
+        self.logger.info("Waiting for shake command to be received (S2)...")
+        timeout = 15  # 15 秒超時
+        start_time = time.time()
+        while (time.time() - start_time) < timeout:
+            if self.shaker_state == "S2":
+                self.logger.info("✓ Shake command received by shaker")
+                break
+            elif self.shaker_state == "S90":
+                self.logger.error("⚠ Shaker has motion program errors")
+                return False
+            await asyncio.sleep(0.1)
+        
+        if self.shaker_state != "S2":
+            self.logger.warning("Did not receive S2 (shake command received) within timeout")
+        
+        # 等待搖動完成 (S1 -> S0)
+        self.logger.info("Waiting for shaking to complete (S1 -> S0)...")
+        timeout = 20  # 20 秒超時，考慮搖動時間
+        start_time = time.time()
+        while (time.time() - start_time) < timeout:
+            if self.shaker_state == "S0":
+                self.logger.info("✓ Shaking completed successfully")
+                break
+            elif self.shaker_state == "S90":
+                self.logger.error("⚠ Shaker has motion program errors during shaking")
+                return False
+            await asyncio.sleep(0.1)
+        
+        if self.shaker_state != "S0":
+            self.logger.warning("Shaking may not have completed properly")
+        
+        # 輸出訊息摘要
+        self.logger.info("\nShake Operation Summary:")
+        for msg in self.all_messages:
+            self.logger.info(f"Time: {msg['time']} - Topic: {msg['topic']} - Payload: {msg['payload']}")
+        
+        self.logger.info(f"Final shaker state: {self.shaker_state}")
+        self.logger.info(f"Shake operation completed for round {round_id}")
+        
+        return True
 
     async def shake_rpi(self, round_id: str):
         """Shake the dice"""
