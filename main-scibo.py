@@ -46,7 +46,7 @@ def setup_logging(enable_logging: bool, log_dir: str):
         os.makedirs(log_dir, exist_ok=True)
         
         # set up file handler
-        log_file = os.path.join(log_dir, f'SDP002_{time.strftime("%m%d")}.log')
+        log_file = os.path.join(log_dir, f'SBO001_{time.strftime("%m%d")}.log')
         file_handler = logging.handlers.RotatingFileHandler(
             log_file,
             maxBytes=10*1024*1024,  # 10MB
@@ -212,11 +212,11 @@ class SDPGame:
                         get_url = f"{table['get_url']}{table['game_code']}"
                         if table['name'] == 'CIT':
                             round_id, status, bet_period = await retry_with_network_check(
-                                get_roundID_v2, get_url, self.token
+                                get_roundID_v2, get_url, self.token, max_retries=2
                             )
                         elif table['name'] == 'UAT':
                             round_id, status, bet_period = await retry_with_network_check(
-                                get_roundID_v2_uat, get_url, self.token
+                                get_roundID_v2_uat, get_url, self.token, max_retries=2
                             )
                         elif table['name'] == 'PRD':
                             round_id, status, bet_period = await retry_with_network_check(
@@ -228,7 +228,7 @@ class SDPGame:
                             )
                         elif table['name'] == 'QAT':
                             round_id, status, bet_period = await retry_with_network_check(
-                                get_roundID_v2_qat, get_url, self.token
+                                get_roundID_v2_qat, get_url, self.token, max_retries=2
                             )
                         self.logger.info(f"Table {table['name']} - round_id: {round_id}, status: {status}, bet_period: {bet_period}")
                         
@@ -279,6 +279,7 @@ class SDPGame:
                         round_id, bet_period = await retry_with_network_check(
                             start_post_v2_stg, post_url, self.token
                         )
+                        
                     elif table['name'] == 'QAT':
                         print("====================")
                         print("[DEBUG] QAT start_post_v2")
@@ -344,12 +345,15 @@ class SDPGame:
                         deal_time = time.time()
                         start_to_deal_time = deal_time - round_start_time
                         self.logger.info(f"Start to deal time: {start_to_deal_time:.1f} seconds")
+                        if start_to_deal_time > 20:
+                            sentry_sdk.capture_message("[SBO-001][ERR_SPIN_TIME]: Start to deal time is too long.")
 
                         # notify recorder to stop recording
                         await self.send_to_recorder("stop_recording")
 
-                        time.sleep(1+0.5) # to avoid idp timeout
-                        # send deal and finish request to all tables
+                        time.sleep(1.5) 
+
+
                         for table, round_id, _ in round_ids:
                             post_url = f"{table['post_url']}{table['game_code']}"
                             if table['name'] == 'CIT':
@@ -373,7 +377,6 @@ class SDPGame:
                                     deal_post_v2_qat, post_url, self.token, round_id, dice_result
                                 )
 
-                        time.sleep(2)
 
                         for table, round_id, _ in round_ids:
                             post_url = f"{table['post_url']}{table['game_code']}"
@@ -419,17 +422,21 @@ class SDPGame:
                         for table in self.table_configs:
                             post_url = f"{table['post_url']}{table['game_code']}"
                             if table['name'] == 'CIT':
-                                broadcast_post_v2(post_url, self.token, "Issue detected. Respining ball.", "players", {"afterSeconds": 4})
+                                broadcast_post_v2(post_url, self.token, "Issue detected. Reshake ball.", "players", {"afterSeconds": 4})
+                                sentry_sdk.capture_message("[SBO-001][CIT][ERR_RESHAKE]: Issue detected. Reshake ball.")
                             elif table['name'] == 'UAT':
-                                broadcast_post_v2_uat(post_url, self.token, "Issue detected. Respining ball.", "players", {"afterSeconds": 4})
+                                broadcast_post_v2_uat(post_url, self.token, "Issue detected. Reshake ball.", "players", {"afterSeconds": 4})
+                                sentry_sdk.capture_message("[SBO-001][UAT][ERR_RESHAKE]: Issue detected. Reshake ball.")
                             elif table['name'] == 'PRD':
-                                broadcast_post_v2_prd(post_url, self.token, "Issue detected. Respining ball.", "players", {"afterSeconds": 4})
+                                broadcast_post_v2_prd(post_url, self.token, "Issue detected. Reshake ball.", "players", {"afterSeconds": 4})
+                                sentry_sdk.capture_message("[SBO-001][PRD][ERR_RESHAKE]: Issue detected. Reshake ball.")
                             elif table['name'] == 'STG':
-                                broadcast_post_v2_stg(post_url, self.token, "Issue detected. Respining ball.", "players", {"afterSeconds": 4})
+                                broadcast_post_v2_stg(post_url, self.token, "Issue detected. Reshake ball.", "players", {"afterSeconds": 4})
+                                sentry_sdk.capture_message("[SBO-001][STG][ERR_RESHAKE]: Issue detected. Reshake ball.")
                             elif table['name'] == 'QAT':
-                                broadcast_post_v2_qat(post_url, self.token, "Issue detected. Respining ball.", "players", {"afterSeconds": 4})              
+                                broadcast_post_v2_qat(post_url, self.token, "Issue detected. Reshake ball.", "players", {"afterSeconds": 4})
+                                sentry_sdk.capture_message("[SBO-001][QAT][ERR_RESHAKE]: Issue detected. Reshake ball.")
                         await self.shaker_controller.shake(first_round_id)
-                        await asyncio.sleep(SHAKE_TIME+0.5)
                         retry_count += 1
                         if retry_count >= max_retries:
                             # self.logger.error("Max retries reached, cancelling round")
@@ -484,6 +491,8 @@ class SDPGame:
 
             except Exception as e:
                 self.logger.error(f"Error in game round: {e}")
+                # For example, "Error in game round: Expecting value: line 1 column 1 (char 0)"
+                sentry_sdk.capture_message("[SBO-001][ERR_GAME_ROUND]: Error in game round", exc_info=True)
                 await asyncio.sleep(5)
 
     async def cleanup(self):
@@ -566,6 +575,7 @@ async def amain():
 
     except KeyboardInterrupt:
         logging.info("Game interrupted by user")
+        sentry_sdk.capture_message("[SBO-001][WARN_INTERRUPT]: SDP interrupted by developer")
     except Exception as e:
         logging.error(f"Game error: {e}")
     finally:
