@@ -7,6 +7,8 @@ import time
 
 # CIT SBO-001
 accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI2YjY3ZjFiZi03NGI1LTQ0NGQtOWRjOS1hMGViMTI1MjU3NDEiLCJnYW1lQ29kZSI6WyJTQk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NDg0MDAxMjQ4MDEsImlhdCI6MTc0ODQwMDEyNH0.wgCKas02lserT3DTA19e4Rv2nyYhj-XRVyZEm_rEiqQ'
+# CITSBO-004
+# accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI2YmFhNWQyMi1lMmZhLTRkMjItOTQwYy0wMDI2ZTk3YTA2NDEiLCJnYW1lQ29kZSI6WyJTQk8tMDA0Il0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NTI3NDQ3NDE3NTEsImlhdCI6MTc1Mjc0NDc0MX0.SJ64iWb4OP-RM1QISTbshTlLr8Abu-UKjMJOfAdOeqE'
 
 def start_post_v2(url, token):
     # Set up HTTP headers
@@ -401,7 +403,10 @@ if __name__ == "__main__":
     import random
     cnt = 0
     while cnt < 1:
-        results = [1,2,3] #str(random.randint(0, 36))
+        # results = [1,2,3] #str(random.randint(0, 36))
+        # ABO-001
+        results = [1,2,3] 
+
         # get_url = 'https://crystal-los.iki-cit.cc/v2/service/tables/'
         get_url = 'https://crystal-table.iki-cit.cc/v2/service/tables/'
         # post_url = 'https://crystal-los.iki-cit.cc/v2/service/tables/'
@@ -414,6 +419,8 @@ if __name__ == "__main__":
         # gameCode = 'SDP-001'
         # gameCode = 'SDP-003'
         gameCode = 'SBO-001'
+        # gameCode = 'ABO-001'
+        # gameCode = 'SBO-004'
         get_url = get_url + gameCode
         post_url = post_url + gameCode
         token = 'E5LN4END9Q'
@@ -454,6 +461,7 @@ if __name__ == "__main__":
 
         print("================Deal================\n")
         # time.sleep(13)
+        time.sleep(5)
         deal_post_v2(post_url, token, round_id, results)
         print("================Finish================\n")
         finish_post_v2(post_url, token)
