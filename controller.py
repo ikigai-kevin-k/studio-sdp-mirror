@@ -8,6 +8,7 @@ class GameType(Enum):
     ROULETTE = "roulette"
     SICBO = "sicbo"
     BLACKJACK = "blackjack"
+    BACCARAT = "baccarat"
 
 class RouletteState(Enum):
     """Game states for Roulette"""
