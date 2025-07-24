@@ -1,0 +1,33 @@
+[
+    {
+        "name": "CIT",
+        "get_url": "https://crystal-table.iki-cit.cc/v2/service/tables/",
+        "post_url": "https://crystal-table.iki-cit.cc/v2/service/tables/",
+        "game_code": "SBO-001"
+    },
+    {
+        "name": "UAT",
+        "get_url": "https://crystal-table.iki-uat.cc/v2/service/tables/",
+        "post_url": "https://crystal-table.iki-uat.cc/v2/service/tables/",
+        "game_code": "SBO-001"
+    },
+    {
+        "name": "PRD",
+        "get_url": "https://crystal-los.crystal.live/v2/service/tables/",
+        "post_url": "https://crystal-los.crystal.live/v2/service/tables/",
+        "game_code": "SBO-001"
+    },
+    {
+        "name": "STG",
+        "get_url": "https://crystal-los.iki-stg.cc/v2/service/tables/",
+        "post_url": "https://crystal-los.iki-stg.cc/v2/service/tables/",
+        "game_code": "SBO-001"
+    },
+    {
+        "name": "QAT",
+        "get_url": "https://crystal-table.iki-qat.cc/v2/service/tables/",
+        "post_url": "https://crystal-table.iki-qat.cc/v2/service/tables/",
+        "game_code": "SBO-001"
+    }
+  ]
+  
