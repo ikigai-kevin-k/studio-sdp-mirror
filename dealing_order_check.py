@@ -6,42 +6,42 @@
 
 from typing import List
 
-def check_dealing_order(card_positions: List[str], outs: bool = False) -> bool:
+def check_dealing_order(card_faces: List[str], outs: bool = False) -> bool:
     """
-    Check if the dealing order is correct.
+    Check if the dealing order is correct based on card faces (empty string means not dealt).
     Args:
-        card_positions (List[str]): List of card positions in the order they were dealt. Each element should be one of:
-            'player1', 'banker1', 'player2', 'banker2', 'player3', 'banker3'
+        card_faces (List[str]): List of card faces in the order they were dealt. Each element is a string (e.g., 'AC', '2D', '')
         outs (bool): If True, consider outs (third card) cases. If False, only check for the first four cards.
     Returns:
-        bool: True if the dealing order is correct, False otherwise.
+        bool: True if the dealing order is correct (no skipped positions before a card is dealt), False otherwise.
     """
-    # Define the correct dealing order for non-outs and outs
-    correct_order_non_outs = ['player1', 'banker1', 'player2', 'banker2']
-    correct_order_outs = ['player1', 'banker1', 'player2', 'banker2', 'player3', 'banker3']
-
-    if outs:
-        expected_order = correct_order_outs
-    else:
-        expected_order = correct_order_non_outs
-
-    # Only compare up to the length of expected_order
-    if len(card_positions) < len(expected_order):
+    # Define the expected number of cards for non-outs and outs
+    expected_len = 6 if outs else 4
+    if len(card_faces) < expected_len:
         return False
-    for i, expected in enumerate(expected_order):
-        if card_positions[i] != expected:
+    # Only check up to expected_len
+    faces = card_faces[:expected_len]
+    found_empty = False
+    for face in faces:
+        if face == '':
+            found_empty = True
+        elif found_empty:
+            # If a card appears after an empty slot, order is wrong
             return False
     return True
 
 # Mock data for testing (simulate the data that would be sent by the idp)
-mock_data_non_outs = ['player1', 'banker1', 'player2', 'banker2']
-mock_data_outs = ['player1', 'banker1', 'player2', 'banker2', 'player3', 'banker3']
-mock_data_wrong = ['player1', 'banker1', 'banker2', 'player2']
+mock_data_non_outs = ['AC', '2D', '3H', '4S', '', '']  # 4 cards, no outs
+mock_data_outs = ['AC', '2D', '3H', '4S', '5C', '6D']  # 6 cards, with outs
+mock_data_wrong = ['AC', '', '3H', '4S', '', '']       # Skipped position (should be False)
+mock_data_partial = ['AC', '2D', '', '', '', '']        # Only first two cards
 
 if __name__ == "__main__":
     # Test with mock data for non-outs
     print("Test non-outs (should be True):", check_dealing_order(mock_data_non_outs, outs=False))
     # Test with mock data for outs
     print("Test outs (should be True):", check_dealing_order(mock_data_outs, outs=True))
-    # Test with wrong order
+    # Test with wrong order (skipped position)
     print("Test wrong order (should be False):", check_dealing_order(mock_data_wrong, outs=False))
+    # Test with partial data (not enough cards)
+    print("Test partial (should be False):", check_dealing_order(mock_data_partial, outs=False))
