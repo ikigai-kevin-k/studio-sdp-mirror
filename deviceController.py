@@ -316,7 +316,7 @@ class BarcodeController(Controller):
     """Controls barcode scanner operations"""
     def __init__(self, config: GameConfig):
         super().__init__(config)
-        # HID 鍵盤掃描碼對照表
+        # HID keyboard scan code table
         self.hid_keycode = {
             0x00: None, 
             0x04: 'A', 0x05: 'B', 0x06: 'C', 0x07: 'D', 0x08: 'E',
@@ -343,10 +343,10 @@ class BarcodeController(Controller):
         
         self.device_path = None
         self.is_running = False
-        self.is_paused = False  # 新增暫停標誌
-        self.current_line = []  # 儲存當前行的字符
-        self.callback = None  # 用於處理掃描結果的回調函數
-        self.pause_timestamp = None  # 記錄暫停的時間戳
+        self.is_paused = False  # add new pause flag
+        self.current_line = []  # store current line of characters
+        self.callback = None  # callback function for processing scan results
+        self.pause_timestamp = None  # record pause timestamp
 
     def decode_hid_data(self, data: bytes) -> Tuple[List[str], List[str]]:
         """解碼 HID 數據"""
@@ -367,7 +367,7 @@ class BarcodeController(Controller):
         return mods, keys
 
     async def initialize(self, device_path: str, callback=None):
-        """初始化條碼掃描器"""
+        """initialize barcode scanner"""
         self.device_path = device_path
         self.callback = callback
         self.is_running = True
@@ -377,32 +377,32 @@ class BarcodeController(Controller):
         self.logger.info(f"Barcode scanner initialized with device: {device_path}")
 
     async def _read_barcode(self):
-        """讀取條碼掃描器數據的非同步方法"""
+        """read barcode scanner data asynchronously"""
         try:
             while self.is_running:
                 with open(self.device_path, 'rb') as f:
                     while self.is_running:
-                        # 檢查是否暫停
+                        # check if paused
                         if self.is_paused:
-                            await asyncio.sleep(0.1)  # 暫停時等待更長時間
+                            await asyncio.sleep(0.1)  # wait longer when paused
                             continue
                             
-                        data = f.read(8)  # HID 報告的標準長度
+                        data = f.read(8)  # HID report standard length
                         if data:
                             mods, keys = self.decode_hid_data(data)
                             
                             if keys:
                                 for key in keys:
-                                    # 在處理任何按鍵之前，再次檢查暫停狀態
+                                    # check if paused before processing any key
                                     if self.is_paused:
                                         self.logger.debug(f"Ignored key during pause: {key}")
                                         continue
                                         
                                     if key == 'ENTER':
-                                        # 當遇到 ENTER 時，處理當前行
+                                        # when encounter ENTER, process current line
                                         if self.current_line:
                                             barcode = ''.join(self.current_line)
-                                            # 只有在非暫停狀態下才處理條碼
+                                            # only process barcode when not paused
                                             if not self.is_paused:
                                                 self.logger.info(f"Scanned barcode: {barcode}")
                                                 if self.callback:
@@ -411,14 +411,14 @@ class BarcodeController(Controller):
                                                 self.logger.info(f"Ignored barcode during pause: {barcode}")
                                         self.current_line = []
                                     else:
-                                        # 一般按鍵，加入當前行
+                                        # normal key, add to current line
                                         if not self.is_paused:
                                             self.current_line.append(key)
                                         else:
-                                            # 在暫停期間，忽略所有按鍵輸入
+                                            # ignore all key input during pause
                                             self.logger.debug(f"Ignored key during pause: {key}")
                         
-                        await asyncio.sleep(0.001)  # 短暫休眠避免 CPU 過度使用
+                        await asyncio.sleep(0.001)  # short sleep to avoid CPU overload
                         
         except Exception as e:
             self.logger.error(f"Error reading barcode: {e}")
@@ -426,28 +426,28 @@ class BarcodeController(Controller):
             self.logger.info("Barcode reading stopped")
 
     async def cleanup(self):
-        """清理資源"""
+        """cleanup resources"""
         self.is_running = False
         self.logger.info("Barcode controller cleanup completed")
 
     def set_callback(self, callback):
-        """設置處理掃描結果的回調函數"""
+        """set callback function for processing scan results"""
         self.callback = callback
         
     def pause_scanning(self):
-        """暫停條碼掃描"""
+        """pause barcode scanning"""
         import time
         self.is_paused = True
         self.pause_timestamp = time.time()
-        # 清空當前行的緩衝區，防止部分數據被保留
+        # clear current line buffer to prevent partial data being retained
         self.current_line = []
         self.logger.info(f"Barcode scanning paused and buffer cleared at {self.pause_timestamp}")
         
     def resume_scanning(self):
-        """恢復條碼掃描"""
+        """resume barcode scanning"""
         import time
         self.is_paused = False
         self.pause_timestamp = None
-        # 確保緩衝區是空的
+        # ensure buffer is empty
         self.current_line = []
         self.logger.info(f"Barcode scanning resumed at {time.time()}") 
