@@ -386,22 +386,22 @@ class BarcodeController(Controller):
                         if self.is_paused:
                             await asyncio.sleep(0.1)  # wait longer when paused
                             continue
-                            
                         data = f.read(8)  # HID report standard length
                         if data:
                             mods, keys = self.decode_hid_data(data)
-                            
+                            self.logger.debug(f"[LOG] Raw HID data: {data.hex()} mods: {mods} keys: {keys} current_line: {self.current_line}")
                             if keys:
                                 for key in keys:
                                     # check if paused before processing any key
                                     if self.is_paused:
                                         self.logger.debug(f"Ignored key during pause: {key}")
                                         continue
-                                        
                                     if key == 'ENTER':
                                         # when encounter ENTER, process current line
+                                        self.logger.debug(f"[LOG] ENTER detected, current_line before join: {self.current_line}")
                                         if self.current_line:
                                             barcode = ''.join(self.current_line)
+                                            self.logger.info(f"[LOG] Barcode to process: '{barcode}' (len={len(barcode)})")
                                             # only process barcode when not paused
                                             if not self.is_paused:
                                                 self.logger.info(f"Scanned barcode: {barcode}")
@@ -409,19 +409,21 @@ class BarcodeController(Controller):
                                                     await self.callback(barcode)
                                             else:
                                                 self.logger.info(f"Ignored barcode during pause: {barcode}")
+                                        else:
+                                            self.logger.warning(f"[LOG] ENTER detected but current_line is empty!")
                                         self.current_line = []
                                     else:
                                         # normal key, add to current line
+                                        self.logger.debug(f"[LOG] Appending key: {key} to current_line: {self.current_line}")
                                         if not self.is_paused:
                                             self.current_line.append(key)
                                         else:
                                             # ignore all key input during pause
                                             self.logger.debug(f"Ignored key during pause: {key}")
-                        
                         await asyncio.sleep(0.001)  # short sleep to avoid CPU overload
-                        
         except Exception as e:
-            self.logger.error(f"Error reading barcode: {e}")
+            import traceback
+            self.logger.error(f"Error reading barcode: {e}\n[LOG] current_line at error: {self.current_line}\nTraceback: {traceback.format_exc()}")
         finally:
             self.logger.info("Barcode reading stopped")
 

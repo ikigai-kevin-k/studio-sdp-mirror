@@ -6,6 +6,26 @@ import requests
 import json
 from deviceController import BarcodeController, GameConfig
 from controller import GameType
+import sys
+sys.path.append("./studio-sdp-roulette")
+from dealing_order_check import check_dealing_order, mock_data_non_outs, mock_data_outs
+import check_outs_rule
+
+# TODO:
+# Add the dealing order check
+# Add the outs check
+# How to implement:
+# When 4 barcode results are scanned, check these 4 card positions by the idp (image data processor)
+# Check if the dealing position order is correct by the dealing_order_check.py
+# Check whether need to deal the 5th and/or 6th card by the check_outs_rule.py
+# If no need but 5th or 6th barcode is scanned, report error
+# If no need and 5th or 6th barcode is not scanned, send deal result
+# If need to deal the 5th and/or 6th card, check the 5th or 6th card position by the idp (image data processor)
+# If the 5th or 6th card position is correct, send deal result
+# If the 5th or 6th card position is incorrect, report error
+# Because the idp (image data processor) has not implement yet, so we will use the mock data to test the dealing_order_check.py and check_outs_rule.py
+# Now every round we use the correct mock data so that we can send deal result
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -24,6 +44,8 @@ scanned_barcodes = []  # Store scanned barcodes for result generation
 game_start_time = None  # Track when game started
 current_bet_period = None  # Store current bet period
 waiting_for_bet_period = False  # Flag to prevent additional scans during bet period wait
+barcode_controller = None  # Global reference to barcode controller
+scan_start_time = None  # Track when scanning should start for current round
 
 async def ws_handler(websocket):
     connected_clients.add(websocket)
@@ -172,15 +194,25 @@ async def start_new_game():
         barcode_count = 0  # Reset barcode count
         scanned_barcodes = []  # Reset barcode list
         waiting_for_bet_period = False  # Reset waiting flag
+        scan_start_time = time.time() + 0.5  # Set scan start time to 0.5 seconds from now
+        
+        # Resume barcode scanning for new game
+        if barcode_controller:
+            barcode_controller.resume_scanning()
+            print("Barcode scanning resumed for new game")
+        
         print(f"Game started with Round ID: {round_id}")
         print(f"Bet period: {bet_period} seconds")
+        print(f"Scanning will start at: {scan_start_time}")
         return True
     else:
         print("Failed to start game. Please try again.")
         return False
 
 async def on_barcode_scanned(barcode):
-    global barcode_count, current_round_id, game_started, scanned_barcodes, game_start_time, current_bet_period, waiting_for_bet_period
+    global barcode_count, current_round_id, game_started, scanned_barcodes, game_start_time, current_bet_period, waiting_for_bet_period, scan_start_time
+    
+    current_time = time.time()
     
     # Check if we're currently waiting for bet period to end
     if waiting_for_bet_period:
@@ -191,6 +223,17 @@ async def on_barcode_scanned(barcode):
     if not game_started:
         print(f"[IGNORED] Barcode scanned when game not started: {barcode}")
         return
+    
+    # Check if scanning has started for this round (time-based validation)
+    if scan_start_time and current_time < scan_start_time:
+        print(f"[IGNORED] Barcode scanned before round started: {barcode}")
+        return
+    
+    # Check if this barcode was scanned during pause period
+    if barcode_controller and barcode_controller.pause_timestamp:
+        if current_time < barcode_controller.pause_timestamp + 1.0:  # Allow 1 second buffer
+            print(f"[IGNORED] Barcode scanned during pause period: {barcode}")
+            return
     
     # Check if this barcode is the same as the last one (duplicate detection)
     if scanned_barcodes and scanned_barcodes[-1] == barcode:
@@ -205,28 +248,45 @@ async def on_barcode_scanned(barcode):
     
     # Increment barcode count
     barcode_count += 1
-    print(f"Barcode count: {barcode_count}/3")
+    print(f"Barcode count: {barcode_count}/6")
     print(f"Scanned barcodes: {scanned_barcodes}")
-    
-    # When 3 barcodes are scanned, wait for bet period to end then send deal result
-    if barcode_count >= 3:
-        print("3 barcodes scanned. Waiting for bet period to end...")
-        waiting_for_bet_period = True  # Set flag to ignore additional scans
-        
-        # Calculate remaining time to wait
-        elapsed_time = time.time() - game_start_time
-        remaining_time = max(0, current_bet_period - elapsed_time + 2)  # Add 2 seconds buffer for safety
-        
-        if remaining_time > 0:
-            print(f"Waiting {remaining_time:.1f} seconds for bet period to end...")
-            await asyncio.sleep(remaining_time)
-        else:
-            # If we've already passed the bet period, wait a bit more to ensure server is ready
-            print("Bet period already passed, waiting additional 1 second for server sync...")
-            await asyncio.sleep(1)
-        
-        print("Bet period ended. Sending deal result...")
-        
+
+    # --- 新增發牌順序與outs檢查 ---
+    # 只在掃到4張時檢查前4張順序
+    if barcode_count == 4:
+        # 用 mock_data_non_outs 模擬idp
+        if not check_dealing_order(mock_data_non_outs, outs=False):
+            print("[ERROR] Dealing order incorrect for first 4 cards!")
+            # 可加上錯誤處理/提示
+            return
+        print("[CHECK] First 4 cards dealing order correct.")
+        # 判斷是否需要發第5/6張
+        # 這裡用 mock_data_outs 來模擬6張牌
+        # 假設前4張分別為: player1, banker1, player2, banker2
+        # 取前4張barcode作為player/banker手牌
+        player_cards = [mock_data_non_outs[0], mock_data_non_outs[2]]
+        banker_cards = [mock_data_non_outs[1], mock_data_non_outs[3]]
+        # 用 check_outs_rule 決定是否要發第5/6張
+        player_draw = check_outs_rule.player_draw_rule(player_cards)
+        player_third_card = None
+        if player_draw:
+            # 模擬player第三張
+            player_third_card = check_outs_rule.CARD_VALUES.get(mock_data_outs[4][0], None) if len(mock_data_outs[4]) > 0 else None
+            player_cards.append(mock_data_outs[4])
+        banker_draw = check_outs_rule.banker_draw_rule(banker_cards, player_cards, player_third_card)
+        need_outs = player_draw or banker_draw
+        print(f"[CHECK] Need outs? {need_outs}")
+        # 如果不需要outs，且後面還掃到barcode，報錯
+        if not need_outs and barcode_count > 4:
+            print("[ERROR] No outs needed, but extra barcode scanned!")
+            return
+        # 如果需要outs，等到掃到6張時再檢查
+        if need_outs:
+            print("[INFO] Waiting for 6th barcode for outs check...")
+            return
+        # 不需要outs，直接送出deal result
+        print("[INFO] No outs needed, sending deal result.")
+        # 這裡可呼叫送出結果的流程
         # Convert scanned barcodes to game result
         result = convert_barcodes_to_result(scanned_barcodes)
         print(f"Converted result: {result}")
@@ -264,8 +324,67 @@ async def on_barcode_scanned(barcode):
                     barcode_count = 0
                     scanned_barcodes = []
                     waiting_for_bet_period = False
+                    # Resume barcode scanning
+                    if barcode_controller:
+                        barcode_controller.resume_scanning()
+                        print("Barcode scanning resumed")
+        return
+    # 如果需要outs，等到掃到第6張時再檢查順序
+    if barcode_count == 6:
+        # 用 mock_data_outs 模擬idp
+        if not check_dealing_order(mock_data_outs, outs=True):
+            print("[ERROR] Dealing order incorrect for 6 cards!")
+            return
+        print("[CHECK] 6 cards dealing order correct.")
+        print("[INFO] Outs check passed, sending deal result.")
+        # 這裡可呼叫送出結果的流程
+        # Convert scanned barcodes to game result
+        result = convert_barcodes_to_result(scanned_barcodes)[:3] # workaround for now
+        print(f"Converted result: {result}")
+        
+        # Retry mechanism for sending deal result
+        max_retries = 3
+        retry_count = 0
+        
+        while retry_count < max_retries:
+            if deal_post_v2(CIT_BASE_URL, CIT_TOKEN, current_round_id, result):
+                print("Deal result sent successfully.")
+                
+                # Wait a moment then finish the game
+                await asyncio.sleep(2)
+                
+                if finish_post_v2(CIT_BASE_URL, CIT_TOKEN):
+                    print("Game finished successfully.")
+                    
+                    # Start next game round
+                    await start_new_game()
+                    print("New game round started. Please scan barcodes.")
+                    return  # Exit the retry loop on success
+                else:
+                    print("Failed to finish game.")
+                    break
+            else:
+                retry_count += 1
+                if retry_count < max_retries:
+                    print(f"Failed to send deal result. Retrying in 2 seconds... (Attempt {retry_count}/{max_retries})")
+                    await asyncio.sleep(2)
+                else:
+                    print("Failed to send deal result after all retries.")
+                    # Reset game state to allow manual restart
+                    game_started = False
+                    barcode_count = 0
+                    scanned_barcodes = []
+                    waiting_for_bet_period = False
+                    # Resume barcode scanning
+                    if barcode_controller:
+                        barcode_controller.resume_scanning()
+                        print("Barcode scanning resumed")
+        return
+    # --- END 新增 ---
 
 async def main():
+    global barcode_controller
+    
     # 1. Prepare GameConfig (adjust as needed)
     config = GameConfig(room_id="test", broker_host="", broker_port=1883, game_type=GameType.BACCARAT)
     # 2. Initialize BarcodeController

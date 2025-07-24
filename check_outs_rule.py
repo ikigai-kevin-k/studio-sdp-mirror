@@ -7,9 +7,21 @@ CARD_VALUES = {
     '10': 0, 'J': 0, 'Q': 0, 'K': 0
 }
 
+def extract_rank(card_str):
+    if len(card_str) == 3:
+        return card_str[:2]  # 10D, 10H, etc.
+    elif len(card_str) == 2:
+        return card_str[0]   # KD, 8S, AC, etc.
+    else:
+        return card_str      # fallback, or raise error
+
 # Calculate the baccarat hand point (only the unit digit)
 def hand_point(cards):
-    return sum(CARD_VALUES[c] for c in cards) % 10
+    try:
+        return sum(CARD_VALUES[extract_rank(c)] for c in cards) % 10
+    except KeyError as e:
+        print(f"[ERROR] Invalid card value: {e} in cards: {cards}")
+        return 0
 
 # Check if hand is Natural (8 or 9 with first two cards)
 def is_natural(cards):
