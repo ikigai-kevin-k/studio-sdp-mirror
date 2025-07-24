@@ -23,6 +23,7 @@ game_started = False
 scanned_barcodes = []  # Store scanned barcodes for result generation
 game_start_time = None  # Track when game started
 current_bet_period = None  # Store current bet period
+waiting_for_bet_period = False  # Flag to prevent additional scans during bet period wait
 
 async def ws_handler(websocket):
     connected_clients.add(websocket)
@@ -153,27 +154,51 @@ def finish_post_v2(url, token):
     print("Game finished successfully.")
     return True
 
+async def start_new_game():
+    """Start a new game round"""
+    global current_round_id, game_started, game_start_time, current_bet_period, barcode_count, scanned_barcodes, waiting_for_bet_period
+    
+    print("Starting new game round...")
+    
+    # Add a small delay before starting new game to ensure previous round is fully closed
+    await asyncio.sleep(1)
+    
+    round_id, bet_period = start_post_v2(CIT_BASE_URL, CIT_TOKEN)
+    if round_id:
+        current_round_id = round_id
+        game_started = True
+        game_start_time = time.time()  # Record start time
+        current_bet_period = bet_period  # Store bet period
+        barcode_count = 0  # Reset barcode count
+        scanned_barcodes = []  # Reset barcode list
+        waiting_for_bet_period = False  # Reset waiting flag
+        print(f"Game started with Round ID: {round_id}")
+        print(f"Bet period: {bet_period} seconds")
+        return True
+    else:
+        print("Failed to start game. Please try again.")
+        return False
+
 async def on_barcode_scanned(barcode):
-    global barcode_count, current_round_id, game_started, scanned_barcodes, game_start_time, current_bet_period
+    global barcode_count, current_round_id, game_started, scanned_barcodes, game_start_time, current_bet_period, waiting_for_bet_period
+    
+    # Check if we're currently waiting for bet period to end
+    if waiting_for_bet_period:
+        print(f"[IGNORED] Barcode scanned during bet period wait: {barcode}")
+        return
+    
+    # Check if game is not started
+    if not game_started:
+        print(f"[IGNORED] Barcode scanned when game not started: {barcode}")
+        return
+    
+    # Check if this barcode is the same as the last one (duplicate detection)
+    if scanned_barcodes and scanned_barcodes[-1] == barcode:
+        print(f"[DUPLICATE] Ignoring duplicate barcode: {barcode}")
+        return
     
     print(f"[RESULT] Barcode scanned: {barcode}")
     await broadcast_barcode(barcode)
-    
-    # Start game if not started yet
-    if not game_started:
-        print("Starting new game round...")
-        round_id, bet_period = start_post_v2(CIT_BASE_URL, CIT_TOKEN)
-        if round_id:
-            current_round_id = round_id
-            game_started = True
-            scanned_barcodes = []  # Reset barcode list for new game
-            game_start_time = time.time()  # Record start time
-            current_bet_period = bet_period  # Store bet period
-            print(f"Game started with Round ID: {round_id}")
-            print(f"Bet period: {bet_period} seconds")
-        else:
-            print("Failed to start game. Please try again.")
-            return
     
     # Store scanned barcode
     scanned_barcodes.append(barcode)
@@ -186,14 +211,19 @@ async def on_barcode_scanned(barcode):
     # When 3 barcodes are scanned, wait for bet period to end then send deal result
     if barcode_count >= 3:
         print("3 barcodes scanned. Waiting for bet period to end...")
+        waiting_for_bet_period = True  # Set flag to ignore additional scans
         
         # Calculate remaining time to wait
         elapsed_time = time.time() - game_start_time
-        remaining_time = max(0, current_bet_period - elapsed_time + 1)  # Add 1 second buffer
+        remaining_time = max(0, current_bet_period - elapsed_time + 2)  # Add 2 seconds buffer for safety
         
         if remaining_time > 0:
             print(f"Waiting {remaining_time:.1f} seconds for bet period to end...")
             await asyncio.sleep(remaining_time)
+        else:
+            # If we've already passed the bet period, wait a bit more to ensure server is ready
+            print("Bet period already passed, waiting additional 1 second for server sync...")
+            await asyncio.sleep(1)
         
         print("Bet period ended. Sending deal result...")
         
@@ -201,27 +231,39 @@ async def on_barcode_scanned(barcode):
         result = convert_barcodes_to_result(scanned_barcodes)
         print(f"Converted result: {result}")
         
-        if deal_post_v2(CIT_BASE_URL, CIT_TOKEN, current_round_id, result):
-            print("Deal result sent successfully.")
-            
-            # Wait a moment then finish the game
-            await asyncio.sleep(2)
-            
-            if finish_post_v2(CIT_BASE_URL, CIT_TOKEN):
-                print("Game finished successfully.")
+        # Retry mechanism for sending deal result
+        max_retries = 3
+        retry_count = 0
+        
+        while retry_count < max_retries:
+            if deal_post_v2(CIT_BASE_URL, CIT_TOKEN, current_round_id, result):
+                print("Deal result sent successfully.")
                 
-                # Reset for next round
-                barcode_count = 0
-                current_round_id = None
-                game_started = False
-                scanned_barcodes = []
-                game_start_time = None
-                current_bet_period = None
-                print("Ready for next game round. Please scan barcodes to start new game.")
+                # Wait a moment then finish the game
+                await asyncio.sleep(2)
+                
+                if finish_post_v2(CIT_BASE_URL, CIT_TOKEN):
+                    print("Game finished successfully.")
+                    
+                    # Start next game round
+                    await start_new_game()
+                    print("New game round started. Please scan barcodes.")
+                    return  # Exit the retry loop on success
+                else:
+                    print("Failed to finish game.")
+                    break
             else:
-                print("Failed to finish game.")
-        else:
-            print("Failed to send deal result.")
+                retry_count += 1
+                if retry_count < max_retries:
+                    print(f"Failed to send deal result. Retrying in 2 seconds... (Attempt {retry_count}/{max_retries})")
+                    await asyncio.sleep(2)
+                else:
+                    print("Failed to send deal result after all retries.")
+                    # Reset game state to allow manual restart
+                    game_started = False
+                    barcode_count = 0
+                    scanned_barcodes = []
+                    waiting_for_bet_period = False
 
 async def main():
     # 1. Prepare GameConfig (adjust as needed)
@@ -235,10 +277,16 @@ async def main():
     ws_server = await websockets.serve(ws_handler, "localhost", 8765)
     print("WebSocket server started at ws://localhost:8765")
 
-    # 5. Start barcode scanning
+    # 5. Start the first game round immediately
+    print("Starting initial game round...")
+    if not await start_new_game():
+        print("Failed to start initial game. Exiting.")
+        return
+
+    # 6. Start barcode scanning
     await barcode_controller.initialize(device_path, callback=on_barcode_scanned)
-    print("Barcode self-test started. Please scan barcodes to start game (Ctrl+C to exit).")
-    print("Game flow: Scan 3 barcodes -> Wait for bet period -> Deal result -> Finish game -> Ready for next round")
+    print("Barcode self-test started. Please scan barcodes (Ctrl+C to exit).")
+    print("Game flow: Game started -> Scan 3 barcodes -> Wait for bet period -> Deal result -> Finish game -> Start new game")
     print("Note: Program automatically waits for bet period to end before sending deal result")
 
     try:
@@ -251,4 +299,4 @@ async def main():
         print("Barcode self-test finished.")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main()) 
