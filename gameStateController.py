@@ -396,8 +396,7 @@ class SicBoStateController(BaseGameStateController):
         # 發送命令並等待回應
         success, dice_result = await self.mqtt_controller.send_detect_command(
             self.current_round_id,
-            # input_stream="https://192.168.88.213:8088/live/r1234_dice.flv",
-            input_stream="https://192.168.88.180:8088/live/r123_dice",
+            input_stream="https://192.168.88.50:8088/live/r123_dice",
             output_stream=""
         )
         

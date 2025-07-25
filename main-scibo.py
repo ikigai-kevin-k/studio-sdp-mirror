@@ -279,7 +279,7 @@ class SDPGame:
                         round_id, bet_period = await retry_with_network_check(
                             start_post_v2_stg, post_url, self.token
                         )
-                        
+
                     elif table['name'] == 'QAT':
                         print("====================")
                         print("[DEBUG] QAT start_post_v2")
@@ -303,7 +303,7 @@ class SDPGame:
                     await self.send_to_recorder(f"start_recording:{first_round_id}")
                 
                 # wait for betting period
-                betting_duration = 3 #  for the new setting 5s on the new subnet on dice-pc
+                betting_duration = 3
                 self.logger.info(f"Waiting for betting period ({betting_duration:.1f} seconds)...")
                 time.sleep(betting_duration)
 
@@ -313,20 +313,18 @@ class SDPGame:
                     first_table, first_round_id, _ = round_ids[0]
                     await self.send_to_recorder(f"start_recording:{first_round_id}")            
 
-                # test shake command
-                SHAKE_TIME = 12 # 9
-                self.logger.info(f"Testing shake command with round ID: {first_round_id}")
-                await self.shaker_controller.shake(first_round_id) # Temporarily comment for test
-                await asyncio.sleep(SHAKE_TIME) # for dice pc idp
+                # Shake command
+                self.logger.info(f"Shake command with round ID: {first_round_id}")
+                await self.shaker_controller.shake(first_round_id)
 
-                # test detect command
+                # Detect command
                 # max_retries = 3
                 max_retries = 10000
                 retry_count = 0
                 
                 while retry_count < max_retries:
                     self.logger.info(f"Testing detect command... (attempt {retry_count + 1})")
-                    # time.sleep(2.5)
+                    time.sleep(2)
                     success, dice_result = self.idp_controller.detect(first_round_id)
                     
                     is_valid_result = (
@@ -350,9 +348,7 @@ class SDPGame:
 
                         # notify recorder to stop recording
                         await self.send_to_recorder("stop_recording")
-
-                        time.sleep(1.5) 
-
+                        time.sleep(2.5) 
 
                         for table, round_id, _ in round_ids:
                             post_url = f"{table['post_url']}{table['game_code']}"
@@ -376,7 +372,6 @@ class SDPGame:
                                 await retry_with_network_check(
                                     deal_post_v2_qat, post_url, self.token, round_id, dice_result
                                 )
-
 
                         for table, round_id, _ in round_ids:
                             post_url = f"{table['post_url']}{table['game_code']}"
@@ -481,7 +476,6 @@ class SDPGame:
                                     elif table['name'] == 'QAT':
                                         _, status_qat, _ = get_roundID_v2_qat(post_url, self.token)
                                         print("status:", status_qat)
-
                                     if (status_cit == "finished" or status_cit == "canceled") and (status_uat == "finished" or status_uat == "canceled"):
                                         break
                                     

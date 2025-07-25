@@ -256,7 +256,7 @@ class ShakerController(Controller):
         
         # 等待搖動開始 (S2 -> S1)
         self.logger.info("Waiting for shake command to be received (S2)...")
-        timeout = 15  # 15 秒超時
+        timeout = 1  # 1 秒超時
         start_time = time.time()
         while (time.time() - start_time) < timeout:
             if self.shaker_state == "S2":
@@ -272,7 +272,7 @@ class ShakerController(Controller):
         
         # 等待搖動完成 (S1 -> S0)
         self.logger.info("Waiting for shaking to complete (S1 -> S0)...")
-        timeout = 20  # 20 秒超時，考慮搖動時間
+        timeout = 10  # 10 秒超時，考慮搖動時間
         start_time = time.time()
         while (time.time() - start_time) < timeout:
             if self.shaker_state == "S0":
