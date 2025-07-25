@@ -4,7 +4,6 @@ from pygments.formatters import TerminalFormatter
 from pygments.lexers import JsonLexer
 import json
 import time
-
 def session_get(url: str, game_code: str) -> str:
     """
     Get session token from LOS API
@@ -65,12 +64,8 @@ def session_get(url: str, game_code: str) -> str:
         return None
 
 # Global accessToken variable
-base_url = 'https://crystal-los.iki-uat.cc/v2/service'
-gameCode = 'SBO-001'
-# accessToken = session_get(base_url, gameCode)
 # UAT SBO-001
-accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiIyZTA3NjVjMS0zZDQ1LTRiZGEtOTg2Yi03MjU4NTE1YmE1YzgiLCJnYW1lQ29kZSI6WyJTQk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NDk1Mzk0Mzc5NzksImlhdCI6MTc0OTUzOTQzN30.zS_0SvnH0Ez-1-lasRwJpjZviWYK7j7Z5NVbxAI_BW8'
-
+accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI1Y2I5OTg2Zi01OWEwLTRhMTItOWZhZC00YmMyMDcyOGFhMGIiLCJnYW1lQ29kZSI6WyJTQk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NTMyNjM1MTMwNzAsImlhdCI6MTc1MzI2MzUxM30.KAcaFmNuVaCYwj1UEOFIitORCflslF1_KgoH-tPHgbI'
 def start_post_v2_uat(url, token):
     # Set up HTTP headers
     headers = {
@@ -464,8 +459,8 @@ if __name__ == "__main__":
     cnt = 0
     while cnt < 1:
         results = [1,2,3] #str(random.randint(0, 36))
-        get_url = 'https://crystal-los.iki-uat.cc/v2/service/tables/'
-        post_url = 'https://crystal-los.iki-uat.cc/v2/service/tables/'
+        get_url = 'https://crystal-table.iki-uat.cc/v2/service/tables/'
+        post_url = 'https://crystal-table.iki-uat.cc/v2/service/tables/'
 
         # get_url =  "https://crystal-los.iki-uat.cc/v1/service/table/"
         # post_url = "https://crystal-los.iki-uat.cc/v1/service/sdp/table/"
@@ -474,14 +469,14 @@ if __name__ == "__main__":
         # gameCode = 'SDP-001'
         # gameCode = 'SDP-003'
         gameCode = 'SBO-001'
-        
+
         # # Get session token
         # global accessToken
         # accessToken = session_get(base_url, gameCode)
         # if not accessToken:
-        #     print("Failed to get session token")
-        #     break
-            
+            # print("Failed to get session token")
+            # break
+
         get_url = get_url + gameCode
         post_url = post_url + gameCode
         token = 'E5LN4END9Q'
