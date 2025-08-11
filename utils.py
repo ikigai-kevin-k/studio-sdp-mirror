@@ -6,7 +6,7 @@ from typing import Tuple, Dict, Any, Optional
 import os
 import logging
 from datetime import datetime
-from los_api.api import get_roundID
+from los_api.sb.api_v2_sb import get_roundID_v2
 
 def load_config(config_path: str) -> Dict[str, Any]:
     """Load configuration from JSON file"""

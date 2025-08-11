@@ -15,14 +15,14 @@ from los_api.sr.api_v2_stg_sr import start_post_v2_stg, deal_post_v2_stg, finish
 from los_api.sr.api_v2_qat_sr import start_post_v2_qat, deal_post_v2_qat, finish_post_v2_qat, broadcast_post_v2_qat
 from concurrent.futures import ThreadPoolExecutor
 
-import sentry_sdk
+# import sentry_sdk
 
-sentry_sdk.init(
-    dsn="https://63a51b0fa2f4c419adaf46fafea61e89@o4509115379679232.ingest.us.sentry.io/4509643182440448",
-    # Add data like request headers and IP for users,
-    # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
-    send_default_pii=True,
-)
+# sentry_sdk.init(
+#     dsn="https://63a51b0fa2f4c419adaf46fafea61e89@o4509115379679232.ingest.us.sentry.io/4509643182440448",
+#     # Add data like request headers and IP for users,
+#     # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+#     send_default_pii=True,
+# )
 
 ser = serial.Serial(
     port='/dev/ttyUSB0',

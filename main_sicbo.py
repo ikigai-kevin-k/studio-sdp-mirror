@@ -16,11 +16,11 @@ from controller import GameType, GameConfig
 from gameStateController import create_game_state_controller
 from deviceController import IDPController, ShakerController
 from mqttController import MQTTController
-from los_api.api_v2_sb import start_post_v2, deal_post_v2, finish_post_v2, pause_post_v2, get_roundID_v2, broadcast_post_v2
-from los_api.api_v2_sb_uat import start_post_v2_uat, deal_post_v2_uat, finish_post_v2_uat, pause_post_v2_uat, get_roundID_v2_uat, broadcast_post_v2_uat, get_sdp_config_v2_uat
-from los_api.api_v2_sb_prd import start_post_v2_prd, deal_post_v2_prd, finish_post_v2_prd, pause_post_v2_prd, get_roundID_v2_prd, broadcast_post_v2_prd, get_sdp_config_v2_prd
-from los_api.api_v2_sb_stg import start_post_v2_stg, deal_post_v2_stg, finish_post_v2_stg, pause_post_v2_stg, get_roundID_v2_stg, broadcast_post_v2_stg, get_sdp_config_v2_stg
-from los_api.api_v2_sb_qat import start_post_v2_qat, deal_post_v2_qat, finish_post_v2_qat, pause_post_v2_qat, get_roundID_v2_qat, broadcast_post_v2_qat, get_sdp_config_v2_qat
+from los_api.sb.api_v2_sb import start_post_v2, deal_post_v2, finish_post_v2, pause_post_v2, get_roundID_v2, broadcast_post_v2
+from los_api.sb.api_v2_uat_sb import start_post_v2_uat, deal_post_v2_uat, finish_post_v2_uat, pause_post_v2_uat, get_roundID_v2_uat, broadcast_post_v2_uat, get_sdp_config_v2_uat
+from los_api.sb.api_v2_prd_sb import start_post_v2_prd, deal_post_v2_prd, finish_post_v2_prd, pause_post_v2_prd, get_roundID_v2_prd, broadcast_post_v2_prd, get_sdp_config_v2_prd
+from los_api.sb.api_v2_stg_sb import start_post_v2_stg, deal_post_v2_stg, finish_post_v2_stg, pause_post_v2_stg, get_roundID_v2_stg, broadcast_post_v2_stg, get_sdp_config_v2_stg
+from los_api.sb.api_v2_qat_sb import start_post_v2_qat, deal_post_v2_qat, finish_post_v2_qat, pause_post_v2_qat, get_roundID_v2_qat, broadcast_post_v2_qat, get_sdp_config_v2_qat
 from networkChecker import networkChecker
 from datetime import datetime
 
