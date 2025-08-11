@@ -16,6 +16,7 @@ def start_post_v2_prd(url, token):
         'x-signature': 'los-local-signature',
         'Content-Type': 'application/json',
         'Cookie': f'accessToken={accessToken}',
+        'Connection': 'close'
         # 'timecode': '26000' # 8 + 15 + 3 = 26
     }
 
@@ -61,6 +62,7 @@ def deal_post_v2_prd(url, token, round_id, result):
         'Content-Type': 'application/json',
         'timecode': timecode,
         'Cookie': f'accessToken={accessToken}',
+        'Connection': 'close'
     }
 
     data = {
@@ -90,6 +92,7 @@ def finish_post_v2_prd(url, token):
         'x-signature': 'los-local-signature',
         'Content-Type': 'application/json',
         'Cookie': f'accessToken={accessToken}',
+        'Connection': 'close'
     }
     data = {}
     response = requests.post(f'{url}/finish', headers=headers, json=data, verify=False)
@@ -106,6 +109,7 @@ def visibility_post_prd(url, token, enable):
         'x-signature': 'los-local-signature',
         'Content-Type': 'application/json',
         'Cookie': f'accessToken={accessToken}',
+        'Connection': 'close'
     }
     print("enable: ", enable)
 
@@ -133,6 +137,7 @@ def get_roundID_v2_prd(url, token):
         'x-signature': 'los-local-signature',
         'Content-Type': 'application/json',
         'Cookie': f'accessToken={accessToken}',
+        'Connection': 'close'
     }
 
     # Define payload for the POST request
@@ -176,6 +181,7 @@ def pause_post_v2_prd(url, token, reason):
         'x-signature': 'los-local-signature',
         'Content-Type': 'application/json',
         'Cookie': f'accessToken={accessToken}',
+        'Connection': 'close'
     }
 
     data = {
@@ -194,7 +200,8 @@ def resume_pos_v2_prd(url, token):
         'Bearer': token,
         'x-signature': 'los-local-signature',
         'Content-Type': 'application/json',
-        'Cookie': f'accessToken={accessToken}'
+        'Cookie': f'accessToken={accessToken}',
+        'Connection': 'close'
     }
 
     data = {}  # Empty payload as per API specification
@@ -364,7 +371,8 @@ def broadcast_post_v2_prd(url, token, broadcast_type, audience="players", afterS
         'Bearer': token,
         'x-signature': 'los-local-signature',
         'Content-Type': 'application/json',
-        'Cookie': f'accessToken={accessToken}'
+        'Cookie': f'accessToken={accessToken}',
+        'Connection': 'close'
     }
 
     # Generate a unique message ID using timestamp
@@ -392,15 +400,8 @@ if __name__ == "__main__":
     cnt = 0
     while cnt < 1:
         results = "0" #str(random.randint(0, 36))
-        get_url = 'https://crystal-los.crystal.live/v2/service/tables/'
-        post_url = 'https://crystal-los.crystal.live/v2/service/tables/'
-
-        # get_url =  "https://crystal-los.iki-uat.cc/v1/service/table/"
-        # post_url = "https://crystal-los.iki-uat.cc/v1/service/sdp/table/"
-
-        # gameCode = 'SDP-003'
-        # gameCode = 'SDP-001'
-        # gameCode = 'SDP-003'
+        get_url = 'https://crystal-table.ikg-game.cc/v2/service/tables/'
+        post_url = 'https://crystal-table.ikg-game.cc/v2/service/tables/'
         gameCode = 'ARO-002'
         get_url = get_url + gameCode
         post_url = post_url + gameCode
@@ -439,11 +440,11 @@ if __name__ == "__main__":
         # time.sleep(1)
 
 
-        # print("================Deal================\n")
+        print("================Deal================\n")
         # time.sleep(18)
-        # deal_post_v2_prd(post_url, token, round_id, results)
-        # print("================Finish================\n")
-        # finish_post_v2_prd(post_url, token)
+        deal_post_v2_prd(post_url, token, round_id, results)
+        print("================Finish================\n")
+        finish_post_v2_prd(post_url, token)
 
         # print("================Cancel================\n")
         # cancel_post(post_url, token)

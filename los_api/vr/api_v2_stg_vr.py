@@ -6,8 +6,8 @@ import json
 import time
 
 #STG ARO-002
-accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI5YTRjNzM5ZC00OWY0LTQ1ZWQtYmVkNi0wYzZkYmQyNzc2NTAiLCJnYW1lQ29kZSI6W10sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NTA0MTI0MTI4NzEsImlhdCI6MTc1MDQxMjQxMn0.mXjNdwf5iKHeEpLkOlOxzIpLvTQ5aUaKDFMMq_4VS5Q'
-
+# accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI5YTRjNzM5ZC00OWY0LTQ1ZWQtYmVkNi0wYzZkYmQyNzc2NTAiLCJnYW1lQ29kZSI6W10sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NTA0MTI0MTI4NzEsImlhdCI6MTc1MDQxMjQxMn0.mXjNdwf5iKHeEpLkOlOxzIpLvTQ5aUaKDFMMq_4VS5Q'
+accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiIxYmNkNTNkNy1mYTJhLTQzYjAtYTgyNS01YTlhZGZmZGQ3NDIiLCJnYW1lQ29kZSI6WyJBUk8tMDAyIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NTM3NjA1MDE1ODQsImlhdCI6MTc1Mzc2MDUwMX0.EFNTTHjb4X2zs4nXVbmtrJhVDTK-Hux1LwMl5ZJtCM8'
 def start_post_v2_stg(url, token):
     # Set up HTTP headers
     headers = {
@@ -402,15 +402,8 @@ if __name__ == "__main__":
     cnt = 0
     while cnt < 1:
         results = "0" #str(random.randint(0, 36))
-        get_url = 'https://crystal-los.iki-stg.cc/v2/service/tables/'
-        post_url = 'https://crystal-los.iki-stg.cc/v2/service/tables/'
-
-        # get_url =  "https://crystal-los.iki-uat.cc/v1/service/table/"
-        # post_url = "https://crystal-los.iki-uat.cc/v1/service/sdp/table/"
-
-        # gameCode = 'SDP-003'
-        # gameCode = 'SDP-001'
-        # gameCode = 'SDP-003'
+        get_url = 'https://crystal-table.iki-stg.cc/v2/service/tables/'
+        post_url = 'https://crystal-table.iki-stg.cc/v2/service/tables/'
         gameCode = 'ARO-002'
         get_url = get_url + gameCode
         post_url = post_url + gameCode
