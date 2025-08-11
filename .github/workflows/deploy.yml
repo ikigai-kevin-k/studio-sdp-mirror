@@ -5,7 +5,7 @@ on:
     workflows: ["Build and Test SDP Roulette System"]
     types:
       - completed
-    branches: [ main ]
+    branches: [ main, gitaction ]
 
 env:
   PYTHON_VERSION: '3.12'

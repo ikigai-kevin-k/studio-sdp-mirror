@@ -10,16 +10,17 @@ This document provides detailed instructions for the Git Actions CI/CD process o
 studio-sdp-roulette/
 ├── .github/
 │   └── workflows/
-│       ├── build.yml          # Main build and test process
-│       ├── deploy.yml         # Deployment process
-│       └── quick-build.yml    # Quick build process
-├── src/                       # Source code directory
-├── tests/                     # Test directory
-├── conf/                      # Configuration files
-├── pyproject.toml            # Project configuration
-├── requirements.txt           # Dependency package list
-├── test-ci.sh                # Local test script
-└── CICD.md                   # This document
+│       ├── build.yml              # Main build and test process
+│       ├── deploy.yml             # Deployment process
+│       ├── quick-build.yml        # Quick build process
+│       └── gitaction-build.yml    # GitAction branch specific build
+├── src/                           # Source code directory
+├── tests/                         # Test directory
+├── conf/                          # Configuration files
+├── pyproject.toml                # Project configuration
+├── requirements.txt               # Dependency package list
+├── test-ci.sh                    # Local test script
+└── CICD.md                       # This document
 ```
 
 ## 🔄 CI/CD Workflows
@@ -27,7 +28,7 @@ studio-sdp-roulette/
 ### 1. Main Build Process (build.yml)
 
 **Trigger Conditions:**
-- Push to `main`, `develop`, `feature/*` branches
+- Push to `main`, `develop`, `feature/*`, `gitaction` branches
 - Create Pull Request to `main`, `develop` branches
 
 **Execution Stages:**
@@ -127,7 +128,7 @@ jobs:
 
 **Trigger Conditions:**
 - When `build.yml` workflow completes successfully
-- Only triggers on `main` branch
+- Triggers on `main` and `gitaction` branches
 
 **Execution Stages:**
 
@@ -180,6 +181,7 @@ jobs:
 ### 3. Quick Build Process (quick-build.yml)
 
 **Trigger Conditions:**
+- Push to `gitaction` branch (automatic trigger)
 - Manual trigger (`workflow_dispatch`)
 - Can select game type and Python version
 
@@ -191,6 +193,45 @@ jobs:
 2. **Build Specified Game Controller**
 3. **Upload Artifacts**
 4. **Basic Validation**
+
+### 4. GitAction Branch Build Process (gitaction-build.yml)
+
+**Trigger Conditions:**
+- Push to `gitaction` branch
+- Pull Request to `gitaction` branch
+
+**Execution Stages:**
+
+#### Stage 1: GitAction Branch Testing
+```yaml
+jobs:
+  gitaction-test:
+    name: GitAction Branch Testing
+    runs-on: ubuntu-latest
+```
+
+**Execution Steps:**
+1. **Code Quality Check**
+   - flake8 linting
+   - black formatting check
+   - mypy type checking
+2. **Unit Testing** with pytest
+3. **Coverage Report** generation
+
+#### Stage 2: GitAction Branch Build
+```yaml
+jobs:
+  gitaction-build:
+    name: GitAction Branch Build
+    runs-on: ubuntu-latest
+    needs: gitaction-test
+```
+
+**Execution Steps:**
+1. **Build All Game Controllers**
+   - VIP Roulette, Speed Roulette, SicBo, Baccarat
+2. **Upload Artifacts** (15 days retention)
+3. **Build Completion Notification**
 
 ## 🚀 Execution Steps
 

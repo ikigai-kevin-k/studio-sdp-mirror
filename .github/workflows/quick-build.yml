@@ -1,6 +1,8 @@
 name: Quick Build - Single Game Controller
 
 on:
+  push:
+    branches: [ gitaction ]
   workflow_dispatch:
     inputs:
       game_type:
