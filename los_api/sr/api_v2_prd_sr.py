@@ -394,8 +394,8 @@ if __name__ == "__main__":
     cnt = 0
     while cnt < 1:
         results = "0" #str(random.randint(0, 36))
-        get_url = 'https://crystal-los.crystal.live/v2/service/tables/'
-        post_url = 'https://crystal-los.crystal.live/v2/service/tables/'
+        get_url = 'https://crystal-table.ikg-game.cc/v2/service/tables/'
+        post_url = 'https://crystal-table.ikg-game.cc/v2/service/tables/'
 
         # get_url =  "https://crystal-los.iki-uat.cc/v1/service/table/"
         # post_url = "https://crystal-los.iki-uat.cc/v1/service/sdp/table/"
