@@ -491,7 +491,7 @@ class SDPGame:
                                     if (status_cit == "finished" or status_cit == "canceled") and (status_uat == "finished" or status_uat == "canceled"):
                                         break
                                     
-                                    time.sleep(1)
+                                    await asyncio.sleep(1)
                                 # back to the beginning of the infinite loop
                             break
 
