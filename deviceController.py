@@ -84,8 +84,7 @@ class IDPController(Controller):
                 "command": "detect",
                 "arg": {
                     "round_id": round_id,
-                    # "input": "rtmp://192.168.88.213:1935/live/r456_dice",
-                    "input": "rtmp://192.168.88.180:1935/live/r123_dice",
+                    "input": "rtmp://192.168.88.50:1935/live/r217_sb",
                     "output": "https://pull-tc.stream.iki-utl.cc/live/r456_dice.flv"
                 }
             }
@@ -389,7 +388,7 @@ class BarcodeController(Controller):
                         data = f.read(8)  # HID report standard length
                         if data:
                             mods, keys = self.decode_hid_data(data)
-                            self.logger.debug(f"[LOG] Raw HID data: {data.hex()} mods: {mods} keys: {keys} current_line: {self.current_line}")
+                            self.logger.debug(f"[LOG] Raw HID data: {data.hex()} mods: {mods} keys: {keys} current_line: {self.current_line}")   
                             if keys:
                                 for key in keys:
                                     # check if paused before processing any key
@@ -420,6 +419,7 @@ class BarcodeController(Controller):
                                         else:
                                             # ignore all key input during pause
                                             self.logger.debug(f"Ignored key during pause: {key}")
+                                        self.current_line.append(key)
                         await asyncio.sleep(0.001)  # short sleep to avoid CPU overload
         except Exception as e:
             import traceback
