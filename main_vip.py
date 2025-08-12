@@ -35,7 +35,7 @@ def log_to_file(message, direction):
 
 # Load table configuration
 def load_table_config():
-    with open('los_api/table-config-roulette-v2_stg.json', 'r') as f:
+    with open('conf/table-config-vip-roulette-v2.json', 'r') as f:
         return json.load(f)
 
 # Add LOS API related variables
