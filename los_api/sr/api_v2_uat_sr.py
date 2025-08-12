@@ -383,15 +383,8 @@ if __name__ == "__main__":
     cnt = 0
     while cnt < 1:
         results = "0" #str(random.randint(0, 36))
-        get_url = 'https://crystal-los.iki-uat.cc/v2/service/tables/'
-        post_url = 'https://crystal-los.iki-uat.cc/v2/service/tables/'
-
-        # get_url =  "https://crystal-los.iki-uat.cc/v1/service/table/"
-        # post_url = "https://crystal-los.iki-uat.cc/v1/service/sdp/table/"
-
-        # gameCode = 'SDP-003'
-        # gameCode = 'SDP-001'
-        # gameCode = 'SDP-003'
+        get_url = 'https://crystal-table.iki-uat.cc/v2/service/tables/'
+        post_url = 'https://crystal-table.iki-uat.cc/v2/service/tables/'
         gameCode = 'ARO-001'
         get_url = get_url + gameCode
         post_url = post_url + gameCode
