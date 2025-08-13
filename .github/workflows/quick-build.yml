@@ -1,10 +1,18 @@
 name: Quick Build - Single Game Controller
 
 on:
-  push:
-    branches: [ gitaction ]
+  # DISABLED: This workflow is disabled in favor of the main "Build and Test SDP Roulette System"
+  # push:
+  #   branches: [ gitaction ]
+  
+  # Only allow manual trigger for emergency use
   workflow_dispatch:
     inputs:
+      emergency_override:
+        description: 'Emergency override to enable this workflow'
+        required: true
+        default: false
+        type: boolean
       game_type:
         description: 'Game controller to build'
         required: true
@@ -13,7 +21,7 @@ on:
         options:
           - vip
           - speed
-          - scibo
+          - sicbo
           - baccarat
       python_version:
         description: 'Python version to use'
@@ -28,6 +36,7 @@ jobs:
   quick-build:
     name: Quick Build ${{ github.event.inputs.game_type || 'vip' }}
     runs-on: ubuntu-24.04
+    if: ${{ github.event.inputs.emergency_override == true }}
     
     steps:
       - name: Checkout code

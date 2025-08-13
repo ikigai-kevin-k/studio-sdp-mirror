@@ -1,10 +1,20 @@
 name: GitAction Branch Build and Test
 
 on:
-  push:
-    branches: [ gitaction ]
-  pull_request:
-    branches: [ gitaction ]
+  # DISABLED: This workflow is disabled in favor of the main "Build and Test SDP Roulette System"
+  # push:
+  #   branches: [ gitaction ]
+  # pull_request:
+  #   branches: [ gitaction ]
+  
+  # Only allow manual trigger for emergency use
+  workflow_dispatch:
+    inputs:
+      emergency_override:
+        description: 'Emergency override to enable this workflow'
+        required: true
+        default: false
+        type: boolean
 
 env:
   PYTHON_VERSION: '3.12'
@@ -13,6 +23,7 @@ jobs:
   gitaction-test:
     name: GitAction Branch Testing
     runs-on: ubuntu-24.04
+    if: ${{ github.event.inputs.emergency_override == true }}
     
     steps:
       - name: Checkout code
@@ -57,6 +68,7 @@ jobs:
     name: GitAction Branch Build
     runs-on: ubuntu-24.04
     needs: gitaction-test
+    if: ${{ github.event.inputs.emergency_override == true }}
     
     steps:
       - name: Checkout code
