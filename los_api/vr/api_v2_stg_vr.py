@@ -304,7 +304,7 @@ def update_sdp_config_from_file_v2_stg(url, token, config_file='sdp.config'):
             "number": 0  # Default value as it's not used for durations
         }
         
-        sdp_config_post(url, token, config_data)
+        sdp_config_post_v2_stg(url, token, config_data)
         return True
         
     except FileNotFoundError:

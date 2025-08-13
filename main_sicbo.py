@@ -451,6 +451,13 @@ class SDPGame:
                             for table, round_id, _ in round_ids:
                                 post_url = f"{table['post_url']}{table['game_code']}"
                                 
+                                # Initialize status variables
+                                status_cit = None
+                                status_uat = None
+                                status_prd = None
+                                status_stg = None
+                                status_qat = None
+                                
                                 # change to: pause_post, then start polling, until status is "finished" or "canceled", then start a new round
                                 if table['name'] == 'CIT':
                                     pause_post_v2(post_url, self.token, "IDP cannot detect  the result for 3 times")

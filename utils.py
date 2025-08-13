@@ -76,7 +76,7 @@ def setup_serial_port(port: str, baudrate: int) -> serial.Serial:
 async def check_los_state(url: str, token: str) -> Tuple[int, str, str]:
     """Check LOS system state"""
     try:
-        return get_roundID(url, token)
+        return get_roundID_v2(url, token)
     except Exception as e:
         raise Exception(f"Failed to get LOS state: {e}")
 
