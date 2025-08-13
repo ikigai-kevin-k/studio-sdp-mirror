@@ -87,7 +87,7 @@ jobs:
           
           # Build SicBo
           echo "Building SicBo..."
-          PYTHONPATH=. shiv --compressed --compile-pyc -o roulette-scibo.pyz -e main_scibo:main .
+          PYTHONPATH=. shiv --compressed --compile-pyc -o roulette-sicbo.pyz -e main_sicbo:main .
           
           # Build Baccarat
           echo "Building Baccarat..."
@@ -102,7 +102,7 @@ jobs:
           path: |
             roulette-vip.pyz
             roulette-speed.pyz
-            roulette-scibo.pyz
+            roulette-sicbo.pyz
             roulette-baccarat.pyz
           retention-days: 15
 

@@ -54,8 +54,8 @@ jobs:
             "speed")
               PYTHONPATH=. shiv --compressed --compile-pyc -o roulette-speed.pyz -e main_speed:main .
               ;;
-            "scibo")
-              PYTHONPATH=. shiv --compressed --compile-pyc -o roulette-scibo.pyz -e main_scibo:main .
+            "sicbo")
+              PYTHONPATH=. shiv --compressed --compile-pyc -o roulette-sicbo.pyz -e main_sicbo:main .
               ;;
             "baccarat")
               PYTHONPATH=. shiv --compressed --compile-pyc -o roulette-baccarat.pyz -e main_baccarat:main .
