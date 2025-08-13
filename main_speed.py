@@ -684,15 +684,21 @@ def execute_broadcast_post(table, token):
         return None
 
 
-# Create and start read thread
-read_thread = threading.Thread(target=read_from_serial)
-read_thread.daemon = True
-read_thread.start()
+def main():
+    """Main function for Speed Roulette Controller"""
+    # Create and start read thread
+    read_thread = threading.Thread(target=read_from_serial)
+    read_thread.daemon = True
+    read_thread.start()
 
-# Main thread handles writing
-try:
-    write_to_serial()
-except KeyboardInterrupt:
-    print("\nProgram ended")
-finally:
-    ser.close()
+    # Main thread handles writing
+    try:
+        write_to_serial()
+    except KeyboardInterrupt:
+        print("\nProgram ended")
+    finally:
+        ser.close()
+
+
+if __name__ == "__main__":
+    main()
