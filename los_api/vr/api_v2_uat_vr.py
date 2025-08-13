@@ -439,7 +439,7 @@ if __name__ == "__main__":
 
 
         # print("================Deal================\n")
-        # time.sleep(14)
+        # time.sleep(18)
         deal_post_v2_uat(post_url, token, round_id, results)
         # print("================Finish================\n")
         finish_post_v2_uat(post_url, token)
