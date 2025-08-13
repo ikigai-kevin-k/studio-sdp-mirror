@@ -2,13 +2,14 @@ import errno
 import socket
 from typing import Union, Tuple
 
+
 def networkChecker(error: Union[OSError, socket.error]) -> Tuple[bool, str]:
     """
     Check if the error is a common network-related error.
-    
+
     Args:
         error: The error object to check (OSError or socket.error)
-        
+
     Returns:
         Tuple[bool, str]: A tuple containing:
             - bool: True if it's a network error, False otherwise
@@ -21,9 +22,9 @@ def networkChecker(error: Union[OSError, socket.error]) -> Tuple[bool, str]:
         errno.ETIMEDOUT: "Connection timed out (errno 110)",
         errno.ENETDOWN: "Network is down (errno 100)",
         errno.EHOSTUNREACH: "No route to host (errno 113)",
-        errno.EPIPE: "Broken pipe (errno 32)"
+        errno.EPIPE: "Broken pipe (errno 32)",
     }
-    
+
     try:
         error_code = error.errno
         if error_code in network_errors:
@@ -31,6 +32,7 @@ def networkChecker(error: Union[OSError, socket.error]) -> Tuple[bool, str]:
         return False, f"Not a common network error. Error code: {error_code}"
     except AttributeError:
         return False, "Invalid error object provided"
+
 
 # Example usage
 if __name__ == "__main__":
@@ -42,4 +44,4 @@ if __name__ == "__main__":
     except OSError as e:
         is_network_error, error_message = networkChecker(e)
         print(f"Is network error: {is_network_error}")
-        print(f"Error message: {error_message}") 
+        print(f"Error message: {error_message}")

@@ -4,8 +4,10 @@ import logging
 from typing import Optional, Callable, Dict, Any
 import json
 
+
 class WebSocketClient:
     """WebSocket client for real-time communication"""
+
     def __init__(self, uri: str, on_message: Optional[Callable] = None):
         self.uri = uri
         self.ws = None
@@ -31,7 +33,7 @@ class WebSocketClient:
             try:
                 if not self.is_connected:
                     await self.connect()
-                
+
                 async for message in self.ws:
                     try:
                         data = json.loads(message)
@@ -39,7 +41,7 @@ class WebSocketClient:
                             await self.on_message(data)
                     except json.JSONDecodeError:
                         self.logger.warning(f"Received invalid JSON: {message}")
-                    
+
             except websockets.ConnectionClosed:
                 self.logger.warning("WebSocket connection closed")
                 self.is_connected = False

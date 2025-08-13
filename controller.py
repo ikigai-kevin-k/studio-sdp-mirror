@@ -3,15 +3,19 @@ from typing import Dict, Optional
 from enum import Enum, auto
 from dataclasses import dataclass
 
+
 class GameType(Enum):
     """Game types supported by the system"""
+
     ROULETTE = "roulette"
     SICBO = "sicbo"
     BLACKJACK = "blackjack"
     BACCARAT = "baccarat"
 
+
 class RouletteState(Enum):
     """Game states for Roulette"""
+
     TABLE_CLOSED = auto()
     START_GAME = auto()
     PLACE_BET = auto()
@@ -20,8 +24,10 @@ class RouletteState(Enum):
     WINNING_NUMBER = auto()
     ERROR = auto()
 
+
 class SicBoState(Enum):
     """Game states for SicBo"""
+
     TABLE_CLOSED = auto()
     START_GAME = auto()
     PLACE_BET = auto()
@@ -30,8 +36,10 @@ class SicBoState(Enum):
     WINNING_NUMBER = auto()
     ERROR = auto()
 
+
 class BlackJackState(Enum):
     """BlackJack game states"""
+
     TABLE_CLOSED = auto()
     START_GAME = auto()
     DEAL_CARDS = auto()
@@ -40,20 +48,24 @@ class BlackJackState(Enum):
     GAME_RESULT = auto()
     ERROR = auto()
 
+
 @dataclass
 class GameConfig:
     """Configuration for game setup"""
+
     game_type: GameType
     room_id: str
     broker_host: str
     broker_port: int
     enable_logging: bool = False
-    log_dir: str = 'logs'
-    port: str = '/dev/ttyUSB0'
+    log_dir: str = "logs"
+    port: str = "/dev/ttyUSB0"
     baudrate: int = 9600
+
 
 class Controller:
     """Base controller class"""
+
     def __init__(self, config: GameConfig):
         self.config = config
         self.logger = logging.getLogger(f"{self.__class__.__name__}")
@@ -66,8 +78,10 @@ class Controller:
         """Cleanup resources"""
         raise NotImplementedError
 
+
 class BaseGameStateController:
     """Base class for game state controllers"""
+
     def __init__(self, game_type: GameType):
         self.game_type = game_type
         self.current_state = None
@@ -97,20 +111,21 @@ class BaseGameStateController:
         """Cleanup resources"""
         raise NotImplementedError
 
+
 def create_game_state_controller(game_type: GameType) -> BaseGameStateController:
     """Factory function to create appropriate game state controller"""
     from device.roulette import RouletteStateController
     from device.sicbo import SicBoStateController
     from device.blackjack import BlackJackStateController
-    
+
     controllers = {
         GameType.ROULETTE: RouletteStateController,
         GameType.SICBO: SicBoStateController,
-        GameType.BLACKJACK: BlackJackStateController
+        GameType.BLACKJACK: BlackJackStateController,
     }
-    
+
     controller_class = controllers.get(game_type)
     if not controller_class:
         raise ValueError(f"Unsupported game type: {game_type}")
-    
+
     return controller_class()

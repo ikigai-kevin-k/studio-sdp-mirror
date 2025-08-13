@@ -3,8 +3,10 @@ import logging
 import json
 from typing import Optional, Set
 
+
 class MQTTLogger:
     """MQTT Logger class for handling MQTT connections and messaging"""
+
     def __init__(self, client_id: str, broker: str, port: int = 1883):
         self.client_id = client_id
         self.broker = broker
@@ -12,20 +14,20 @@ class MQTTLogger:
         self.client = mqtt.Client(
             client_id=client_id,
             protocol=mqtt.MQTTv31,
-            callback_api_version=mqtt.CallbackAPIVersion.VERSION1
+            callback_api_version=mqtt.CallbackAPIVersion.VERSION1,
             # mqtt.CallbackAPIVersion.VERSION2,
             # client_id=client_id
         )
         self.logger = logging.getLogger(f"MQTT-{client_id}")
-        
+
         # 設置認證資訊
         self.client.username_pw_set("PFC", "wago")
-        
+
         # 設置回調
         self.client.on_connect = self._on_connect
         self.client.on_message = self._on_message
         self.client.on_disconnect = self._on_disconnect
-        
+
         self.subscribed_topics: Set[str] = set()
         self.last_message: Optional[str] = None
         self.connected: bool = False
@@ -55,7 +57,9 @@ class MQTTLogger:
         """Connect to MQTT broker"""
         try:
             # self.client.connect(self.broker, self.port) # original
-            self.logger.info(f"Attempting to connect to MQTT broker at {self.broker}:{self.port}")
+            self.logger.info(
+                f"Attempting to connect to MQTT broker at {self.broker}:{self.port}"
+            )
             self.client.connect(self.broker, self.port, keepalive=60)
             self.client.loop_start()
             return True
@@ -82,4 +86,4 @@ class MQTTLogger:
 
     def publish(self, topic: str, message: str):
         """Publish message to a topic"""
-        self.client.publish(topic, message) 
+        self.client.publish(topic, message)

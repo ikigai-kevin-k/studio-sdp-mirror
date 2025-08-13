@@ -6,6 +6,7 @@
 
 from typing import List
 
+
 def check_dealing_order(card_faces: List[str], outs: bool = False) -> bool:
     """
     Check if the dealing order is correct based on card faces (empty string means not dealt).
@@ -23,25 +24,35 @@ def check_dealing_order(card_faces: List[str], outs: bool = False) -> bool:
     faces = card_faces[:expected_len]
     found_empty = False
     for face in faces:
-        if face == '':
+        if face == "":
             found_empty = True
         elif found_empty:
             # If a card appears after an empty slot, order is wrong
             return False
     return True
 
+
 # Mock data for testing (simulate the data that would be sent by the idp)
-mock_data_non_outs = ['KD', '6H', '5C', 'JS', '', '']  # 4 cards, no outs
-mock_data_outs = ['KD', '6H', '5C', 'JS', 'JD', 'QS']  # 6 cards, with outs
-mock_data_wrong = ['KD', '', '5C', 'JS', '', '']       # Skipped position (should be False)
-mock_data_partial = ['KD', '6H', '', '', '', '']        # Only first two cards
+mock_data_non_outs = ["KD", "6H", "5C", "JS", "", ""]  # 4 cards, no outs
+mock_data_outs = ["KD", "6H", "5C", "JS", "JD", "QS"]  # 6 cards, with outs
+mock_data_wrong = ["KD", "", "5C", "JS", "", ""]  # Skipped position (should be False)
+mock_data_partial = ["KD", "6H", "", "", "", ""]  # Only first two cards
 
 if __name__ == "__main__":
     # Test with mock data for non-outs
-    print("Test non-outs (should be True):", check_dealing_order(mock_data_non_outs, outs=False))
+    print(
+        "Test non-outs (should be True):",
+        check_dealing_order(mock_data_non_outs, outs=False),
+    )
     # Test with mock data for outs
     print("Test outs (should be True):", check_dealing_order(mock_data_outs, outs=True))
     # Test with wrong order (skipped position)
-    print("Test wrong order (should be False):", check_dealing_order(mock_data_wrong, outs=False))
+    print(
+        "Test wrong order (should be False):",
+        check_dealing_order(mock_data_wrong, outs=False),
+    )
     # Test with partial data (not enough cards)
-    print("Test partial (should be False):", check_dealing_order(mock_data_partial, outs=False))
+    print(
+        "Test partial (should be False):",
+        check_dealing_order(mock_data_partial, outs=False),
+    )

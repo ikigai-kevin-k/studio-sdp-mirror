@@ -4,8 +4,10 @@ import logging
 import asyncio
 from typing import Optional, Tuple
 
+
 class MQTTLogger:
     """MQTT Logger class for handling MQTT connections and messaging"""
+
     def __init__(self, client_id: str, broker: str, port: int = 1883):
         self.client_id = client_id
         self.broker = broker
@@ -13,15 +15,15 @@ class MQTTLogger:
         self.client = mqtt.Client(
             client_id=client_id,
             protocol=mqtt.MQTTv31,
-            callback_api_version=mqtt.CallbackAPIVersion.VERSION1
+            callback_api_version=mqtt.CallbackAPIVersion.VERSION1,
         )
         self.logger = logging.getLogger("MQTTLogger")
-        
+
         # Set callbacks
         self.client.on_connect = self._on_connect
         self.client.on_message = self._on_message
         self.client.on_disconnect = self._on_disconnect
-        
+
         self.subscribed_topics = set()
         self.last_message = None
         self.connected = False
@@ -77,8 +79,10 @@ class MQTTLogger:
         """Publish message to a topic"""
         self.client.publish(topic, message)
 
+
 class MQTTConnector:
     """Controller class for MQTT operations"""
+
     def __init__(self, client_id: str, broker: str, port: int = 1883):
         self.mqtt_logger = MQTTLogger(client_id, broker, port)
         self.logger = logging.getLogger("MQTTConnector")
@@ -89,45 +93,47 @@ class MQTTConnector:
         """Initialize MQTT controller"""
         if not self.mqtt_logger.connect():
             raise Exception("Failed to connect to MQTT broker")
-        
+
         self.mqtt_logger.start_loop()
         self.mqtt_logger.subscribe("ikg/idp/dice/response")
         self.mqtt_logger.subscribe("ikg/shaker/response")
 
-    async def send_detect_command(self, round_id: str, input_stream: str, output_stream: str) -> Tuple[bool, Optional[list]]:
+    async def send_detect_command(
+        self, round_id: str, input_stream: str, output_stream: str
+    ) -> Tuple[bool, Optional[list]]:
         """Send detect command and wait for response"""
         command = {
             "command": "detect",
             "arg": {
                 "round_id": round_id,
                 "input_stream": input_stream,
-                "output_stream": output_stream
-            }
+                "output_stream": output_stream,
+            },
         }
-        
+
         self.response_received = False
         self.mqtt_logger.publish("ikg/idp/dice/command", json.dumps(command))
-        
+
         # Wait for response
         timeout = 10  # 10 seconds timeout
         start_time = asyncio.get_event_loop().time()
-        
+
         while not self.response_received:
             if asyncio.get_event_loop().time() - start_time > timeout:
                 self.logger.error("Timeout waiting for detect response")
                 return False, None
             await asyncio.sleep(0.1)
-            
+
             if self.mqtt_logger.last_message:
                 try:
                     response = json.loads(self.mqtt_logger.last_message)
-                    dice_results = response.get('data', {}).get('results', [])
+                    dice_results = response.get("data", {}).get("results", [])
                     if dice_results:
                         return True, dice_results
                 except json.JSONDecodeError:
                     self.logger.error("Failed to parse detect response")
                     return False, None
-        
+
         return False, None
 
     async def cleanup(self):

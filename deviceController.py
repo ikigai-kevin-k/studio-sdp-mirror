@@ -7,8 +7,10 @@ import time
 from mqtt_wrapper import MQTTLogger
 from controller import Controller, GameConfig
 
+
 class IDPController(Controller):
     """Controls IDP (Image Detection Processing) operations"""
+
     def __init__(self, config: GameConfig):
         super().__init__(config)
         self.mqtt_client = MQTTLogger(
@@ -17,8 +19,8 @@ class IDPController(Controller):
             # broker="192.168.88.213",
             # broker="192.168.88.180",
             # broker="206.53.48.180", # orginal vps broker
-            broker="192.168.88.180", # new strong pc broker
-            port=config.broker_port
+            broker="192.168.88.180",  # new strong pc broker
+            port=config.broker_port,
         )
         self.response_received = False
         self.last_response = None
@@ -30,7 +32,7 @@ class IDPController(Controller):
         if not self.mqtt_client.connect():
             raise Exception("Failed to connect to MQTT broker")
         self.mqtt_client.start_loop()
-        
+
         # 設置訊息處理回調
         self.mqtt_client.client.on_message = self._on_message
         self.mqtt_client.subscribe("ikg/idp/dice/response")
@@ -40,10 +42,10 @@ class IDPController(Controller):
         try:
             payload = message.payload.decode()
             self.logger.info(f"Received message on {message.topic}: {payload}")
-            
+
             # 處理訊息
             self._process_message(message.topic, payload)
-            
+
         except Exception as e:
             self.logger.error(f"Error in _on_message: {e}")
 
@@ -51,22 +53,33 @@ class IDPController(Controller):
         """Process received message"""
         try:
             self.logger.info(f"Processing message from {topic}: {payload}")
-            
+
             if topic == "ikg/idp/dice/response":
                 response_data = json.loads(payload)
-                if "response" in response_data and response_data["response"] == "result":
+                if (
+                    "response" in response_data
+                    and response_data["response"] == "result"
+                ):
                     if "arg" in response_data and "res" in response_data["arg"]:
                         dice_result = response_data["arg"]["res"]
                         # 檢查是否為有效的骰子結果 (三個數字)
-                        if isinstance(dice_result, list) and len(dice_result) == 3 and all(isinstance(x, int) for x in dice_result):
+                        if (
+                            isinstance(dice_result, list)
+                            and len(dice_result) == 3
+                            and all(isinstance(x, int) for x in dice_result)
+                        ):
                             self.dice_result = dice_result
                             self.response_received = True
                             self.last_response = payload
-                            self.logger.info(f"Got valid dice result: {self.dice_result}")
+                            self.logger.info(
+                                f"Got valid dice result: {self.dice_result}"
+                            )
                             return  # 立即返回，不再等待更多結果
                         else:
-                            self.logger.info(f"Received invalid result: {dice_result}, continuing to wait...")
-                    
+                            self.logger.info(
+                                f"Received invalid result: {dice_result}, continuing to wait..."
+                            )
+
         except json.JSONDecodeError as e:
             self.logger.error(f"Failed to parse message JSON: {e}")
         except Exception as e:
@@ -79,55 +92,56 @@ class IDPController(Controller):
             self.response_received = False
             self.last_response = None
             self.dice_result = None
-            
+
             command = {
                 "command": "detect",
                 "arg": {
                     "round_id": round_id,
                     "input": "rtmp://192.168.88.50:1935/live/r217_sb",
-                    "output": "https://pull-tc.stream.iki-utl.cc/live/r456_dice.flv"
-                }
+                    "output": "https://pull-tc.stream.iki-utl.cc/live/r456_dice.flv",
+                },
             }
-            
+
             # 設定超時時限
-            timeout = 5 # for demo
+            timeout = 5  # for demo
             start_time = asyncio.get_event_loop().time()
-            retry_interval = 5  
+            retry_interval = 5
             attempt = 1
-            
+
             while (asyncio.get_event_loop().time() - start_time) < timeout:
                 # 發送檢測命令
                 self.logger.info(f"Sending detect command (attempt {attempt})")
                 self.mqtt_client.publish("ikg/idp/dice/command", json.dumps(command))
-                
+
                 # 等待回應的小循環
                 wait_end = min(
                     start_time + timeout,  # 不超過總超時時間
-                    asyncio.get_event_loop().time() + retry_interval  # 下次重試前的等待時間
+                    asyncio.get_event_loop().time()
+                    + retry_interval,  # 下次重試前的等待時間
                 )
-                
+
                 while asyncio.get_event_loop().time() < wait_end:
                     if self.dice_result is not None:
-                        self.logger.info(f"Received dice result on attempt {attempt}: {self.dice_result}")
+                        self.logger.info(
+                            f"Received dice result on attempt {attempt}: {self.dice_result}"
+                        )
                         return True, self.dice_result
                     #  asyncio.sleep(0.05)  # 短暫休眠，避免 CPU 過度使用
                     time.sleep(0.5)
-                
+
                 attempt += 1
-            
+
             # 超時處理
             elapsed = asyncio.get_event_loop().time() - start_time
-            self.logger.warning(f"No valid response received within {elapsed:.2f}s after {attempt-1} attempts")
-            command = {
-                "command": "timeout",
-                "arg":{
-                }
-            }
+            self.logger.warning(
+                f"No valid response received within {elapsed:.2f}s after {attempt-1} attempts"
+            )
+            command = {"command": "timeout", "arg": {}}
             self.mqtt_client.publish("ikg/idp/dice/command", json.dumps(command))
             if self.last_response:
                 self.logger.warning(f"Last response was: {self.last_response}")
             return True, [""]  # 超時時返回預設值
-            
+
         except Exception as e:
             self.logger.error(f"Error in detect: {e}")
             return False, None
@@ -137,8 +151,10 @@ class IDPController(Controller):
         self.mqtt_client.stop_loop()
         self.mqtt_client.disconnect()
 
+
 class ShakerController(Controller):
     """Controls dice shaker operations"""
+
     def __init__(self, config: GameConfig):
         super().__init__(config)
         # Use different MQTT settings for shaker
@@ -149,10 +165,12 @@ class ShakerController(Controller):
             broker="192.168.88.180",
             # broker="206.53.48.180",
             # broker="rnd-al.local",
-            port=config.broker_port
+            port=config.broker_port,
         )
-        self.mqtt_client.client.username_pw_set("PFC", "wago")  # Specific credentials for shaker
-        
+        self.mqtt_client.client.username_pw_set(
+            "PFC", "wago"
+        )  # Specific credentials for shaker
+
         # 搖骰器狀態追蹤
         self.shaker_state = None  # 當前搖骰器狀態 (S0, S1, S2, S90)
         self.state_received = False  # 是否收到狀態回應
@@ -164,14 +182,16 @@ class ShakerController(Controller):
             payload = message.payload.decode()
             self.logger.info(f"[MQTT] Topic: {message.topic}")
             self.logger.info(f"[MQTT] Payload: {payload}")
-            
+
             # 儲存訊息
-            self.all_messages.append({
-                'topic': message.topic,
-                'payload': payload,
-                'time': time.strftime('%H:%M:%S')
-            })
-            
+            self.all_messages.append(
+                {
+                    "topic": message.topic,
+                    "payload": payload,
+                    "time": time.strftime("%H:%M:%S"),
+                }
+            )
+
             # 檢查搖骰器狀態回應
             if message.topic == "ikg/sicbo/Billy-III/listens":
                 if payload == "/state":
@@ -187,12 +207,16 @@ class ShakerController(Controller):
                     elif payload == "S2":
                         self.logger.info("[STATUS] Shaker received SHAKE COMMAND")
                     elif payload == "S90":
-                        self.logger.warning("[STATUS] Shaker has MULTIPLE ERRORS in motion program")
+                        self.logger.warning(
+                            "[STATUS] Shaker has MULTIPLE ERRORS in motion program"
+                        )
                     else:
-                        self.logger.info(f"[STATUS] Received unknown state response: {payload}")
-            
+                        self.logger.info(
+                            f"[STATUS] Received unknown state response: {payload}"
+                        )
+
             self.logger.info("-" * 50)
-            
+
         except Exception as e:
             self.logger.error(f"Error in _on_message: {e}")
 
@@ -201,10 +225,10 @@ class ShakerController(Controller):
         if not self.mqtt_client.connect():
             raise Exception("Failed to connect to MQTT broker")
         self.mqtt_client.start_loop()
-        
+
         # 設置訊息處理回調
         self.mqtt_client.client.on_message = self._on_message
-        
+
         # 訂閱搖骰器相關主題
         topics_to_subscribe = [
             "ikg/sicbo/Billy-III/listens",
@@ -213,7 +237,7 @@ class ShakerController(Controller):
             "ikg/sicbo/Billy-III/response",
             "ikg/sicbo/Billy-III/#",  # Billy-III 的所有子主題
         ]
-        
+
         for topic in topics_to_subscribe:
             self.mqtt_client.subscribe(topic)
             self.logger.info(f"Subscribed to: {topic}")
@@ -224,35 +248,35 @@ class ShakerController(Controller):
         self.all_messages = []
         self.state_received = False
         self.shaker_state = None
-        
+
         # Use the same command format as in quick_shaker_test.py
-        cmd = "/cycle/?pattern=0&parameter1=10&parameter2=0&amplitude=0.41&duration=9.59" # for current dice pc setting
+        cmd = "/cycle/?pattern=0&parameter1=10&parameter2=0&amplitude=0.41&duration=9.59"  # for current dice pc setting
         topic = "ikg/sicbo/Billy-III/listens"
         # topic = "ikg/sicbo/Billy-I/listens" # temporary
-        
+
         # 先檢查當前狀態
         self.logger.info("Checking current shaker state...")
         self.mqtt_client.publish(topic, "/state")
-        
+
         # 等待狀態回應
         timeout = 10  # 10 秒超時
         start_time = time.time()
         while not self.state_received and (time.time() - start_time) < timeout:
             await asyncio.sleep(0.1)
-        
+
         if not self.state_received:
             self.logger.warning("Did not receive initial state response")
         else:
             self.logger.info(f"Initial shaker state: {self.shaker_state}")
-        
+
         # 發送搖動命令
         self.logger.info(f"Sending shake command for round {round_id}")
         self.mqtt_client.publish(topic, cmd)
-        
+
         # 重置狀態追蹤
         self.state_received = False
         self.shaker_state = None
-        
+
         # 等待搖動開始 (S2 -> S1)
         self.logger.info("Waiting for shake command to be received (S2)...")
         timeout = 1  # 1 秒超時
@@ -265,10 +289,12 @@ class ShakerController(Controller):
                 self.logger.error("⚠ Shaker has motion program errors")
                 return False
             await asyncio.sleep(0.1)
-        
+
         if self.shaker_state != "S2":
-            self.logger.warning("Did not receive S2 (shake command received) within timeout")
-        
+            self.logger.warning(
+                "Did not receive S2 (shake command received) within timeout"
+            )
+
         # 等待搖動完成 (S1 -> S0)
         self.logger.info("Waiting for shaking to complete (S1 -> S0)...")
         timeout = 10  # 10 秒超時，考慮搖動時間
@@ -281,28 +307,25 @@ class ShakerController(Controller):
                 self.logger.error("⚠ Shaker has motion program errors during shaking")
                 return False
             await asyncio.sleep(0.1)
-        
+
         if self.shaker_state != "S0":
             self.logger.warning("Shaking may not have completed properly")
-        
+
         # 輸出訊息摘要
         self.logger.info("\nShake Operation Summary:")
         for msg in self.all_messages:
-            self.logger.info(f"Time: {msg['time']} - Topic: {msg['topic']} - Payload: {msg['payload']}")
-        
+            self.logger.info(
+                f"Time: {msg['time']} - Topic: {msg['topic']} - Payload: {msg['payload']}"
+            )
+
         self.logger.info(f"Final shaker state: {self.shaker_state}")
         self.logger.info(f"Shake operation completed for round {round_id}")
-        
+
         return True
 
     async def shake_rpi(self, round_id: str):
         """Shake the dice"""
-        command = {
-            "command": "shake",
-            "arg": {
-                "round_id": round_id
-            }
-        }
+        command = {"command": "shake", "arg": {"round_id": round_id}}
         self.mqtt_client.publish("ikg/shaker/command", json.dumps(command))
         self.logger.info(f"Shake command sent for round {round_id}")
 
@@ -311,35 +334,66 @@ class ShakerController(Controller):
         self.mqtt_client.stop_loop()
         self.mqtt_client.disconnect()
 
+
 class BarcodeController(Controller):
     """Controls barcode scanner operations"""
+
     def __init__(self, config: GameConfig):
         super().__init__(config)
         # HID keyboard scan code table
         self.hid_keycode = {
-            0x00: None, 
-            0x04: 'A', 0x05: 'B', 0x06: 'C', 0x07: 'D', 0x08: 'E',
-            0x09: 'F', 0x0A: 'G', 0x0B: 'H', 0x0C: 'I', 0x0D: 'J',
-            0x0E: 'K', 0x0F: 'L', 0x10: 'M', 0x11: 'N', 0x12: 'O',
-            0x13: 'P', 0x14: 'Q', 0x15: 'R', 0x16: 'S', 0x17: 'T',
-            0x18: 'U', 0x19: 'V', 0x1A: 'W', 0x1B: 'X', 0x1C: 'Y',
-            0x1D: 'Z', 0x1E: '1', 0x1F: '2', 0x20: '3', 0x21: '4',
-            0x22: '5', 0x23: '6', 0x24: '7', 0x25: '8', 0x26: '9',
-            0x27: '0', 0x28: 'ENTER'
+            0x00: None,
+            0x04: "A",
+            0x05: "B",
+            0x06: "C",
+            0x07: "D",
+            0x08: "E",
+            0x09: "F",
+            0x0A: "G",
+            0x0B: "H",
+            0x0C: "I",
+            0x0D: "J",
+            0x0E: "K",
+            0x0F: "L",
+            0x10: "M",
+            0x11: "N",
+            0x12: "O",
+            0x13: "P",
+            0x14: "Q",
+            0x15: "R",
+            0x16: "S",
+            0x17: "T",
+            0x18: "U",
+            0x19: "V",
+            0x1A: "W",
+            0x1B: "X",
+            0x1C: "Y",
+            0x1D: "Z",
+            0x1E: "1",
+            0x1F: "2",
+            0x20: "3",
+            0x21: "4",
+            0x22: "5",
+            0x23: "6",
+            0x24: "7",
+            0x25: "8",
+            0x26: "9",
+            0x27: "0",
+            0x28: "ENTER",
         }
 
         # 修飾鍵對照表
         self.modifier_keys = {
-            0x01: 'LCTRL',
-            0x02: 'LSHIFT',
-            0x04: 'LALT',
-            0x08: 'LWIN',
-            0x10: 'RCTRL',
-            0x20: 'RSHIFT',
-            0x40: 'RALT',
-            0x80: 'RWIN'
+            0x01: "LCTRL",
+            0x02: "LSHIFT",
+            0x04: "LALT",
+            0x08: "LWIN",
+            0x10: "RCTRL",
+            0x20: "RSHIFT",
+            0x40: "RALT",
+            0x80: "RWIN",
         }
-        
+
         self.device_path = None
         self.is_running = False
         self.is_paused = False  # add new pause flag
@@ -355,14 +409,14 @@ class BarcodeController(Controller):
             for bit, name in self.modifier_keys.items():
                 if modifier & bit:
                     mods.append(name)
-        
+
         keys = []
         for i in range(2, len(data)):
             if data[i] != 0x00:
-                key = self.hid_keycode.get(data[i], f'UNKNOWN({hex(data[i])})')
+                key = self.hid_keycode.get(data[i], f"UNKNOWN({hex(data[i])})")
                 if key:
                     keys.append(key)
-        
+
         return mods, keys
 
     async def initialize(self, device_path: str, callback=None):
@@ -370,7 +424,7 @@ class BarcodeController(Controller):
         self.device_path = device_path
         self.callback = callback
         self.is_running = True
-        
+
         # 啟動掃描處理的非同步任務
         asyncio.create_task(self._read_barcode())
         self.logger.info(f"Barcode scanner initialized with device: {device_path}")
@@ -379,7 +433,7 @@ class BarcodeController(Controller):
         """read barcode scanner data asynchronously"""
         try:
             while self.is_running:
-                with open(self.device_path, 'rb') as f:
+                with open(self.device_path, "rb") as f:
                     while self.is_running:
                         # check if paused
                         if self.is_paused:
@@ -388,42 +442,63 @@ class BarcodeController(Controller):
                         data = f.read(8)  # HID report standard length
                         if data:
                             mods, keys = self.decode_hid_data(data)
-                            self.logger.debug(f"[LOG] Raw HID data: {data.hex()} mods: {mods} keys: {keys} current_line: {self.current_line}")   
+                            self.logger.debug(
+                                f"[LOG] Raw HID data: {data.hex()} mods: {mods} keys: {keys} current_line: {self.current_line}"
+                            )
                             if keys:
                                 for key in keys:
                                     # check if paused before processing any key
                                     if self.is_paused:
-                                        self.logger.debug(f"Ignored key during pause: {key}")
+                                        self.logger.debug(
+                                            f"Ignored key during pause: {key}"
+                                        )
                                         continue
-                                    if key == 'ENTER':
+                                    if key == "ENTER":
                                         # when encounter ENTER, process current line
-                                        self.logger.debug(f"[LOG] ENTER detected, current_line before join: {self.current_line}")
+                                        self.logger.debug(
+                                            f"[LOG] ENTER detected, current_line before join: {self.current_line}"
+                                        )
                                         if self.current_line:
-                                            barcode = ''.join(self.current_line)
-                                            self.logger.info(f"[LOG] Barcode to process: '{barcode}' (len={len(barcode)})")
+                                            barcode = "".join(self.current_line)
+                                            self.logger.info(
+                                                f"[LOG] Barcode to process: '{barcode}' (len={len(barcode)})"
+                                            )
                                             # only process barcode when not paused
                                             if not self.is_paused:
-                                                self.logger.info(f"Scanned barcode: {barcode}")
+                                                self.logger.info(
+                                                    f"Scanned barcode: {barcode}"
+                                                )
                                                 if self.callback:
                                                     await self.callback(barcode)
                                             else:
-                                                self.logger.info(f"Ignored barcode during pause: {barcode}")
+                                                self.logger.info(
+                                                    f"Ignored barcode during pause: {barcode}"
+                                                )
                                         else:
-                                            self.logger.warning(f"[LOG] ENTER detected but current_line is empty!")
+                                            self.logger.warning(
+                                                f"[LOG] ENTER detected but current_line is empty!"
+                                            )
                                         self.current_line = []
                                     else:
                                         # normal key, add to current line
-                                        self.logger.debug(f"[LOG] Appending key: {key} to current_line: {self.current_line}")
+                                        self.logger.debug(
+                                            f"[LOG] Appending key: {key} to current_line: {self.current_line}"
+                                        )
                                         if not self.is_paused:
                                             self.current_line.append(key)
                                         else:
                                             # ignore all key input during pause
-                                            self.logger.debug(f"Ignored key during pause: {key}")
+                                            self.logger.debug(
+                                                f"Ignored key during pause: {key}"
+                                            )
                                         self.current_line.append(key)
                         await asyncio.sleep(0.001)  # short sleep to avoid CPU overload
         except Exception as e:
             import traceback
-            self.logger.error(f"Error reading barcode: {e}\n[LOG] current_line at error: {self.current_line}\nTraceback: {traceback.format_exc()}")
+
+            self.logger.error(
+                f"Error reading barcode: {e}\n[LOG] current_line at error: {self.current_line}\nTraceback: {traceback.format_exc()}"
+            )
         finally:
             self.logger.info("Barcode reading stopped")
 
@@ -435,21 +510,25 @@ class BarcodeController(Controller):
     def set_callback(self, callback):
         """set callback function for processing scan results"""
         self.callback = callback
-        
+
     def pause_scanning(self):
         """pause barcode scanning"""
         import time
+
         self.is_paused = True
         self.pause_timestamp = time.time()
         # clear current line buffer to prevent partial data being retained
         self.current_line = []
-        self.logger.info(f"Barcode scanning paused and buffer cleared at {self.pause_timestamp}")
-        
+        self.logger.info(
+            f"Barcode scanning paused and buffer cleared at {self.pause_timestamp}"
+        )
+
     def resume_scanning(self):
         """resume barcode scanning"""
         import time
+
         self.is_paused = False
         self.pause_timestamp = None
         # ensure buffer is empty
         self.current_line = []
-        self.logger.info(f"Barcode scanning resumed at {time.time()}") 
+        self.logger.info(f"Barcode scanning resumed at {time.time()}")

@@ -6,8 +6,9 @@ from typing import Optional, Callable
 import logging
 import subprocess
 
+
 class SerialController:
-    def __init__(self, port: str = '/dev/ttyUSB0', baudrate: int = 9600):
+    def __init__(self, port: str = "/dev/ttyUSB0", baudrate: int = 9600):
         self.port = port
         self.baudrate = baudrate
         self.serial_port = None
@@ -25,7 +26,7 @@ class SerialController:
                 parity=serial.PARITY_NONE,
                 stopbits=serial.STOPBITS_ONE,
                 bytesize=serial.EIGHTBITS,
-                timeout=1
+                timeout=1,
             )
             self.logger.info(f"Successfully opened serial port {self.port}")
             return True
@@ -45,7 +46,7 @@ class SerialController:
         while self.running and self.serial_port:
             try:
                 if self.serial_port.in_waiting > 0:
-                    data = self.serial_port.readline().decode('utf-8').strip()
+                    data = self.serial_port.readline().decode("utf-8").strip()
                     if self.read_callback:
                         self.read_callback(data)
             except Exception as e:
@@ -56,7 +57,7 @@ class SerialController:
         """Write data to serial port"""
         try:
             if self.serial_port and self.serial_port.is_open:
-                self.serial_port.write((data + '\r\n').encode())
+                self.serial_port.write((data + "\r\n").encode())
                 return True
         except Exception as e:
             self.logger.error(f"Error writing to serial port: {e}")
@@ -69,14 +70,14 @@ class SerialController:
 
         cmd_type = command[-1].lower()
         start_time = time.time()
-        
+
         while (time.time() - start_time) < timeout:
             if self.serial_port.in_waiting > 0:
-                response = self.serial_port.readline().decode('utf-8').strip()
+                response = self.serial_port.readline().decode("utf-8").strip()
                 if response.startswith(f"*T {cmd_type}"):
                     parts = response.split()
                     if len(parts) > 2:
-                        return ' '.join(parts[2:])
+                        return " ".join(parts[2:])
             time.sleep(0.1)
         return None
 
@@ -90,7 +91,7 @@ class SerialController:
     def check_serial_port(port: str) -> bool:
         """Check if serial port is available"""
         try:
-            result = subprocess.run(['lsof', port], capture_output=True, text=True)
+            result = subprocess.run(["lsof", port], capture_output=True, text=True)
             return not bool(result.stdout)
         except Exception:
             return False
@@ -100,6 +101,7 @@ class SerialController:
         """List all available serial ports"""
         try:
             import serial.tools.list_ports
+
             return [port.device for port in serial.tools.list_ports.comports()]
         except Exception:
             return []

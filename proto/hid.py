@@ -5,8 +5,10 @@ import threading
 import time
 import re
 
+
 class HIDController:
     """Controller for HID devices (e.g., barcode scanner)"""
+
     def __init__(self, device_name: str = "Barcode Scanner"):
         self.device_name = device_name
         self.device = None
@@ -16,10 +18,34 @@ class HIDController:
         self.read_thread = None
         self.scancodes = {
             # Mapping of USB HID scan codes to characters
-            2: '1', 3: '2', 4: '3', 5: '4', 6: '5', 7: '6', 8: '7', 9: '8',
-            10: '9', 11: '0', 28: '\n', 30: 'A', 31: 'S', 32: 'D', 33: 'F',
-            34: 'G', 35: 'H', 36: 'J', 37: 'K', 38: 'L', 39: ';', 44: 'Z',
-            45: 'X', 46: 'C', 47: 'V', 48: 'B', 49: 'N', 50: 'M'
+            2: "1",
+            3: "2",
+            4: "3",
+            5: "4",
+            6: "5",
+            7: "6",
+            8: "7",
+            9: "8",
+            10: "9",
+            11: "0",
+            28: "\n",
+            30: "A",
+            31: "S",
+            32: "D",
+            33: "F",
+            34: "G",
+            35: "H",
+            36: "J",
+            37: "K",
+            38: "L",
+            39: ";",
+            44: "Z",
+            45: "X",
+            46: "C",
+            47: "V",
+            48: "B",
+            49: "N",
+            50: "M",
         }
 
     def initialize(self) -> bool:
@@ -54,13 +80,13 @@ class HIDController:
             for event in self.device.read_loop():
                 if not self.running:
                     break
-                    
+
                 if event.type == evdev.ecodes.EV_KEY:
                     data = evdev.categorize(event)
                     if data.keystate == 1:  # Key down
                         if data.scancode == 28:  # Enter key
                             if self.read_callback and current_code:
-                                self.read_callback(''.join(current_code))
+                                self.read_callback("".join(current_code))
                             current_code = []
                         elif data.scancode in self.scancodes:
                             current_code.append(self.scancodes[data.scancode])
@@ -77,7 +103,7 @@ class HIDController:
     def is_valid_card_code(code: str) -> bool:
         """Validate if the code matches playing card format"""
         # Example format: "H10" (Heart 10), "SA" (Spade Ace)
-        pattern = r'^[HDCS][2-9TJQKA]$|^[HDCS]10$'
+        pattern = r"^[HDCS][2-9TJQKA]$|^[HDCS]10$"
         return bool(re.match(pattern, code))
 
     @staticmethod
@@ -85,13 +111,11 @@ class HIDController:
         """Parse card code into suit and value"""
         if not HIDController.is_valid_card_code(code):
             return None, None
-            
-        suit_map = {'H': 'Hearts', 'D': 'Diamonds', 'C': 'Clubs', 'S': 'Spades'}
-        value_map = {
-            'T': '10', 'J': 'Jack', 'Q': 'Queen', 'K': 'King', 'A': 'Ace'
-        }
-        
+
+        suit_map = {"H": "Hearts", "D": "Diamonds", "C": "Clubs", "S": "Spades"}
+        value_map = {"T": "10", "J": "Jack", "Q": "Queen", "K": "King", "A": "Ace"}
+
         suit = suit_map.get(code[0])
         value = value_map.get(code[1], code[1:])
-        
+
         return suit, value
