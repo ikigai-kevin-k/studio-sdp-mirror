@@ -136,7 +136,7 @@ jobs:
           path: safety-report.json
           retention-days: 30
 
-  upload and deploy:
+  upload_and_deploy:
     name: Download SDP Bundle
     runs-on: [self-hosted, strong-pc]
     needs: build
