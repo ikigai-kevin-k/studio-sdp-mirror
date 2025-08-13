@@ -403,7 +403,7 @@ if __name__ == "__main__":
 
         # broadcast_post(post_url, token, "roulette.relaunch", "players", 20)
         # print("================Start================\n")
-        # round_id, betPeriod = start_post_v2(post_url, token)
+        # round_id, betPeriod = start_post_v2_prd(post_url, token)
         round_id, status, betPeriod =  get_roundID_v2_prd(get_url, token)
         print(round_id, status, betPeriod) 
 
@@ -434,7 +434,7 @@ if __name__ == "__main__":
 
 
         print("================Deal================\n")
-        # time.sleep(13)
+        # time.sleep(14)
         deal_post_v2_prd(post_url, token, round_id, results)
         print("================Finish================\n")
         finish_post_v2_prd(post_url, token)
