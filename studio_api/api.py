@@ -7,22 +7,18 @@ import json
 # Studio API base URL
 STUDIO_API_BASE_URL = "https://studio-api.iki-cit.cc"
 
+
 def healthcheck_get_v1():
     """
     Studio API healthcheck endpoint
     GET /v1/service/healthcheck
     """
     # Set up HTTP headers
-    headers = {
-        "accept": "application/json",
-        "x-signature": "secret"
-    }
+    headers = {"accept": "application/json", "x-signature": "secret"}
 
     # Make GET request to healthcheck endpoint
     response = requests.get(
-        f"{STUDIO_API_BASE_URL}/v1/service/healthcheck", 
-        headers=headers, 
-        verify=False
+        f"{STUDIO_API_BASE_URL}/v1/service/healthcheck", headers=headers, verify=False
     )
 
     # Check if the response status code indicates success
@@ -45,33 +41,31 @@ def healthcheck_get_v1():
 
     return True
 
+
 def table_get_v1(table_ids):
     """
     Studio API table endpoint
     GET /v1/service/table?tableId=ARO-001&tableId=ARO-002&tableId=ARO-001-1
-    
+
     Args:
         table_ids (list): List of table IDs to query
     """
     # Set up HTTP headers
-    headers = {
-        "accept": "application/json",
-        "x-signature": "secret"
-    }
+    headers = {"accept": "application/json", "x-signature": "secret"}
 
     # Build query parameters for multiple tableIds
     params = {}
     for table_id in table_ids:
-        if 'tableId' not in params:
-            params['tableId'] = []
-        params['tableId'].append(table_id)
+        if "tableId" not in params:
+            params["tableId"] = []
+        params["tableId"].append(table_id)
 
     # Make GET request to table endpoint
     response = requests.get(
-        f"{STUDIO_API_BASE_URL}/v1/service/table", 
-        headers=headers, 
+        f"{STUDIO_API_BASE_URL}/v1/service/table",
+        headers=headers,
         params=params,
-        verify=False
+        verify=False,
     )
 
     # Check if the response status code indicates success
@@ -99,7 +93,7 @@ def table_post_v1(table_id, table_status):
     """
     Studio API table endpoint (POST)
     POST /v1/service/table
-    
+
     Args:
         table_id (str): Table ID to update
         table_status (str): New table status (e.g., "active")
@@ -108,21 +102,18 @@ def table_post_v1(table_id, table_status):
     headers = {
         "accept": "application/json",
         "x-signature": "secret",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
 
     # Define payload for the POST request
-    data = {
-        "tableId": table_id,
-        "tableStatus": table_status
-    }
+    data = {"tableId": table_id, "tableStatus": table_status}
 
     # Make POST request to table endpoint
     response = requests.post(
-        f"{STUDIO_API_BASE_URL}/v1/service/table", 
-        headers=headers, 
+        f"{STUDIO_API_BASE_URL}/v1/service/table",
+        headers=headers,
         json=data,
-        verify=False
+        verify=False,
     )
 
     # Check if the response status code indicates success
@@ -150,7 +141,7 @@ def table_patch_v1(table_id, table_status):
     """
     Studio API table endpoint (PATCH)
     PATCH /v1/service/table
-    
+
     Args:
         table_id (str): Table ID to update
         table_status (str): New table status (e.g., "inactive")
@@ -159,21 +150,18 @@ def table_patch_v1(table_id, table_status):
     headers = {
         "accept": "application/json",
         "x-signature": "secret",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
 
     # Define payload for the PATCH request
-    data = {
-        "tableId": table_id,
-        "tableStatus": table_status
-    }
+    data = {"tableId": table_id, "tableStatus": table_status}
 
     # Make PATCH request to table endpoint
     response = requests.patch(
-        f"{STUDIO_API_BASE_URL}/v1/service/table", 
-        headers=headers, 
+        f"{STUDIO_API_BASE_URL}/v1/service/table",
+        headers=headers,
         json=data,
-        verify=False
+        verify=False,
     )
 
     # Check if the response status code indicates success
