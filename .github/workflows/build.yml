@@ -2,9 +2,9 @@ name: Build and Test SDP Roulette System
 
 on:
   push:
-    branches: [ main, develop, feature/*, gitaction ]
+    branches: [ dev/ella/deploy]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ dev/ella/deploy ]
 
 env:
   PYTHON_VERSION: '3.12'
@@ -12,7 +12,7 @@ env:
 jobs:
   test:
     name: Test and Quality Check
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, studio-ge-runner]
     
     steps:
       - name: Checkout code
@@ -62,7 +62,7 @@ jobs:
 
   build:
     name: Build Executables
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, studio-ge-runner]
     needs: test
     
     steps:
@@ -82,34 +82,34 @@ jobs:
 
       - name: Build VIP Roulette executable
         run: |
-          PYTHONPATH=. shiv --compressed --compile-pyc -o roulette-vip.pyz -e main_vip:main .
+          PYTHONPATH=. shiv --compressed --compile-pyc -o sdp-vip.pyz -e main_vip:main .
 
       - name: Build Speed Roulette executable
         run: |
-          PYTHONPATH=. shiv --compressed --compile-pyc -o roulette-speed.pyz -e main_speed:main .
+          PYTHONPATH=. shiv --compressed --compile-pyc -o sdp-speed.pyz -e main_speed:main .
 
       - name: Build SicBo executable
         run: |
-          PYTHONPATH=. shiv --compressed --compile-pyc -o roulette-sicbo.pyz -e main_sicbo:main .
+          PYTHONPATH=. shiv --compressed --compile-pyc -o sdp-sicbo.pyz -e main_sicbo:main .
 
       - name: Build Baccarat executable
         run: |
-          PYTHONPATH=. shiv --compressed --compile-pyc -o roulette-baccarat.pyz -e main_baccarat:main .
+          PYTHONPATH=. shiv --compressed --compile-pyc -o sdp-baccarat.pyz -e main_baccarat:main .
 
-      - name: Upload artifacts
+      - name: Package all executables into sdp.zip
+        run: |
+          zip sdp.zip sdp-*.pyz
+
+      - name: Upload SDP bundle as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sdp-roulette-executables
-          path: |
-            roulette-vip.pyz
-            roulette-speed.pyz
-            roulette-sicbo.pyz
-            roulette-baccarat.pyz
+          name: sdp_bundle
+          path: sdp.zip
           retention-days: 30
 
   security:
     name: Security Scan
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, studio-ge-runner]
     needs: test
     
     steps:
@@ -135,3 +135,26 @@ jobs:
           name: security-report
           path: safety-report.json
           retention-days: 30
+
+  upload and deploy:
+    name: Download SDP Bundle
+    runs-on: [self-hosted, strong-pc]
+    needs: build
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: sdp_bundle
+          path: ~/artifacts
+  
+      - name: Upload to dealer PCs
+        shell: bash   
+        run: |
+          set -e
+          scp -o BatchMode=yes "$HOME/artifacts/idp.zip" ASB-001-1:"${{ vars.DEPLOY_PATH }}"
+          scp -o BatchMode=yes "$HOME/artifacts/idp.zip" ARO-001-1:"${{ vars.DEPLOY_PATH }}"
+          scp -o BatchMode=yes "$HOME/artifacts/idp.zip" ARO-001-2:"${{ vars.DEPLOY_PATH }}"
+          scp -o BatchMode=yes "$HOME/artifacts/idp.zip" ARO-002-1:"${{ vars.DEPLOY_PATH }}"
+
+  
