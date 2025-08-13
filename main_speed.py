@@ -79,7 +79,7 @@ async def connect_to_recorder(uri='ws://localhost:8765'):
 # Send WebSocket message function
 async def send_to_recorder(message):
     """Send message to stream recorder"""
-    global ws_client, ws_connected
+    global ws_connected
     if not ws_connected or not ws_client:
         # print(f"[{get_timestamp()}] Not connected to stream recorder, attempting to reconnect...")
         # log_to_file("Not connected to stream recorder, attempting to reconnect...", "WebSocket >>>")

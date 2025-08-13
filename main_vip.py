@@ -71,7 +71,7 @@ async def connect_to_recorder(uri='ws://localhost:8765'):
 # Send WebSocket message function
 async def send_to_recorder(message):
     """Send message to stream recorder"""
-    global ws_client, ws_connected
+    global ws_connected
     if not ws_connected or not ws_client:
         print(f"[{get_timestamp()}] Not connected to stream recorder, attempting to reconnect...")
         log_to_file("Not connected to stream recorder, attempting to reconnect...", "WebSocket >>>")
@@ -118,7 +118,7 @@ def send_stop_recording():
     threading.Thread(target=lambda: asyncio.run(send_to_recorder("stop_recording"))).start()
 
 def read_from_serial():
-    global x2_count, x5_count, last_x2_time, last_x5_time, start_post_sent, deal_post_sent, start_time, deal_post_time, finish_post_time, isLaunch, tables, token
+    global x2_count, x5_count, last_x2_time, last_x5_time, start_post_sent, deal_post_sent, start_time, deal_post_time, finish_post_time, isLaunch
     while True:
         if ser.in_waiting > 0:
             data = ser.readline().decode('utf-8').strip()

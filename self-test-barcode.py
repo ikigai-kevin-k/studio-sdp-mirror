@@ -190,7 +190,7 @@ async def start_new_game():
         return False
 
 async def on_barcode_scanned(barcode):
-    global barcode_count, current_round_id, game_started, scanned_barcodes, game_start_time, current_bet_period, waiting_for_bet_period, scan_start_time
+    global barcode_count, scanned_barcodes, waiting_for_bet_period, game_started
     
     current_time = time.time()
     
