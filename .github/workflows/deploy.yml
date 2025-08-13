@@ -13,7 +13,7 @@ env:
 jobs:
   deploy-staging:
     name: Deploy to Staging
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     
     steps:
@@ -48,7 +48,7 @@ jobs:
 
   deploy-production:
     name: Deploy to Production
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     environment: production
     needs: deploy-staging
@@ -85,7 +85,7 @@ jobs:
 
   rollback:
     name: Rollback on Failure
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: ${{ github.event.workflow_run.conclusion == 'failure' }}
     
     steps:

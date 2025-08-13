@@ -27,7 +27,7 @@ env:
 jobs:
   quick-build:
     name: Quick Build ${{ github.event.inputs.game_type }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     
     steps:
       - name: Checkout code

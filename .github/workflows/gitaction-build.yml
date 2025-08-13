@@ -12,7 +12,7 @@ env:
 jobs:
   gitaction-test:
     name: GitAction Branch Testing
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     
     steps:
       - name: Checkout code
@@ -55,7 +55,7 @@ jobs:
 
   gitaction-build:
     name: GitAction Branch Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: gitaction-test
     
     steps:
