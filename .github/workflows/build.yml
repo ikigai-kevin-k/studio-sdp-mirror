@@ -138,7 +138,7 @@ jobs:
 
   upload_and_deploy:
     name: Download SDP Bundle
-    runs-on: [self-hosted, strong-pc]
+    runs-on: [self-hosted, studio-ge-runner]
     needs: build
 
     steps:
@@ -152,9 +152,9 @@ jobs:
         shell: bash   
         run: |
           set -e
-          scp -o BatchMode=yes "$HOME/artifacts/idp.zip" ASB-001-1:"${{ vars.DEPLOY_PATH }}"
-          scp -o BatchMode=yes "$HOME/artifacts/idp.zip" ARO-001-1:"${{ vars.DEPLOY_PATH }}"
-          scp -o BatchMode=yes "$HOME/artifacts/idp.zip" ARO-001-2:"${{ vars.DEPLOY_PATH }}"
-          scp -o BatchMode=yes "$HOME/artifacts/idp.zip" ARO-002-1:"${{ vars.DEPLOY_PATH }}"
+          scp -o BatchMode=yes "$HOME/artifacts/sdp.zip" ASB-001-1:"${{ vars.DEPLOY_PATH }}"
+          scp -o BatchMode=yes "$HOME/artifacts/sdp.zip" ARO-001-1:"${{ vars.DEPLOY_PATH }}"
+          scp -o BatchMode=yes "$HOME/artifacts/sdp.zip" ARO-001-2:"${{ vars.DEPLOY_PATH }}"
+          scp -o BatchMode=yes "$HOME/artifacts/sdp.zip" ARO-002-1:"${{ vars.DEPLOY_PATH }}"
 
   
