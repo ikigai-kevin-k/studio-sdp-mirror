@@ -26,7 +26,7 @@ env:
 
 jobs:
   quick-build:
-    name: Quick Build ${{ github.event.inputs.game_type }}
+    name: Quick Build ${{ github.event.inputs.game_type || 'vip' }}
     runs-on: ubuntu-24.04
     
     steps:
@@ -44,9 +44,17 @@ jobs:
           pip install -e ".[dev]"
           pip install shiv
 
-      - name: Build ${{ github.event.inputs.game_type }} executable
+      - name: Build ${{ github.event.inputs.game_type || 'vip' }} executable
         run: |
-          GAME_TYPE=${{ github.event.inputs.game_type }}
+          # Set default game type for push events, use input for workflow_dispatch
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            GAME_TYPE="${{ github.event.inputs.game_type }}"
+          else
+            GAME_TYPE="vip"  # Default for push events
+          fi
+          
+          echo "Building game type: $GAME_TYPE"
+          
           case $GAME_TYPE in
             "vip")
               PYTHONPATH=. shiv --compressed --compile-pyc -o roulette-vip.pyz -e main_vip:main .
@@ -60,17 +68,27 @@ jobs:
             "baccarat")
               PYTHONPATH=. shiv --compressed --compile-pyc -o roulette-baccarat.pyz -e main_baccarat:main .
               ;;
+            *)
+              echo "Unknown game type: $GAME_TYPE, defaulting to vip"
+              PYTHONPATH=. shiv --compressed --compile-pyc -o roulette-vip.pyz -e main_vip:main .
+              ;;
           esac
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.event.inputs.game_type }}-executable
-          path: roulette-${{ github.event.inputs.game_type }}.pyz
+          name: ${{ github.event.inputs.game_type || 'vip' }}-executable
+          path: roulette-${{ github.event.inputs.game_type || 'vip' }}.pyz
           retention-days: 7
 
       - name: Basic validation
         run: |
-          GAME_TYPE=${{ github.event.inputs.game_type }}
+          # Set default game type for push events, use input for workflow_dispatch
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            GAME_TYPE="${{ github.event.inputs.game_type }}"
+          else
+            GAME_TYPE="vip"  # Default for push events
+          fi
+          
           echo "Validating $GAME_TYPE executable..."
           python -c "import zipimport; z = zipimport.zipimporter('roulette-$GAME_TYPE.pyz'); print('Executable validation successful')"
