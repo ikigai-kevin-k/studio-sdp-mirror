@@ -12,7 +12,7 @@ env:
 jobs:
   test:
     name: Test and Quality Check
-    runs-on: [self-hosted, studio-ge-runner]
+    runs-on: ubuntu-24.04
     
     steps:
       - name: Checkout code
@@ -62,7 +62,7 @@ jobs:
 
   build:
     name: Build Executables
-    runs-on: [self-hosted, studio-ge-runner]
+    runs-on:  ubuntu-24.04
     needs: test
     
     steps:
@@ -109,7 +109,7 @@ jobs:
 
   security:
     name: Security Scan
-    runs-on: [self-hosted, studio-ge-runner]
+    runs-on:  ubuntu-24.04
     needs: test
     
     steps:
