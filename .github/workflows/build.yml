@@ -152,9 +152,53 @@ jobs:
         shell: bash   
         run: |
           set -e
-          scp -o BatchMode=yes "$HOME/artifacts/sdp.zip" ASB-001-1:"${{ vars.DEPLOY_PATH }}"
-          scp -o BatchMode=yes "$HOME/artifacts/sdp.zip" ARO-001-1:"${{ vars.DEPLOY_PATH }}"
-          scp -o BatchMode=yes "$HOME/artifacts/sdp.zip" ARO-001-2:"${{ vars.DEPLOY_PATH }}"
-          scp -o BatchMode=yes "$HOME/artifacts/sdp.zip" ARO-002-1:"${{ vars.DEPLOY_PATH }}"
+          
+          # Function to deploy to a single dealer PC
+          deploy_to_pc() {
+            local pc_name=$1
+            local deploy_path="${{ vars.DEPLOY_PATH }}"
+            
+            echo "Deploying to $pc_name..."
+            
+            # Upload requirements.txt and sdp.zip
+            scp -o BatchMode=yes requirements.txt "$pc_name:$deploy_path/"
+            scp -o BatchMode=yes "$HOME/artifacts/sdp.zip" "$pc_name:$deploy_path/"
+            
+            # Create virtual environment and install packages
+            ssh -o BatchMode=yes "$pc_name" << 'EOF'
+              set -e
+              cd "${{ vars.DEPLOY_PATH }}"
+              
+              echo "Creating virtual environment..."
+              python3 -m venv sdp-env
+              source sdp-env/bin/activate
+              
+              echo "Upgrading pip..."
+              pip install --upgrade pip
+              
+              echo "Installing requirements..."
+              pip install -r requirements.txt
+              
+              echo "Unzipping SDP bundle..."
+              unzip -o sdp.zip
+              
+              echo "Moving executables to sdp-env/bin..."
+              mv sdp-*.pyz sdp-env/bin/
+              chmod +x sdp-env/bin/sdp-*.pyz
+              
+              echo "Cleaning up..."
+              rm sdp.zip requirements.txt
+              
+              echo "Deployment to $pc_name completed successfully!"
+            EOF
+          }
+          
+          # Deploy to all dealer PCs
+          deploy_to_pc "ASB-001-1"
+          deploy_to_pc "ARO-001-1"
+          deploy_to_pc "ARO-001-2"
+          deploy_to_pc "ARO-002-1"
+          
+          echo "All deployments completed successfully!"
 
   
