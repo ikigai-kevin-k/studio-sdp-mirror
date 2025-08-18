@@ -12,10 +12,10 @@ __description__ = (
 # Conditional imports to avoid issues in test environment
 try:
     # Import main modules to make them available
-    from . import main_sicbo  # noqa: F401
-    from . import main_vip  # noqa: F401
-    from . import main_speed  # noqa: F401
-    from . import main_baccarat  # noqa: F401
+    import main_sicbo  # noqa: F401
+    import main_vip  # noqa: F401
+    import main_speed  # noqa: F401
+    import main_baccarat  # noqa: F401
 
     # Make main functions available at package level
     __all__ = ["main_sicbo", "main_vip", "main_speed", "main_baccarat"]

@@ -83,6 +83,14 @@ jobs:
           pip install -e .
           pip install shiv
           
+      - name: Verify project installation
+        run: |
+          python -c "import main_sicbo; print('main_sicbo module imported successfully')"
+          python -c "import main_vip; print('main_vip module imported successfully')"
+          python -c "import main_speed; print('main_speed module imported successfully')"
+          python -c "import main_baccarat; print('main_baccarat module imported successfully')"
+          python -c "import paho.mqtt.client; print('paho-mqtt imported successfully')"
+          
       - name: Verify module structure
         run: |
           echo "Current directory: $(pwd)"
