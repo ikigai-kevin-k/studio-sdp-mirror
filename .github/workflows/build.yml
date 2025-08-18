@@ -77,25 +77,39 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e .
           pip install shiv
+          
+      - name: Verify module structure
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Python path: $PYTHONPATH"
+          python -c "import main_sicbo; print('main_sicbo module imported successfully')"
+          python -c "import main_vip; print('main_vip module imported successfully')"
+          python -c "import main_speed; print('main_speed module imported successfully')"
+          python -c "import main_baccarat; print('main_baccarat module imported successfully')"
 
       - name: Build VIP Roulette executable
         run: |
-          PYTHONPATH=. shiv --compressed --compile-pyc -o sdp-vip.pyz -e main_vip:main .
+          shiv --compressed --compile-pyc --site-packages . --python "/usr/bin/python3" --output-file sdp-vip.pyz --entry-point main_vip:main .
 
       - name: Build Speed Roulette executable
         run: |
-          PYTHONPATH=. shiv --compressed --compile-pyc -o sdp-speed.pyz -e main_speed:main .
+          shiv --compressed --compile-pyc --site-packages . --python "/usr/bin/python3" --output-file sdp-speed.pyz --entry-point main_speed:main .
 
       - name: Build SicBo executable
         run: |
-          PYTHONPATH=. shiv --compressed --compile-pyc -o sdp-sicbo.pyz -e main_sicbo:main .
+          shiv --compressed --compile-pyc --site-packages . --python "/usr/bin/python3" --output-file sdp-sicbo.pyz --entry-point main_sicbo:main .
 
       - name: Build Baccarat executable
         run: |
-          PYTHONPATH=. shiv --compressed --compile-pyc -o sdp-baccarat.pyz -e main_baccarat:main .
+          shiv --compressed --compile-pyc --site-packages . --python "/usr/bin/python3" --output-file sdp-baccarat.pyz --entry-point main_baccarat:main .
 
+      - name: Test built executables
+        run: |
+          echo "Testing built executables..."
+          python test_build.py
+          
       - name: Package all executables into sdp.zip
         run: |
           zip sdp.zip sdp-*.pyz
