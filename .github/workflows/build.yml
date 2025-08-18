@@ -166,31 +166,31 @@ jobs:
             
             # Create virtual environment and install packages
             ssh -o BatchMode=yes "$pc_name" << 'EOF'
-              set -e
-              cd "${{ vars.DEPLOY_PATH }}"
-              
-              echo "Creating virtual environment..."
-              python3 -m venv sdp-env
-              source sdp-env/bin/activate
-              
-              echo "Upgrading pip..."
-              pip install --upgrade pip
-              
-              echo "Installing requirements..."
-              pip install -r requirements.txt
-              
-              echo "Unzipping SDP bundle..."
-              unzip -o sdp.zip
-              
-              echo "Moving executables to sdp-env/bin..."
-              mv sdp-*.pyz sdp-env/bin/
-              chmod +x sdp-env/bin/sdp-*.pyz
-              
-              echo "Cleaning up..."
-              rm sdp.zip requirements.txt
-              
-              echo "Deployment to $pc_name completed successfully!"
-            EOF
+          set -e
+          cd "${{ vars.DEPLOY_PATH }}"
+          
+          echo "Creating virtual environment..."
+          python3 -m venv sdp-env
+          source sdp-env/bin/activate
+          
+          echo "Upgrading pip..."
+          pip install --upgrade pip
+          
+          echo "Installing requirements..."
+          pip install -r requirements.txt
+          
+          echo "Unzipping SDP bundle..."
+          unzip -o sdp.zip
+          
+          echo "Moving executables to sdp-env/bin..."
+          mv sdp-*.pyz sdp-env/bin/
+          chmod +x sdp-env/bin/sdp-*.pyz
+          
+          echo "Cleaning up..."
+          rm sdp.zip requirements.txt
+          
+          echo "Deployment to $pc_name completed successfully!"
+          EOF
           }
           
           # Deploy to all dealer PCs
