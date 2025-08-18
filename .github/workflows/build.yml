@@ -94,19 +94,19 @@ jobs:
 
       - name: Build VIP Roulette executable
         run: |
-          shiv --compressed --compile-pyc --site-packages . --python "/usr/bin/python3" --output-file sdp-vip.pyz --entry-point main_vip:main .
+          shiv --compressed --compile-pyc --python "/usr/bin/python3" --output-file sdp-vip.pyz --entry-point main_vip:main .
 
       - name: Build Speed Roulette executable
         run: |
-          shiv --compressed --compile-pyc --site-packages . --python "/usr/bin/python3" --output-file sdp-speed.pyz --entry-point main_speed:main .
+          shiv --compressed --compile-pyc --python "/usr/bin/python3" --output-file sdp-speed.pyz --entry-point main_speed:main .
 
       - name: Build SicBo executable
         run: |
-          shiv --compressed --compile-pyc --site-packages . --python "/usr/bin/python3" --output-file sdp-sicbo.pyz --entry-point main_sicbo:main .
+          shiv --compressed --compile-pyc --python "/usr/bin/python3" --output-file sdp-sicbo.pyz --entry-point main_sicbo:main .
 
       - name: Build Baccarat executable
         run: |
-          shiv --compressed --compile-pyc --site-packages . --python "/usr/bin/python3" --output-file sdp-baccarat.pyz --entry-point main_baccarat:main .
+          shiv --compressed --compile-pyc --python "/usr/bin/python3" --output-file sdp-baccarat.pyz --entry-point main_baccarat:main .
 
       - name: Test built executables
         run: |
