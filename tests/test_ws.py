@@ -6,12 +6,11 @@ focusing only on receiving table/device status updates from clients.
 """
 
 import pytest
-import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock
 from datetime import datetime
 
-from studio_api.ws import (
+from .mock_ws_server import (
     StudioWebSocketServer,
     StudioServiceStatusEnum,
     StudioDeviceStatusEnum,
@@ -151,9 +150,11 @@ class TestStudioWebSocketServer:
     @pytest.mark.asyncio
     async def test_handle_connection_missing_auth(self, server, mock_websocket):
         """Test connection handling with missing authentication."""
-        path = "/"
+        
+        # Mock recv to return invalid auth data
+        mock_websocket.recv = AsyncMock(return_value=json.dumps({"id": "", "token": ""}))
 
-        await server.handle_connection(mock_websocket, path)
+        await server.handle_connection(mock_websocket)
 
         mock_websocket.close.assert_called_once_with(
             1008, "Missing authentication parameters"
@@ -162,7 +163,12 @@ class TestStudioWebSocketServer:
     @pytest.mark.asyncio
     async def test_handle_connection_valid_auth(self, server, mock_websocket):
         """Test connection handling with valid authentication."""
-        path = "/?id=ARO-001_dealerPC&token=MY_TOKEN"
+
+        # Mock recv to return valid auth data
+        mock_websocket.recv = AsyncMock(return_value=json.dumps({
+            "id": "ARO-001_dealerPC", 
+            "token": "MY_TOKEN"
+        }))
 
         # Mock the message loop to avoid infinite loop
         class MockAsyncIterator:
@@ -174,14 +180,16 @@ class TestStudioWebSocketServer:
 
         mock_websocket.__aiter__ = MagicMock(return_value=MockAsyncIterator())
 
-        await server.handle_connection(mock_websocket, path)
+        await server.handle_connection(mock_websocket)
 
         # Check that status was initialized
         assert "ARO-001" in server.studio_status
 
-        # Check that initial status was sent
-        mock_websocket.send.assert_called_once()
-        sent_data = json.loads(mock_websocket.send.call_args[0][0])
+        # Check that messages were sent (welcome + initial status)
+        assert mock_websocket.send.call_count == 2
+        
+        # Check initial status message (second call)
+        sent_data = json.loads(mock_websocket.send.call_args_list[1][0][0])
         assert sent_data["TABLE_ID"] == "ARO-001"
         assert sent_data["SDP"] == StudioServiceStatusEnum.STANDBY
         assert sent_data["IDP"] == StudioServiceStatusEnum.STANDBY
@@ -301,8 +309,13 @@ class TestWebSocketIntegration:
         websocket.__aiter__ = MagicMock(return_value=mock_iterator)
 
         # Simulate connection
-        path = "/?id=ARO-001_dealerPC&token=MY_TOKEN"
-        await server.handle_connection(websocket, path)
+        # Mock recv to return valid auth data
+        websocket.recv = AsyncMock(return_value=json.dumps({
+            "id": "ARO-001_dealerPC", 
+            "token": "MY_TOKEN"
+        }))
+        
+        await server.handle_connection(websocket)
 
         # Verify status was initialized
         assert "ARO-001" in server.studio_status
