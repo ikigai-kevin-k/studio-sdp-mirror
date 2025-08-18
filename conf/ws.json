@@ -1,0 +1,19 @@
+{
+    "server_url": "ws://100.64.0.160:8082",
+    "device_name": "dealerPC",
+    "token": "0000",
+    "tables": [
+        {
+            "table_id": "ARO-001",
+            "name": "ARO-001"
+        },
+        {
+            "table_id": "ARO-002",
+            "name": "ARO-002"
+        },
+        {
+            "table_id": "SBO-001",
+            "name": "SBO-001"
+        }
+    ]
+}
