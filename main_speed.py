@@ -50,7 +50,10 @@ from concurrent.futures import ThreadPoolExecutor
 #     send_default_pii=True,
 # )
 
-ser = serial.Serial(
+# Initialize serial connection only if hardware is available
+from utils import create_serial_connection
+
+ser = create_serial_connection(
     port="/dev/ttyUSB0",
     baudrate=9600,
     parity=serial.PARITY_NONE,

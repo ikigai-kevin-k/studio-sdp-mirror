@@ -1,10 +1,8 @@
 import serial
-import asyncio
 import json
 import subprocess
-from typing import Tuple, Dict, Any, Optional
+from typing import Tuple, Dict, Any
 import os
-import logging
 from datetime import datetime
 from los_api.sb.api_v2_sb import get_roundID_v2
 
@@ -116,3 +114,62 @@ def log_with_color(message, color=None):
         print(f"{color}{message}{RESET}")
     else:
         print(message)
+
+
+def check_hardware_available():
+    """
+    Check if hardware devices are available in the current environment.
+    Returns True if hardware is available, False otherwise.
+    """
+    import os
+
+    # Check if we're in a CI/CD environment (GitHub Actions, etc.)
+    if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"):
+        return False
+
+    # Check if we're in a container or virtual environment
+    if os.path.exists("/.dockerenv") or os.environ.get("VIRTUAL_ENV"):
+        return False
+
+    # Check if hardware devices exist
+    hardware_devices = [
+        "/dev/ttyUSB0",
+        "/dev/ttyUSB1",
+        "/dev/ttyACM0",
+        "/dev/ttyACM1",
+    ]
+
+    for device in hardware_devices:
+        if os.path.exists(device):
+            return True
+
+    return False
+
+
+def create_serial_connection(port="/dev/ttyUSB0", **kwargs):
+    """
+    Create a serial connection if hardware is available, otherwise return None.
+
+    Args:
+        port (str): Serial port to connect to
+        **kwargs: Additional serial connection parameters
+
+    Returns:
+        Serial object or None if hardware not available
+    """
+    if not check_hardware_available():
+        print(
+            f"Warning: Hardware not available, skipping serial connection to {port}"
+        )
+        return None
+
+    try:
+        import serial
+
+        return serial.Serial(port=port, **kwargs)
+    except ImportError:
+        print("Warning: pyserial not available")
+        return None
+    except Exception as e:
+        print(f"Warning: Failed to create serial connection to {port}: {e}")
+        return None

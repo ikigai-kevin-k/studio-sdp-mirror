@@ -3,11 +3,11 @@ import threading
 import time
 from datetime import datetime
 import sys
-import random
 import json
 import asyncio
 import websockets
 from concurrent.futures import ThreadPoolExecutor
+from utils import create_serial_connection
 
 sys.path.append(".")  # ensure los_api can be imported
 from los_api.vr.api_v2_vr import (
@@ -41,8 +41,7 @@ from los_api.vr.api_v2_qat_vr import (
     broadcast_post_v2_qat,
 )
 
-
-ser = serial.Serial(
+ser = create_serial_connection(
     port="/dev/ttyUSB0",
     baudrate=9600,
     parity=serial.PARITY_NONE,
