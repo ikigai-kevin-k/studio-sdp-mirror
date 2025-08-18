@@ -150,9 +150,11 @@ class TestStudioWebSocketServer:
     @pytest.mark.asyncio
     async def test_handle_connection_missing_auth(self, server, mock_websocket):
         """Test connection handling with missing authentication."""
-        
+
         # Mock recv to return invalid auth data
-        mock_websocket.recv = AsyncMock(return_value=json.dumps({"id": "", "token": ""}))
+        mock_websocket.recv = AsyncMock(
+            return_value=json.dumps({"id": "", "token": ""})
+        )
 
         await server.handle_connection(mock_websocket)
 
@@ -165,10 +167,9 @@ class TestStudioWebSocketServer:
         """Test connection handling with valid authentication."""
 
         # Mock recv to return valid auth data
-        mock_websocket.recv = AsyncMock(return_value=json.dumps({
-            "id": "ARO-001_dealerPC", 
-            "token": "MY_TOKEN"
-        }))
+        mock_websocket.recv = AsyncMock(
+            return_value=json.dumps({"id": "ARO-001_dealerPC", "token": "MY_TOKEN"})
+        )
 
         # Mock the message loop to avoid infinite loop
         class MockAsyncIterator:
@@ -187,7 +188,7 @@ class TestStudioWebSocketServer:
 
         # Check that messages were sent (welcome + initial status)
         assert mock_websocket.send.call_count == 2
-        
+
         # Check initial status message (second call)
         sent_data = json.loads(mock_websocket.send.call_args_list[1][0][0])
         assert sent_data["TABLE_ID"] == "ARO-001"
@@ -310,11 +311,10 @@ class TestWebSocketIntegration:
 
         # Simulate connection
         # Mock recv to return valid auth data
-        websocket.recv = AsyncMock(return_value=json.dumps({
-            "id": "ARO-001_dealerPC", 
-            "token": "MY_TOKEN"
-        }))
-        
+        websocket.recv = AsyncMock(
+            return_value=json.dumps({"id": "ARO-001_dealerPC", "token": "MY_TOKEN"})
+        )
+
         await server.handle_connection(websocket)
 
         # Verify status was initialized
