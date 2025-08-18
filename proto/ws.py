@@ -40,7 +40,9 @@ class WebSocketClient:
                         if self.on_message:
                             await self.on_message(data)
                     except json.JSONDecodeError:
-                        self.logger.warning(f"Received invalid JSON: {message}")
+                        self.logger.warning(
+                            f"Received invalid JSON: {message}"
+                        )
 
             except websockets.ConnectionClosed:
                 self.logger.warning("WebSocket connection closed")

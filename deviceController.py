@@ -60,7 +60,10 @@ class IDPController(Controller):
                     "response" in response_data
                     and response_data["response"] == "result"
                 ):
-                    if "arg" in response_data and "res" in response_data["arg"]:
+                    if (
+                        "arg" in response_data
+                        and "res" in response_data["arg"]
+                    ):
                         dice_result = response_data["arg"]["res"]
                         # 檢查是否為有效的骰子結果 (三個數字)
                         if (
@@ -111,7 +114,9 @@ class IDPController(Controller):
             while (asyncio.get_event_loop().time() - start_time) < timeout:
                 # 發送檢測命令
                 self.logger.info(f"Sending detect command (attempt {attempt})")
-                self.mqtt_client.publish("ikg/idp/dice/command", json.dumps(command))
+                self.mqtt_client.publish(
+                    "ikg/idp/dice/command", json.dumps(command)
+                )
 
                 # 等待回應的小循環
                 wait_end = min(
@@ -137,7 +142,9 @@ class IDPController(Controller):
                 f"No valid response received within {elapsed:.2f}s after {attempt-1} attempts"
             )
             command = {"command": "timeout", "arg": {}}
-            self.mqtt_client.publish("ikg/idp/dice/command", json.dumps(command))
+            self.mqtt_client.publish(
+                "ikg/idp/dice/command", json.dumps(command)
+            )
             if self.last_response:
                 self.logger.warning(f"Last response was: {self.last_response}")
             return True, [""]  # 超時時返回預設值
@@ -205,7 +212,9 @@ class ShakerController(Controller):
                     elif payload == "S1":
                         self.logger.info("[STATUS] Shaker is SHAKING")
                     elif payload == "S2":
-                        self.logger.info("[STATUS] Shaker received SHAKE COMMAND")
+                        self.logger.info(
+                            "[STATUS] Shaker received SHAKE COMMAND"
+                        )
                     elif payload == "S90":
                         self.logger.warning(
                             "[STATUS] Shaker has MULTIPLE ERRORS in motion program"
@@ -304,7 +313,9 @@ class ShakerController(Controller):
                 self.logger.info("✓ Shaking completed successfully")
                 break
             elif self.shaker_state == "S90":
-                self.logger.error("⚠ Shaker has motion program errors during shaking")
+                self.logger.error(
+                    "⚠ Shaker has motion program errors during shaking"
+                )
                 return False
             await asyncio.sleep(0.1)
 
@@ -427,7 +438,9 @@ class BarcodeController(Controller):
 
         # 啟動掃描處理的非同步任務
         asyncio.create_task(self._read_barcode())
-        self.logger.info(f"Barcode scanner initialized with device: {device_path}")
+        self.logger.info(
+            f"Barcode scanner initialized with device: {device_path}"
+        )
 
     async def _read_barcode(self):
         """read barcode scanner data asynchronously"""
@@ -459,7 +472,9 @@ class BarcodeController(Controller):
                                             f"[LOG] ENTER detected, current_line before join: {self.current_line}"
                                         )
                                         if self.current_line:
-                                            barcode = "".join(self.current_line)
+                                            barcode = "".join(
+                                                self.current_line
+                                            )
                                             self.logger.info(
                                                 f"[LOG] Barcode to process: '{barcode}' (len={len(barcode)})"
                                             )
@@ -469,7 +484,9 @@ class BarcodeController(Controller):
                                                     f"Scanned barcode: {barcode}"
                                                 )
                                                 if self.callback:
-                                                    await self.callback(barcode)
+                                                    await self.callback(
+                                                        barcode
+                                                    )
                                             else:
                                                 self.logger.info(
                                                     f"Ignored barcode during pause: {barcode}"
@@ -492,7 +509,9 @@ class BarcodeController(Controller):
                                                 f"Ignored key during pause: {key}"
                                             )
                                         self.current_line.append(key)
-                        await asyncio.sleep(0.001)  # short sleep to avoid CPU overload
+                        await asyncio.sleep(
+                            0.001
+                        )  # short sleep to avoid CPU overload
         except Exception as e:
             import traceback
 

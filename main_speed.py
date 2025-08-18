@@ -125,8 +125,12 @@ async def send_to_recorder(message):
             log_to_file(f"Recorder response: {response}", "WebSocket >>>")
             return True
         except Exception as e:
-            print(f"[{get_timestamp()}] Failed to send message to recorder: {e}")
-            log_to_file(f"Failed to send message to recorder: {e}", "WebSocket >>>")
+            print(
+                f"[{get_timestamp()}] Failed to send message to recorder: {e}"
+            )
+            log_to_file(
+                f"Failed to send message to recorder: {e}", "WebSocket >>>"
+            )
             ws_connected = False
             return False
     return False
@@ -200,7 +204,8 @@ def read_from_serial():
                             # Check if 10 seconds have passed or it's the first broadcast
                             if (
                                 not hasattr(
-                                    execute_broadcast_post, "last_broadcast_time"
+                                    execute_broadcast_post,
+                                    "last_broadcast_time",
                                 )
                                 or (
                                     current_time
@@ -223,7 +228,9 @@ def read_from_serial():
                                 ) as executor:
                                     futures = [
                                         executor.submit(
-                                            execute_broadcast_post, table, token
+                                            execute_broadcast_post,
+                                            table,
+                                            token,
                                         )
                                         for table in tables
                                     ]
@@ -239,7 +246,9 @@ def read_from_serial():
                                     f"Already sent broadcast {current_time - execute_broadcast_post.last_broadcast_time:.1f} seconds ago, waiting for time interval..."
                                 )
                 except Exception as e:
-                    print(f"Error parsing warning_flag or sending broadcast_post: {e}")
+                    print(
+                        f"Error parsing warning_flag or sending broadcast_post: {e}"
+                    )
                     log_to_file(
                         f"Error parsing warning_flag or sending broadcast_post: {e}",
                         "Error >>>",
@@ -264,9 +273,13 @@ def read_from_serial():
                         )
 
                         # Asynchronously process start_post for all tables
-                        with ThreadPoolExecutor(max_workers=len(tables)) as executor:
+                        with ThreadPoolExecutor(
+                            max_workers=len(tables)
+                        ) as executor:
                             futures = [
-                                executor.submit(execute_start_post, table, token)
+                                executor.submit(
+                                    execute_start_post, table, token
+                                )
                                 for table in tables
                             ]
                             for future in futures:
@@ -281,7 +294,11 @@ def read_from_serial():
                         print("*u 1 command sent\n")
 
                         # Start recording two seconds after sending *u 1 command
-                        if tables and len(tables) > 0 and "round_id" in tables[0]:
+                        if (
+                            tables
+                            and len(tables) > 0
+                            and "round_id" in tables[0]
+                        ):
                             round_id = tables[0]["round_id"]
                             print(
                                 f"[{get_timestamp()}] Preparing to start recording round_id: {round_id}, will start in two seconds"
@@ -301,13 +318,16 @@ def read_from_serial():
             elif "*X;3" in data and not isLaunch:
                 ball_launch_time = time.time()
                 print(f"ball_launch_time: {ball_launch_time}")
-                log_to_file(f"ball_launch_time: {ball_launch_time}", "Receive >>>")
+                log_to_file(
+                    f"ball_launch_time: {ball_launch_time}", "Receive >>>"
+                )
                 isLaunch = 1
 
                 start_to_launch_time = ball_launch_time - start_time
                 print(f"start_to_launch_time: {start_to_launch_time}")
                 log_to_file(
-                    f"start_to_launch_time: {start_to_launch_time}", "Receive >>>"
+                    f"start_to_launch_time: {start_to_launch_time}",
+                    "Receive >>>",
                 )
 
                 # Removed code that starts recording when ball launches, as it now starts two seconds after *u 1 command
@@ -334,11 +354,16 @@ def read_from_serial():
                                 deal_post_time = time.time()
                                 print(f"deal_post_time: {deal_post_time}")
                                 log_to_file(
-                                    f"deal_post_time: {deal_post_time}", "Receive >>>"
+                                    f"deal_post_time: {deal_post_time}",
+                                    "Receive >>>",
                                 )
 
-                                launch_to_deal_time = deal_post_time - ball_launch_time
-                                print(f"launch_to_deal_time: {launch_to_deal_time}")
+                                launch_to_deal_time = (
+                                    deal_post_time - ball_launch_time
+                                )
+                                print(
+                                    f"launch_to_deal_time: {launch_to_deal_time}"
+                                )
                                 log_to_file(
                                     f"launch_to_deal_time: {launch_to_deal_time}",
                                     "Receive >>>",
@@ -356,7 +381,10 @@ def read_from_serial():
                                 ) as executor:
                                     futures = [
                                         executor.submit(
-                                            execute_deal_post, table, token, win_num
+                                            execute_deal_post,
+                                            table,
+                                            token,
+                                            win_num,
                                         )
                                         for table in tables
                                     ]
@@ -380,8 +408,12 @@ def read_from_serial():
                                     "Receive >>>",
                                 )
 
-                                deal_to_finish_time = finish_post_time - deal_post_time
-                                print(f"deal_to_finish_time: {deal_to_finish_time}")
+                                deal_to_finish_time = (
+                                    finish_post_time - deal_post_time
+                                )
+                                print(
+                                    f"deal_to_finish_time: {deal_to_finish_time}"
+                                )
                                 log_to_file(
                                     f"deal_to_finish_time: {deal_to_finish_time}",
                                     "Receive >>>",
@@ -507,7 +539,10 @@ def write_to_serial():
     while True:
         try:
             text = input("Send <<< ")
-            if text.lower() in ["get_config", "gc"]:  # Added "gc" as abbreviation
+            if text.lower() in [
+                "get_config",
+                "gc",
+            ]:  # Added "gc" as abbreviation
                 get_config()
             else:
                 ser.write((text + "\r\n").encode())
@@ -533,21 +568,13 @@ def log_time_intervals(
     try:
         error_message = None
         if finish_to_start > 4:
-            error_message = (
-                f"Assertion Error: finish_to_start_time ({finish_to_start:.2f}s) > 4s"
-            )
+            error_message = f"Assertion Error: finish_to_start_time ({finish_to_start:.2f}s) > 4s"
         elif start_to_launch > 20:
-            error_message = (
-                f"Assertion Error: start_to_launch_time ({start_to_launch:.2f}s) > 20s"
-            )
+            error_message = f"Assertion Error: start_to_launch_time ({start_to_launch:.2f}s) > 20s"
         elif launch_to_deal > 20:
-            error_message = (
-                f"Assertion Error: launch_to_deal_time ({launch_to_deal:.2f}s) > 20s"
-            )
+            error_message = f"Assertion Error: launch_to_deal_time ({launch_to_deal:.2f}s) > 20s"
         elif deal_to_finish > 2:
-            error_message = (
-                f"Assertion Error: deal_to_finish_time ({deal_to_finish:.2f}s) > 2s"
-            )
+            error_message = f"Assertion Error: deal_to_finish_time ({deal_to_finish:.2f}s) > 2s"
 
         if error_message:
             # Get current round_id
@@ -563,7 +590,9 @@ def log_time_intervals(
                 )
 
             # Also log to main log file
-            log_to_file(f"{error_message} (Round ID: {current_round_id})", "ERROR >>>")
+            log_to_file(
+                f"{error_message} (Round ID: {current_round_id})", "ERROR >>>"
+            )
 
             # Output error message to console, but don't terminate program
             print(
@@ -630,16 +659,28 @@ def execute_deal_post(table, token, win_num):
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
         if table["name"] == "UAT":
-            result = deal_post_v2_uat(post_url, token, table["round_id"], str(win_num))
+            result = deal_post_v2_uat(
+                post_url, token, table["round_id"], str(win_num)
+            )
         elif table["name"] == "PRD":
-            result = deal_post_v2_prd(post_url, token, table["round_id"], str(win_num))
+            result = deal_post_v2_prd(
+                post_url, token, table["round_id"], str(win_num)
+            )
         elif table["name"] == "STG":
-            result = deal_post_v2_stg(post_url, token, table["round_id"], str(win_num))
+            result = deal_post_v2_stg(
+                post_url, token, table["round_id"], str(win_num)
+            )
         elif table["name"] == "QAT":
-            result = deal_post_v2_qat(post_url, token, table["round_id"], str(win_num))
+            result = deal_post_v2_qat(
+                post_url, token, table["round_id"], str(win_num)
+            )
         else:
-            result = deal_post_v2(post_url, token, table["round_id"], str(win_num))
-        print(f"Successfully sent winning result for {table['name']}: {win_num}")
+            result = deal_post_v2(
+                post_url, token, table["round_id"], str(win_num)
+            )
+        print(
+            f"Successfully sent winning result for {table['name']}: {win_num}"
+        )
         return result
     except Exception as e:
         print(f"Error executing deal_post for {table['name']}: {e}")
@@ -670,7 +711,9 @@ def execute_broadcast_post(table, token):
             result = broadcast_post_v2(
                 post_url, token, "roulette.relaunch", "players", 20
             )  # , None)
-        print(f"Successfully sent broadcast_post (relaunch) for {table['name']}")
+        print(
+            f"Successfully sent broadcast_post (relaunch) for {table['name']}"
+        )
         log_to_file(
             f"Successfully sent broadcast_post (relaunch) for {table['name']}",
             "Broadcast >>>",
@@ -679,7 +722,8 @@ def execute_broadcast_post(table, token):
     except Exception as e:
         print(f"Error executing broadcast_post for {table['name']}: {e}")
         log_to_file(
-            f"Error executing broadcast_post for {table['name']}: {e}", "Error >>>"
+            f"Error executing broadcast_post for {table['name']}: {e}",
+            "Error >>>",
         )
         return None
 

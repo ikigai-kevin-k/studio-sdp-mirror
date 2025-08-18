@@ -51,7 +51,9 @@ class HIDController:
     def initialize(self) -> bool:
         """Initialize HID device connection"""
         try:
-            devices = [evdev.InputDevice(path) for path in evdev.list_devices()]
+            devices = [
+                evdev.InputDevice(path) for path in evdev.list_devices()
+            ]
             for device in devices:
                 if self.device_name.lower() in device.name.lower():
                     self.device = device
@@ -112,8 +114,19 @@ class HIDController:
         if not HIDController.is_valid_card_code(code):
             return None, None
 
-        suit_map = {"H": "Hearts", "D": "Diamonds", "C": "Clubs", "S": "Spades"}
-        value_map = {"T": "10", "J": "Jack", "Q": "Queen", "K": "King", "A": "Ace"}
+        suit_map = {
+            "H": "Hearts",
+            "D": "Diamonds",
+            "C": "Clubs",
+            "S": "Spades",
+        }
+        value_map = {
+            "T": "10",
+            "J": "Jack",
+            "Q": "Queen",
+            "K": "King",
+            "A": "Ace",
+        }
 
         suit = suit_map.get(code[0])
         value = value_map.get(code[1], code[1:])

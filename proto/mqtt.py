@@ -37,11 +37,15 @@ class MQTTLogger:
             for topic in self.subscribed_topics:
                 self.client.subscribe(topic)
         else:
-            self.logger.error(f"Failed to connect to MQTT broker, return code: {rc}")
+            self.logger.error(
+                f"Failed to connect to MQTT broker, return code: {rc}"
+            )
 
     def _on_message(self, client, userdata, msg):
         """MQTT message callback"""
-        self.logger.debug(f"Received message on topic {msg.topic}: {msg.payload}")
+        self.logger.debug(
+            f"Received message on topic {msg.topic}: {msg.payload}"
+        )
         self.last_message = msg.payload.decode()
 
     def _on_disconnect(self, client, userdata, rc):

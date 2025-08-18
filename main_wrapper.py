@@ -226,12 +226,16 @@ async def amain():
         required=True,
         help="Game type to run",
     )
-    parser.add_argument("--config", type=str, help="Optional custom config file path")
+    parser.add_argument(
+        "--config", type=str, help="Optional custom config file path"
+    )
 
     args = parser.parse_args()
 
     # decide which config file to use
-    config_file = args.config if args.config else GAME_CONFIG_MAPPING[args.game_type]
+    config_file = (
+        args.config if args.config else GAME_CONFIG_MAPPING[args.game_type]
+    )
 
     # create and run the game
     runner = GameRunner(args.game_type, config_file)

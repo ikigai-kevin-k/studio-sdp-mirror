@@ -63,13 +63,6 @@ from los_api.sb.api_v2_qat_sb import (
 from networkChecker import networkChecker
 from datetime import datetime
 
-# Import the update function from ws_sb_update.py
-import sys
-import os
-
-sys.path.append(os.path.join(os.path.dirname(__file__), "studio_api"))
-from ws_sb_update import update_sicbo_game_status
-
 # import sentry_sdk
 
 # sentry_sdk.init(
@@ -329,20 +322,7 @@ class SDPGame:
                 self.logger.info("Starting new round...")
                 round_start_time = time.time()
 
-                # Update Sicbo game status before starting rounds (using fast mode)
-                self.logger.info("Updating Sicbo game device status...")
-                try:
-                    await update_sicbo_game_status(fast_mode=True)
-                    self.logger.info(
-                        "✅ Sicbo game device status updated successfully"
-                    )
-                except Exception as e:
-                    self.logger.warning(
-                        f"⚠️  Failed to update Sicbo game device status: {e}"
-                    )
-                    self.logger.info("Continuing with round start...")
-
-                # send start request to all tables using thread pool for parallel execution
+                # send start request to all tables
                 round_ids = []
                 for table in self.table_configs:
                     post_url = f"{table['post_url']}{table['game_code']}"
@@ -366,13 +346,13 @@ class SDPGame:
                         print("====================")
                         print(round_id, bet_period)
                         print("====================")
-                    elif table["name"] == "PRD":
-                        print("====================")
-                        print("[DEBUG] PRD start_post_v2")
-                        print("====================")
-                        round_id, bet_period = await retry_with_network_check(
-                            start_post_v2_prd, post_url, self.token
-                        )
+                    # elif table["name"] == "PRD":
+                    #     print("====================")
+                    #     print("[DEBUG] PRD start_post_v2")
+                    #     print("====================")
+                    #     round_id, bet_period = await retry_with_network_check(
+                    #         start_post_v2_prd, post_url, self.token
+                    #     )
                     elif table["name"] == "STG":
                         print("====================")
                         print("[DEBUG] STG start_post_v2")
@@ -514,14 +494,14 @@ class SDPGame:
                                     round_id,
                                     dice_result,
                                 )
-                            elif table["name"] == "PRD":
-                                await retry_with_network_check(
-                                    deal_post_v2_prd,
-                                    post_url,
-                                    self.token,
-                                    round_id,
-                                    dice_result,
-                                )
+                            # elif table["name"] == "PRD":
+                            #     await retry_with_network_check(
+                            #         deal_post_v2_prd,
+                            #         post_url,
+                            #         self.token,
+                            #         round_id,
+                            #         dice_result,
+                            #     )
                             elif table["name"] == "STG":
                                 await retry_with_network_check(
                                     deal_post_v2_stg,
@@ -551,10 +531,10 @@ class SDPGame:
                                 await retry_with_network_check(
                                     finish_post_v2_uat, post_url, self.token
                                 )
-                            elif table["name"] == "PRD":
-                                await retry_with_network_check(
-                                    finish_post_v2_prd, post_url, self.token
-                                )
+                            # elif table["name"] == "PRD":
+                            #     await retry_with_network_check(
+                            #         finish_post_v2_prd, post_url, self.token
+                            #     )
                             elif table["name"] == "STG":
                                 await retry_with_network_check(
                                     finish_post_v2_stg, post_url, self.token
@@ -610,15 +590,15 @@ class SDPGame:
                                     {"afterSeconds": 4},
                                 )
                                 # sentry_sdk.capture_message("[SBO-001][UAT][ERR_RESHAKE]: Issue detected. Reshake ball.")
-                            elif table["name"] == "PRD":
-                                broadcast_post_v2_prd(
-                                    post_url,
-                                    self.token,
-                                    "Issue detected. Reshake ball.",
-                                    "players",
-                                    {"afterSeconds": 4},
-                                )
-                                # sentry_sdk.capture_message("[SBO-001][PRD][ERR_RESHAKE]: Issue detected. Reshake ball.")
+                            # elif table["name"] == "PRD":
+                            #     broadcast_post_v2_prd(
+                            #         post_url,
+                            #         self.token,
+                            #         "Issue detected. Reshake ball.",
+                            #         "players",
+                            #         {"afterSeconds": 4},
+                            #     )
+                            # sentry_sdk.capture_message("[SBO-001][PRD][ERR_RESHAKE]: Issue detected. Reshake ball.")
                             elif table["name"] == "STG":
                                 broadcast_post_v2_stg(
                                     post_url,
@@ -678,16 +658,13 @@ class SDPGame:
                                         "after pause_post, status_uat:",
                                         status_uat,
                                     )
-                                elif table["name"] == "PRD":
-                                    pause_post_v2_prd(
-                                        post_url,
-                                        self.token,
-                                        "IDP cannot detect  the result for 3 times",
-                                    )
-                                    print(
-                                        "after pause_post, status_prd:",
-                                        status_prd,
-                                    )
+                                # elif table["name"] == "PRD":
+                                #     pause_post_v2_prd(
+                                #         post_url,
+                                #         self.token,
+                                #         "IDP cannot detect  the result for 3 times",
+                                #     )
+                                #     print("after pause_post, status_prd:", status_prd)
                                 elif table["name"] == "STG":
                                     pause_post_v2_stg(
                                         post_url,
@@ -723,11 +700,11 @@ class SDPGame:
                                             post_url, self.token
                                         )
                                         print("status:", status_uat)
-                                    elif table["name"] == "PRD":
-                                        _, status_prd, _ = get_roundID_v2_prd(
-                                            post_url, self.token
-                                        )
-                                        print("status:", status_prd)
+                                    # elif table["name"] == "PRD":
+                                    #     _, status_prd, _ = get_roundID_v2_prd(
+                                    #         post_url, self.token
+                                    #     )
+                                    #     print("status:", status_prd)
                                     elif table["name"] == "STG":
                                         _, status_stg, _ = get_roundID_v2_stg(
                                             post_url, self.token

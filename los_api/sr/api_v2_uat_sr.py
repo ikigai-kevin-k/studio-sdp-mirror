@@ -22,7 +22,9 @@ def start_post_v2_uat(url, token):
 
     # Define payload for the POST request
     data = {}
-    response = requests.post(f"{url}/start", headers=headers, json=data, verify=False)
+    response = requests.post(
+        f"{url}/start", headers=headers, json=data, verify=False
+    )
 
     # Check if the response status code indicates success
     if response.status_code != 200:
@@ -75,7 +77,9 @@ def deal_post_v2_uat(url, token, round_id, result):
         "roulette": result,  # 修改: 使用 "roulette" 而不是 "sicBo"，直接傳入數字的string
     }
 
-    response = requests.post(f"{url}/deal", headers=headers, json=data, verify=False)
+    response = requests.post(
+        f"{url}/deal", headers=headers, json=data, verify=False
+    )
     json_str = json.dumps(response.json(), indent=2)
 
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
@@ -91,7 +95,9 @@ def finish_post_v2_uat(url, token):
         "Cookie": f"accessToken={accessToken}",
     }
     data = {}
-    response = requests.post(f"{url}/finish", headers=headers, json=data, verify=False)
+    response = requests.post(
+        f"{url}/finish", headers=headers, json=data, verify=False
+    )
     json_str = json.dumps(response.json(), indent=2)
 
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
@@ -189,7 +195,9 @@ def pause_post_v2_uat(url, token, reason):
 
     data = {"reason": reason}  # for example: "cannot drive the dice shaker"
 
-    response = requests.post(f"{url}/pause", headers=headers, json=data, verify=False)
+    response = requests.post(
+        f"{url}/pause", headers=headers, json=data, verify=False
+    )
     json_str = json.dumps(response.json(), indent=2)
 
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
@@ -206,7 +214,9 @@ def resume_post_v2_uat(url, token):
     }
 
     data = {}  # Empty payload as per API specification
-    response = requests.post(f"{url}/resume", headers=headers, json=data, verify=False)
+    response = requests.post(
+        f"{url}/resume", headers=headers, json=data, verify=False
+    )
     json_str = json.dumps(response.json(), indent=2)
 
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
@@ -235,7 +245,10 @@ def sdp_config_post_v2_uat(url, token, config_data):
     }
 
     response = requests.post(
-        f"{base_url}/sdp-config", headers=headers, json=config_data, verify=False
+        f"{base_url}/sdp-config",
+        headers=headers,
+        json=config_data,
+        verify=False,
     )
 
     # Format and display the response
@@ -270,7 +283,9 @@ def get_sdp_config_v2_uat(url, token):
 
     try:
         response_data = response.json()
-        sdp_config = response_data.get("data", {}).get("table", {}).get("sdpConfig", {})
+        sdp_config = (
+            response_data.get("data", {}).get("table", {}).get("sdpConfig", {})
+        )
 
         strings = sdp_config.get("strings")
         number = sdp_config.get("number")

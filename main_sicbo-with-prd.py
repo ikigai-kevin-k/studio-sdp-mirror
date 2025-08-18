@@ -63,13 +63,6 @@ from los_api.sb.api_v2_qat_sb import (
 from networkChecker import networkChecker
 from datetime import datetime
 
-# Import the update function from ws_sb_update.py
-import sys
-import os
-
-sys.path.append(os.path.join(os.path.dirname(__file__), "studio_api"))
-from ws_sb_update import update_sicbo_game_status
-
 # import sentry_sdk
 
 # sentry_sdk.init(
@@ -329,20 +322,7 @@ class SDPGame:
                 self.logger.info("Starting new round...")
                 round_start_time = time.time()
 
-                # Update Sicbo game status before starting rounds (using fast mode)
-                self.logger.info("Updating Sicbo game device status...")
-                try:
-                    await update_sicbo_game_status(fast_mode=True)
-                    self.logger.info(
-                        "✅ Sicbo game device status updated successfully"
-                    )
-                except Exception as e:
-                    self.logger.warning(
-                        f"⚠️  Failed to update Sicbo game device status: {e}"
-                    )
-                    self.logger.info("Continuing with round start...")
-
-                # send start request to all tables using thread pool for parallel execution
+                # send start request to all tables
                 round_ids = []
                 for table in self.table_configs:
                     post_url = f"{table['post_url']}{table['game_code']}"

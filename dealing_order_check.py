@@ -35,7 +35,14 @@ def check_dealing_order(card_faces: List[str], outs: bool = False) -> bool:
 # Mock data for testing (simulate the data that would be sent by the idp)
 mock_data_non_outs = ["KD", "6H", "5C", "JS", "", ""]  # 4 cards, no outs
 mock_data_outs = ["KD", "6H", "5C", "JS", "JD", "QS"]  # 6 cards, with outs
-mock_data_wrong = ["KD", "", "5C", "JS", "", ""]  # Skipped position (should be False)
+mock_data_wrong = [
+    "KD",
+    "",
+    "5C",
+    "JS",
+    "",
+    "",
+]  # Skipped position (should be False)
 mock_data_partial = ["KD", "6H", "", "", "", ""]  # Only first two cards
 
 if __name__ == "__main__":
@@ -45,7 +52,10 @@ if __name__ == "__main__":
         check_dealing_order(mock_data_non_outs, outs=False),
     )
     # Test with mock data for outs
-    print("Test outs (should be True):", check_dealing_order(mock_data_outs, outs=True))
+    print(
+        "Test outs (should be True):",
+        check_dealing_order(mock_data_outs, outs=True),
+    )
     # Test with wrong order (skipped position)
     print(
         "Test wrong order (should be False):",

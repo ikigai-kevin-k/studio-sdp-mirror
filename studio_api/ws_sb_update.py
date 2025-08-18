@@ -74,7 +74,9 @@ async def update_sicbo_game_status(
         try:
             # Try to check if the existing connection is still valid
             # This is a simple check - in practice you might want more sophisticated connection validation
-            logger.info(f"🔗 Reusing existing WebSocket connection to {table_id}")
+            logger.info(
+                f"🔗 Reusing existing WebSocket connection to {table_id}"
+            )
 
             # Send the status update using existing connection
             logger.info(f"📤 Sending status update to {table_id}...")
@@ -93,8 +95,12 @@ async def update_sicbo_game_status(
             preferences = _ws_client.get_server_preferences()
             summary = _ws_client.get_sent_updates_summary()
 
-            logger.info(f"✅ Accepted fields: {preferences['accepted_fields']}")
-            logger.info(f"❌ Rejected fields: {preferences['rejected_fields']}")
+            logger.info(
+                f"✅ Accepted fields: {preferences['accepted_fields']}"
+            )
+            logger.info(
+                f"❌ Rejected fields: {preferences['rejected_fields']}"
+            )
             logger.info(f"📊 Total updates sent: {summary['total_updates']}")
 
             # Check if all fields were accepted
@@ -104,14 +110,18 @@ async def update_sicbo_game_status(
             )
 
             if all_accepted:
-                logger.info("🎯 All status updates were accepted successfully!")
+                logger.info(
+                    "🎯 All status updates were accepted successfully!"
+                )
             else:
                 rejected_fields = [
                     field
                     for field in status_to_send.keys()
                     if field not in preferences["accepted_fields"]
                 ]
-                logger.warning(f"⚠️  Some fields were rejected: {rejected_fields}")
+                logger.warning(
+                    f"⚠️  Some fields were rejected: {rejected_fields}"
+                )
 
             logger.info(
                 f"🔗 WebSocket connection to {table_id} maintained for future use"
@@ -127,7 +137,9 @@ async def update_sicbo_game_status(
             _table_id = None
 
     # Load configuration from ws.json
-    config_path = os.path.join(os.path.dirname(__file__), "..", "conf", "ws.json")
+    config_path = os.path.join(
+        os.path.dirname(__file__), "..", "conf", "ws.json"
+    )
     try:
         with open(config_path, "r", encoding="utf-8") as f:
             config = json.load(f)
@@ -191,7 +203,8 @@ async def update_sicbo_game_status(
 
         # Check if all fields were accepted
         all_accepted = all(
-            field in preferences["accepted_fields"] for field in status_to_send.keys()
+            field in preferences["accepted_fields"]
+            for field in status_to_send.keys()
         )
 
         if all_accepted:
@@ -205,7 +218,9 @@ async def update_sicbo_game_status(
             logger.warning(f"⚠️  Some fields were rejected: {rejected_fields}")
 
         # Note: Connection is maintained and not disconnected
-        logger.info(f"🔗 WebSocket connection to {table_id} maintained for future use")
+        logger.info(
+            f"🔗 WebSocket connection to {table_id} maintained for future use"
+        )
 
         return True
 
@@ -219,7 +234,9 @@ async def update_sicbo_game_status(
             _ws_client = None
             _table_id = None
         except Exception as disconnect_error:
-            logger.error(f"❌ Error disconnecting from {table_id}: {disconnect_error}")
+            logger.error(
+                f"❌ Error disconnecting from {table_id}: {disconnect_error}"
+            )
         return False
 
 

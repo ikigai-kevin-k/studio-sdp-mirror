@@ -58,7 +58,13 @@ def analyze_intervals_by_error_type(intervals):
     # Group by error type
     error_transitions = defaultdict(list)
 
-    for prev_time, current_time, time_diff, prev_error, current_error in intervals:
+    for (
+        prev_time,
+        current_time,
+        time_diff,
+        prev_error,
+        current_error,
+    ) in intervals:
         transition_key = f"{prev_error} -> {current_error}"
         error_transitions[transition_key].append(time_diff)
 
@@ -77,7 +83,9 @@ def analyze_intervals_by_error_type(intervals):
     return stats
 
 
-def plot_interval_distribution(intervals, output_file="interval_distribution.png"):
+def plot_interval_distribution(
+    intervals, output_file="interval_distribution.png"
+):
     """Plot distribution of time intervals"""
     interval_values = [interval[2] for interval in intervals]
 
@@ -111,14 +119,18 @@ def plot_interval_distribution(intervals, output_file="interval_distribution.png
     print(f"Distribution chart saved as {output_file}")
 
 
-def plot_error_type_distribution(entries, output_file="error_type_distribution.png"):
+def plot_error_type_distribution(
+    entries, output_file="error_type_distribution.png"
+):
     """Plot distribution of error types"""
     error_counts = defaultdict(int)
     for _, error_type in entries:
         error_counts[error_type] += 1
 
     # Sort for better display
-    sorted_errors = sorted(error_counts.items(), key=lambda x: x[1], reverse=True)
+    sorted_errors = sorted(
+        error_counts.items(), key=lambda x: x[1], reverse=True
+    )
     error_types = [item[0] for item in sorted_errors]
     counts = [item[1] for item in sorted_errors]
 

@@ -82,18 +82,26 @@ class SmartStudioWebSocketClient:
             # Handle welcome message based on fast_connect mode
             if self.fast_connect:
                 # Skip welcome message wait for faster connection
-                logger.info("🚀 Fast connect mode: skipping welcome message wait")
+                logger.info(
+                    "🚀 Fast connect mode: skipping welcome message wait"
+                )
                 self.auth_successful = True
             else:
                 # Handle welcome message with very short timeout for faster connection
-                welcome_data = await self._receive_message("welcome", timeout=1.0)
+                welcome_data = await self._receive_message(
+                    "welcome", timeout=1.0
+                )
                 if welcome_data:
                     logger.info(f"👋 Welcome: {welcome_data}")
                 else:
-                    logger.info("💡 No welcome message received, continuing...")
+                    logger.info(
+                        "💡 No welcome message received, continuing..."
+                    )
 
             # Skip authentication since it doesn't affect functionality
-            logger.info("💡 Skipping authentication - proceeding with status updates")
+            logger.info(
+                "💡 Skipping authentication - proceeding with status updates"
+            )
             self.auth_successful = True  # Set to True to avoid warnings
 
             # Always return True to allow testing to continue
@@ -106,7 +114,9 @@ class SmartStudioWebSocketClient:
     async def _receive_message(self, message_type: str, timeout: float = 10.0):
         """Receive and parse a message with smart format detection."""
         try:
-            message = await asyncio.wait_for(self.websocket.recv(), timeout=timeout)
+            message = await asyncio.wait_for(
+                self.websocket.recv(), timeout=timeout
+            )
 
             if not message:
                 return None
@@ -143,7 +153,9 @@ class SmartStudioWebSocketClient:
             logger.error(f"❌ Error receiving {message_type}: {e}")
             return None
 
-    async def _analyze_response(self, sent_data: Dict[str, Any], response: Any):
+    async def _analyze_response(
+        self, sent_data: Dict[str, Any], response: Any
+    ):
         """Analyze server response to learn accepted/rejected fields."""
         if isinstance(response, dict) and "tableId" in response:
             # JSON confirmation - all fields accepted
@@ -164,16 +176,20 @@ class SmartStudioWebSocketClient:
                         for field in rejected_data.keys():
                             self.rejected_fields.add(field)
                         logger.warning(
-                            f"⚠️  Server rejected: " f"{list(rejected_data.keys())}"
+                            f"⚠️  Server rejected: "
+                            f"{list(rejected_data.keys())}"
                         )
                 except (json.JSONDecodeError, ValueError) as e:
-                    logger.warning(f"⚠️  Server rejected payload " f"(parse error: {e})")
+                    logger.warning(
+                        f"⚠️  Server rejected payload " f"(parse error: {e})"
+                    )
             else:
                 logger.info(f"📝 Server response: {content}")
         else:
             # Unknown response format
             logger.info(
-                f"📝 Unknown response format: " f"{type(response)} - {response}"
+                f"📝 Unknown response format: "
+                f"{type(response)} - {response}"
             )
 
     async def send_status_update(self, status_data: Dict[str, Any]):
@@ -231,7 +247,9 @@ async def demo_status_updates():
     TOKEN = "MY_TOKEN"
 
     # Create client
-    client = SmartStudioWebSocketClient(SERVER_URL, TABLE_ID, DEVICE_NAME, TOKEN)
+    client = SmartStudioWebSocketClient(
+        SERVER_URL, TABLE_ID, DEVICE_NAME, TOKEN
+    )
 
     try:
         # Connect to server
@@ -246,7 +264,9 @@ async def demo_status_updates():
         await client.send_service_status("SDP", StudioServiceStatusEnum.UP)
         await asyncio.sleep(1)
 
-        await client.send_service_status("IDP", StudioServiceStatusEnum.STANDBY)
+        await client.send_service_status(
+            "IDP", StudioServiceStatusEnum.STANDBY
+        )
         await asyncio.sleep(1)
 
         # 2. Send device status updates
@@ -277,7 +297,9 @@ async def demo_status_updates():
 
         # 5. Send calibration status
         logger.info("\n--- Calibration Status ---")
-        await client.send_service_status("SDP", StudioServiceStatusEnum.CALIBRATION)
+        await client.send_service_status(
+            "SDP", StudioServiceStatusEnum.CALIBRATION
+        )
         await asyncio.sleep(1)
 
         logger.info("\nStatus update demonstration completed!")
@@ -300,7 +322,9 @@ async def interactive_mode():
     TOKEN = "MY_TOKEN"
 
     # Create client
-    client = SmartStudioWebSocketClient(SERVER_URL, TABLE_ID, DEVICE_NAME, TOKEN)
+    client = SmartStudioWebSocketClient(
+        SERVER_URL, TABLE_ID, DEVICE_NAME, TOKEN
+    )
 
     try:
         # Connect to server
@@ -330,7 +354,9 @@ async def interactive_mode():
 
                 parts = command.split()
                 if len(parts) < 2:
-                    logger.info("Invalid command format. Use: <device> <status>")
+                    logger.info(
+                        "Invalid command format. Use: <device> <status>"
+                    )
                     continue
 
                 device = parts[0].lower()

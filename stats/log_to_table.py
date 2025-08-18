@@ -81,7 +81,9 @@ def main():
     df.to_csv("time_intervals_data.csv", index=False)
     stats.to_csv("time_intervals_stats.csv")
 
-    print("\n分析結果已保存到 time_intervals_data.csv 和 time_intervals_stats.csv")
+    print(
+        "\n分析結果已保存到 time_intervals_data.csv 和 time_intervals_stats.csv"
+    )
 
 
 if __name__ == "__main__":

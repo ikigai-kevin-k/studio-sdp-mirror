@@ -38,12 +38,17 @@ def test_module_imports():
             print(f"✗ {module_name}: Import failed - {e}")
         except Exception as e:
             error_msg = str(e)
-            if "No such file or directory" in error_msg and "/dev/ttyUSB" in error_msg:
+            if (
+                "No such file or directory" in error_msg
+                and "/dev/ttyUSB" in error_msg
+            ):
                 print(
                     f"⚠ {module_name}: Hardware device not available "
                     "(expected in test environment)"
                 )
-                success_count += 1  # Count as success for hardware-related errors
+                success_count += (
+                    1  # Count as success for hardware-related errors
+                )
             else:
                 print(f"✗ {module_name}: Unexpected error - {e}")
 

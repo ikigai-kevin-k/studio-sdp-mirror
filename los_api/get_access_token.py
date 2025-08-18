@@ -7,7 +7,11 @@ import json
 def load_env_config():
     """Load environment configuration from table-config-baccarat-v2.json"""
     config_path = os.path.join(
-        os.path.dirname(__file__), "..", "..", "conf", "table-config-baccarat-v2.json"
+        os.path.dirname(__file__),
+        "..",
+        "..",
+        "conf",
+        "table-config-baccarat-v2.json",
     )
     try:
         with open(config_path, "r") as f:
@@ -70,7 +74,10 @@ def get_access_token(game_code=None, env_name=None):
             response_data = response.json()
             return response_data.get("data", {}).get("token")
         else:
-            print(f"Error getting token: {response.status_code} - " f"{response.text}")
+            print(
+                f"Error getting token: {response.status_code} - "
+                f"{response.text}"
+            )
             return None
     except Exception as e:
         print(f"Exception getting token: {e}")
@@ -79,8 +86,12 @@ def get_access_token(game_code=None, env_name=None):
 
 if __name__ == "__main__":
     # Get arguments from command line or environment variables
-    game_code = os.getenv("GAME_CODE") or (sys.argv[1] if len(sys.argv) > 1 else None)
-    env_name = os.getenv("ENV_NAME") or (sys.argv[2] if len(sys.argv) > 2 else None)
+    game_code = os.getenv("GAME_CODE") or (
+        sys.argv[1] if len(sys.argv) > 1 else None
+    )
+    env_name = os.getenv("ENV_NAME") or (
+        sys.argv[2] if len(sys.argv) > 2 else None
+    )
 
     # Get fresh token
     accessToken = get_access_token(game_code, env_name)

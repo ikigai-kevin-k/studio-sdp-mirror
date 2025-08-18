@@ -33,7 +33,9 @@ async def test_sbo_001_device_info():
     """Test sending device info to SBO-001 table (Sicbo Game)."""
 
     # Load configuration from ws.json
-    config_path = os.path.join(os.path.dirname(__file__), "..", "conf", "ws.json")
+    config_path = os.path.join(
+        os.path.dirname(__file__), "..", "conf", "ws.json"
+    )
     try:
         with open(config_path, "r", encoding="utf-8") as f:
             config = json.load(f)
@@ -58,7 +60,9 @@ async def test_sbo_001_device_info():
 
     # Create client for SBO-001
     table_id = "SBO-001"
-    client = SmartStudioWebSocketClient(SERVER_URL, table_id, DEVICE_NAME, TOKEN)
+    client = SmartStudioWebSocketClient(
+        SERVER_URL, table_id, DEVICE_NAME, TOKEN
+    )
 
     try:
         # Connect to SBO-001
@@ -68,7 +72,9 @@ async def test_sbo_001_device_info():
             return
 
         logger.info(f"✅ Successfully connected to {table_id}")
-        logger.info("🎲 SBO-001 is a Sicbo Game table - testing relevant devices only")
+        logger.info(
+            "🎲 SBO-001 is a Sicbo Game table - testing relevant devices only"
+        )
 
         # Test 1: Send individual device status updates (Sicbo Game devices)
         logger.info(
@@ -118,7 +124,9 @@ async def test_sbo_001_device_info():
         await asyncio.sleep(1.0)
 
         # Test 2: Send multiple updates at once (Sicbo Game devices)
-        logger.info("\n📤 Test 2: Sending multiple updates at once (Sicbo Game)...")
+        logger.info(
+            "\n📤 Test 2: Sending multiple updates at once (Sicbo Game)..."
+        )
 
         multiple_updates = {
             "sdp": StudioServiceStatusEnum.get_random_status(),
@@ -130,12 +138,16 @@ async def test_sbo_001_device_info():
         }
 
         await client.send_multiple_updates(multiple_updates)
-        logger.info(f"   - Sent {len(multiple_updates)} updates simultaneously")
+        logger.info(
+            f"   - Sent {len(multiple_updates)} updates simultaneously"
+        )
 
         await asyncio.sleep(1.0)
 
         # Test 3: Send specific status combinations (Sicbo Game devices)
-        logger.info("\n📤 Test 3: Sending specific status combinations (Sicbo Game)...")
+        logger.info(
+            "\n📤 Test 3: Sending specific status combinations (Sicbo Game)..."
+        )
 
         # All devices UP
         all_up = {

@@ -26,12 +26,18 @@ class ColorfulLogger(logging.Logger):
         terminal_handler.setFormatter(terminal_formatter)
 
         # Setup terminal output log file handler
-        terminal_file_handler = logging.FileHandler("./terminal_output.log", mode="w")
+        terminal_file_handler = logging.FileHandler(
+            "./terminal_output.log", mode="w"
+        )
         terminal_file_handler.setFormatter(terminal_formatter)
 
         # Setup serial data log file handler
-        serial_file_handler = logging.FileHandler("./serial_data.log", mode="w")
-        serial_file_handler.setFormatter(logging.Formatter("%(asctime)s - %(message)s"))
+        serial_file_handler = logging.FileHandler(
+            "./serial_data.log", mode="w"
+        )
+        serial_file_handler.setFormatter(
+            logging.Formatter("%(asctime)s - %(message)s")
+        )
 
         # Setup logger
         self.setLevel(logging.INFO)

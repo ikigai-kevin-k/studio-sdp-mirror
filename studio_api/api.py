@@ -18,7 +18,9 @@ def healthcheck_get_v1():
 
     # Make GET request to healthcheck endpoint
     response = requests.get(
-        f"{STUDIO_API_BASE_URL}/v1/service/healthcheck", headers=headers, verify=False
+        f"{STUDIO_API_BASE_URL}/v1/service/healthcheck",
+        headers=headers,
+        verify=False,
     )
 
     # Check if the response status code indicates success

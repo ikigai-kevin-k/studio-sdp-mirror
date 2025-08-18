@@ -63,7 +63,9 @@ class SerialController:
             self.logger.error(f"Error writing to serial port: {e}")
         return False
 
-    def send_command_and_wait(self, command: str, timeout: int = 2) -> Optional[str]:
+    def send_command_and_wait(
+        self, command: str, timeout: int = 2
+    ) -> Optional[str]:
         """Send command and wait for response"""
         if not self.write(command):
             return None
@@ -91,7 +93,9 @@ class SerialController:
     def check_serial_port(port: str) -> bool:
         """Check if serial port is available"""
         try:
-            result = subprocess.run(["lsof", port], capture_output=True, text=True)
+            result = subprocess.run(
+                ["lsof", port], capture_output=True, text=True
+            )
             return not bool(result.stdout)
         except Exception:
             return False

@@ -44,7 +44,9 @@ def parse_command_args(command: str) -> tuple[str, list[str]]:
     return parts[0], parts[1:] if len(parts) > 1 else []
 
 
-def validate_numeric_range(value: float, min_val: float, max_val: float) -> bool:
+def validate_numeric_range(
+    value: float, min_val: float, max_val: float
+) -> bool:
     """Validate if a numeric value is within range"""
     return min_val <= value <= max_val
 

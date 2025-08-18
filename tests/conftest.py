@@ -3,7 +3,7 @@ Pytest configuration file for mocking hardware dependencies
 """
 
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock
 import sys
 import os
 
@@ -58,6 +58,79 @@ def mock_websockets():
 
         websockets.connect = mock_connect
     except ImportError:
+        pass
+
+
+@pytest.fixture(scope="session", autouse=True)
+def mock_ws_client():
+    """Mock WebSocket client for testing environment"""
+    try:
+        # Mock the SmartStudioWebSocketClient class
+        from studio_api.ws_client import SmartStudioWebSocketClient
+
+        # Create a mock client
+        mock_client = MagicMock()
+        mock_client.connect = AsyncMock(return_value=True)
+        mock_client.disconnect = AsyncMock()
+        mock_client.send_device_status = AsyncMock()
+        mock_client.send_multiple_updates = AsyncMock()
+        mock_client.send_status_update = AsyncMock()
+        mock_client.get_server_preferences = MagicMock(
+            return_value={
+                "accepted_fields": [
+                    "sdp",
+                    "idp",
+                    "shaker",
+                    "broker",
+                    "zCam",
+                    "maintenance",
+                ],
+                "rejected_fields": [],
+            }
+        )
+        mock_client.get_sent_updates_summary = MagicMock(
+            return_value={"total_updates": 0, "updates": []}
+        )
+
+        # Store original and replace
+        original_client = SmartStudioWebSocketClient
+        SmartStudioWebSocketClient = MagicMock(return_value=mock_client)
+
+        yield mock_client
+
+        # Restore original class
+        SmartStudioWebSocketClient = original_client
+
+    except ImportError:
+        # If ws_client module is not available, create a basic mock
+        mock_client = MagicMock()
+        mock_client.connect = AsyncMock(return_value=True)
+        mock_client.disconnect = AsyncMock()
+        mock_client.send_device_status = AsyncMock()
+        mock_client.send_multiple_updates = AsyncMock()
+        mock_client.send_status_update = AsyncMock()
+        yield mock_client
+
+
+@pytest.fixture(scope="session", autouse=True)
+def mock_status_enums():
+    """Mock status enums for testing environment"""
+    try:
+        from studio_api.ws_client import (
+            StudioServiceStatusEnum,
+            StudioMaintenanceStatusEnum,
+        )
+
+        # Mock the get_random_status methods
+        StudioServiceStatusEnum.get_random_status = MagicMock(
+            side_effect=["up", "down", "standby", "up", "down"]
+        )
+        StudioMaintenanceStatusEnum.get_random_status = MagicMock(
+            return_value=False
+        )
+
+    except ImportError:
+        # If ws_client module is not available, create basic mocks
         pass
 
 

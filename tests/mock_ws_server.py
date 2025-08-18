@@ -94,8 +94,12 @@ class StudioWebSocketServer:
             token = auth_data.get("token")
 
             if not user_id or not token:
-                logger.error("Missing user ID or token in authentication message")
-                await websocket.close(1008, "Missing authentication parameters")
+                logger.error(
+                    "Missing user ID or token in authentication message"
+                )
+                await websocket.close(
+                    1008, "Missing authentication parameters"
+                )
                 return
 
             # Extract table ID from user ID (format: TABLE_ID_DEVICE_NAME_...)
@@ -195,9 +199,13 @@ class StudioWebSocketServer:
 
     async def start(self):
         """Start the WebSocket server."""
-        logger.info(f"Starting WebSocket server on ws://{self.host}:{self.port}")
+        logger.info(
+            f"Starting WebSocket server on ws://{self.host}:{self.port}"
+        )
 
-        async with websockets.serve(self.handle_connection, self.host, self.port):
+        async with websockets.serve(
+            self.handle_connection, self.host, self.port
+        ):
             logger.info("WebSocket server started successfully")
             await asyncio.Future()  # Run forever
 

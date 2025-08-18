@@ -24,7 +24,9 @@ try:
         df = df.iloc[1:].reset_index(drop=True)  # If yes, remove the first row
 
     # Convert timestamp column to datetime objects, explicitly specify format
-    df["timestamp"] = pd.to_datetime(df["timestamp"], format="%Y-%m-%d %H:%M:%S.%f")
+    df["timestamp"] = pd.to_datetime(
+        df["timestamp"], format="%Y-%m-%d %H:%M:%S.%f"
+    )
 
     # Convert other columns to numeric type
     for col in df.columns[1:]:
@@ -46,7 +48,9 @@ try:
     )
 
     print(f"Dataset size: {df.shape}")
-    print(f"Dataset time range: {df['timestamp'].min()} to {df['timestamp'].max()}")
+    print(
+        f"Dataset time range: {df['timestamp'].min()} to {df['timestamp'].max()}"
+    )
 
     # Basic statistical information
     print("\nBasic statistical information:")
@@ -122,7 +126,11 @@ try:
     plt.figure(figsize=(10, 8))
     correlation_matrix = df[columns_to_plot].corr()
     sns.heatmap(
-        correlation_matrix, annot=True, cmap="coolwarm", fmt=".2f", linewidths=0.5
+        correlation_matrix,
+        annot=True,
+        cmap="coolwarm",
+        fmt=".2f",
+        linewidths=0.5,
     )
     plt.title("Correlation Analysis of Processing Stages", fontsize=16)
     plt.tight_layout()
@@ -133,7 +141,9 @@ try:
 
     # Calculate moving average (window size = 10)
     window_size = 10
-    df["total_time_moving_avg"] = df["total_time"].rolling(window=window_size).mean()
+    df["total_time_moving_avg"] = (
+        df["total_time"].rolling(window=window_size).mean()
+    )
 
     plt.plot(
         df["timestamp"],
@@ -151,7 +161,9 @@ try:
         color="red",
     )
 
-    plt.title("Total Processing Time Trend Analysis (Moving Average)", fontsize=16)
+    plt.title(
+        "Total Processing Time Trend Analysis (Moving Average)", fontsize=16
+    )
     plt.xlabel("Time", fontsize=14)
     plt.ylabel("Time (seconds)", fontsize=14)
     plt.grid(True, linestyle="--", alpha=0.7)

@@ -123,7 +123,9 @@ def test_banker_dealing():
         player_third_card = None
         if len(player_cards) > 2:
             player_third_card = CARD_VALUES[player_cards[2]]
-        result = banker_draw_rule(banker_cards, player_cards, player_third_card)
+        result = banker_draw_rule(
+            banker_cards, player_cards, player_third_card
+        )
         print(
             f"Test {idx+1}: Player {player_cards}, Banker {banker_cards} => Banker Draw? {result} (Expected: {expected})",
             end=" ",

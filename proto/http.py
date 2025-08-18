@@ -40,7 +40,9 @@ class HTTPClient:
                 if response.status in (200, 201):
                     return True, result
                 else:
-                    self.logger.error(f"HTTP error {response.status}: {result}")
+                    self.logger.error(
+                        f"HTTP error {response.status}: {result}"
+                    )
                     return False, result
         except Exception as e:
             self.logger.error(f"Request error: {e}")

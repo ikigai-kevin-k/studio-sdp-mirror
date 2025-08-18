@@ -92,7 +92,9 @@ def start_post_v2(url, token):
     }
 
     data = {}
-    response = requests.post(f"{url}/start", headers=headers, json=data, verify=False)
+    response = requests.post(
+        f"{url}/start", headers=headers, json=data, verify=False
+    )
 
     if response.status_code != 200:
         print(f"Error starting game: {response.status_code} - {response.text}")
@@ -106,7 +108,9 @@ def start_post_v2(url, token):
             .get("tableRound", {})
             .get("roundId")
         )
-        bet_period = response_data.get("data", {}).get("table", {}).get("betPeriod")
+        bet_period = (
+            response_data.get("data", {}).get("table", {}).get("betPeriod")
+        )
 
         if not round_id:
             print("Error: roundId not found in response.")
@@ -137,10 +141,14 @@ def deal_post_v2(url, token, round_id, result):
 
     data = {"roundId": f"{round_id}", "sicBo": result}
 
-    response = requests.post(f"{url}/deal", headers=headers, json=data, verify=False)
+    response = requests.post(
+        f"{url}/deal", headers=headers, json=data, verify=False
+    )
 
     if response.status_code != 200:
-        print(f"Error sending deal result: {response.status_code} - {response.text}")
+        print(
+            f"Error sending deal result: {response.status_code} - {response.text}"
+        )
         return False
 
     print(f"Deal result sent successfully: {result}")
@@ -159,10 +167,14 @@ def finish_post_v2(url, token):
     }
 
     data = {}
-    response = requests.post(f"{url}/finish", headers=headers, json=data, verify=False)
+    response = requests.post(
+        f"{url}/finish", headers=headers, json=data, verify=False
+    )
 
     if response.status_code != 200:
-        print(f"Error finishing game: {response.status_code} - {response.text}")
+        print(
+            f"Error finishing game: {response.status_code} - {response.text}"
+        )
         return False
 
     print("Game finished successfully.")
@@ -266,7 +278,9 @@ async def on_barcode_scanned(barcode):
         )  # Add 2 seconds buffer for safety
 
         if remaining_time > 0:
-            print(f"Waiting {remaining_time:.1f} seconds for bet period to end...")
+            print(
+                f"Waiting {remaining_time:.1f} seconds for bet period to end..."
+            )
             await asyncio.sleep(remaining_time)
         else:
             # If we've already passed the bet period, wait a bit more to ensure server is ready
@@ -327,7 +341,10 @@ async def main():
 
     # 1. Prepare GameConfig (adjust as needed)
     config = GameConfig(
-        room_id="test", broker_host="", broker_port=1883, game_type=GameType.BACCARAT
+        room_id="test",
+        broker_host="",
+        broker_port=1883,
+        game_type=GameType.BACCARAT,
     )
     # 2. Initialize BarcodeController
     barcode_controller = BarcodeController(config)
@@ -345,7 +362,9 @@ async def main():
         return
 
     # 6. Start barcode scanning
-    await barcode_controller.initialize(device_path, callback=on_barcode_scanned)
+    await barcode_controller.initialize(
+        device_path, callback=on_barcode_scanned
+    )
     print("Barcode self-test started. Please scan barcodes (Ctrl+C to exit).")
     print(
         "Game flow: Game started -> Scan 3 barcodes -> Wait for bet period -> Deal result -> Finish game -> Start new game"

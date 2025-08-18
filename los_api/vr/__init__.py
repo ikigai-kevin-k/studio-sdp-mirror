@@ -2,7 +2,12 @@
 # This file makes the vr directory a Python package
 
 # Import commonly used functions for convenience
-from .api_v2_vr import start_post_v2, deal_post_v2, finish_post_v2, broadcast_post_v2
+from .api_v2_vr import (
+    start_post_v2,
+    deal_post_v2,
+    finish_post_v2,
+    broadcast_post_v2,
+)
 
 from .api_v2_uat_vr import (
     start_post_v2_uat,

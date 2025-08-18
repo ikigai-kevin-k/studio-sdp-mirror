@@ -25,7 +25,9 @@ def start_post_v2(url, token):
 
     # Define payload for the POST request
     data = {}
-    response = requests.post(f"{url}/start", headers=headers, json=data, verify=False)
+    response = requests.post(
+        f"{url}/start", headers=headers, json=data, verify=False
+    )
 
     # Check if the response status code indicates success
     if response.status_code != 200:
@@ -80,7 +82,9 @@ def deal_post_v2(url, token, round_id, result):
         "sicBo": result,
     }
 
-    response = requests.post(f"{url}/deal", headers=headers, json=data, verify=False)
+    response = requests.post(
+        f"{url}/deal", headers=headers, json=data, verify=False
+    )
 
     if response.status_code != 200:
         print("====================")
@@ -105,7 +109,9 @@ def finish_post_v2(url, token):
         "Connection": "close",
     }
     data = {}
-    response = requests.post(f"{url}/finish", headers=headers, json=data, verify=False)
+    response = requests.post(
+        f"{url}/finish", headers=headers, json=data, verify=False
+    )
     json_str = json.dumps(response.json(), indent=2)
 
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
@@ -206,7 +212,9 @@ def pause_post_v2(url, token, reason):
 
     data = {"reason": reason}  # for example: "cannot drive the dice shaker"
 
-    response = requests.post(f"{url}/pause", headers=headers, json=data, verify=False)
+    response = requests.post(
+        f"{url}/pause", headers=headers, json=data, verify=False
+    )
     json_str = json.dumps(response.json(), indent=2)
 
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
@@ -224,7 +232,9 @@ def resume_post(url, token):
     }
 
     data = {}  # Empty payload as per API specification
-    response = requests.post(f"{url}/resume", headers=headers, json=data, verify=False)
+    response = requests.post(
+        f"{url}/resume", headers=headers, json=data, verify=False
+    )
     json_str = json.dumps(response.json(), indent=2)
 
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
@@ -254,7 +264,10 @@ def sdp_config_post(url, token, config_data):
     }
 
     response = requests.post(
-        f"{base_url}/sdp-config", headers=headers, json=config_data, verify=False
+        f"{base_url}/sdp-config",
+        headers=headers,
+        json=config_data,
+        verify=False,
     )
 
     # Format and display the response
@@ -290,7 +303,9 @@ def get_sdp_config(url, token):
 
     try:
         response_data = response.json()
-        sdp_config = response_data.get("data", {}).get("table", {}).get("sdpConfig", {})
+        sdp_config = (
+            response_data.get("data", {}).get("table", {}).get("sdpConfig", {})
+        )
 
         strings = sdp_config.get("strings")
         number = sdp_config.get("number")
@@ -498,7 +513,7 @@ if __name__ == "__main__":
 
         print("================Deal================\n")
         # time.sleep(13)
-        time.sleep(5)
+        # time.sleep(5)
         deal_post_v2(post_url, token, round_id, results)
         print("================Finish================\n")
         finish_post_v2(post_url, token)

@@ -148,7 +148,9 @@ class TestStudioWebSocketServer:
         assert "token" not in params
 
     @pytest.mark.asyncio
-    async def test_handle_connection_missing_auth(self, server, mock_websocket):
+    async def test_handle_connection_missing_auth(
+        self, server, mock_websocket
+    ):
         """Test connection handling with missing authentication."""
 
         # Mock recv to return invalid auth data
@@ -168,7 +170,9 @@ class TestStudioWebSocketServer:
 
         # Mock recv to return valid auth data
         mock_websocket.recv = AsyncMock(
-            return_value=json.dumps({"id": "ARO-001_dealerPC", "token": "MY_TOKEN"})
+            return_value=json.dumps(
+                {"id": "ARO-001_dealerPC", "token": "MY_TOKEN"}
+            )
         )
 
         # Mock the message loop to avoid infinite loop
@@ -196,7 +200,9 @@ class TestStudioWebSocketServer:
         assert sent_data["IDP"] == StudioServiceStatusEnum.STANDBY
 
     @pytest.mark.asyncio
-    async def test_handle_status_update_service_status(self, server, mock_websocket):
+    async def test_handle_status_update_service_status(
+        self, server, mock_websocket
+    ):
         """Test handling service status update message."""
         # Setup initial status
         table_id = "ARO-001"
@@ -229,7 +235,9 @@ class TestStudioWebSocketServer:
         assert response["table_id"] == table_id
 
     @pytest.mark.asyncio
-    async def test_handle_status_update_device_status(self, server, mock_websocket):
+    async def test_handle_status_update_device_status(
+        self, server, mock_websocket
+    ):
         """Test handling device status update message."""
         # Setup initial status
         table_id = "ARO-001"
@@ -249,20 +257,30 @@ class TestStudioWebSocketServer:
         )
 
         message = json.dumps(
-            {"roulette": StudioDeviceStatusEnum.UP, "shaker": StudioDeviceStatusEnum.UP}
+            {
+                "roulette": StudioDeviceStatusEnum.UP,
+                "shaker": StudioDeviceStatusEnum.UP,
+            }
         )
 
         await server._handle_status_update(mock_websocket, table_id, message)
 
         # Check that status was updated
-        assert server.studio_status[table_id].ROULETTE == StudioDeviceStatusEnum.UP
-        assert server.studio_status[table_id].SHAKER == StudioDeviceStatusEnum.UP
+        assert (
+            server.studio_status[table_id].ROULETTE
+            == StudioDeviceStatusEnum.UP
+        )
+        assert (
+            server.studio_status[table_id].SHAKER == StudioDeviceStatusEnum.UP
+        )
 
         # Check that uptime was incremented
         assert server.studio_status[table_id].UPTIME == 1
 
     @pytest.mark.asyncio
-    async def test_handle_status_update_invalid_json(self, server, mock_websocket):
+    async def test_handle_status_update_invalid_json(
+        self, server, mock_websocket
+    ):
         """Test handling invalid JSON message."""
         table_id = "ARO-001"
         message = "invalid json message"
@@ -312,7 +330,9 @@ class TestWebSocketIntegration:
         # Simulate connection
         # Mock recv to return valid auth data
         websocket.recv = AsyncMock(
-            return_value=json.dumps({"id": "ARO-001_dealerPC", "token": "MY_TOKEN"})
+            return_value=json.dumps(
+                {"id": "ARO-001_dealerPC", "token": "MY_TOKEN"}
+            )
         )
 
         await server.handle_connection(websocket)
@@ -327,7 +347,9 @@ class TestWebSocketIntegration:
         assert status.UPTIME == 2  # Two messages processed
 
         # Verify responses were sent
-        assert websocket.send.call_count >= 3  # Initial status + 2 confirmations
+        assert (
+            websocket.send.call_count >= 3
+        )  # Initial status + 2 confirmations
 
 
 if __name__ == "__main__":
