@@ -66,6 +66,7 @@ from datetime import datetime
 # Import the update function from ws_sb_update.py
 import sys
 import os
+
 sys.path.append(os.path.join(os.path.dirname(__file__), "studio_api"))
 from ws_sb_update import update_sicbo_game_status
 
@@ -321,7 +322,9 @@ class SDPGame:
                     await update_sicbo_game_status(fast_mode=True)
                     self.logger.info("✅ Sicbo game device status updated successfully")
                 except Exception as e:
-                    self.logger.warning(f"⚠️  Failed to update Sicbo game device status: {e}")
+                    self.logger.warning(
+                        f"⚠️  Failed to update Sicbo game device status: {e}"
+                    )
                     self.logger.info("Continuing with round start...")
 
                 # send start request to all tables using thread pool for parallel execution

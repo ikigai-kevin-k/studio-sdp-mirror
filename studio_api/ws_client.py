@@ -20,17 +20,19 @@ logger = logging.getLogger(__name__)
 
 class StudioServiceStatusEnum:
     """Enumeration for Studio service status."""
-    UP = 'up'
-    DOWN = 'down'
-    STANDBY = 'standby'
-    CALIBRATION = 'calibration'
-    EXCEPTION = 'exception'
+
+    UP = "up"
+    DOWN = "down"
+    STANDBY = "standby"
+    CALIBRATION = "calibration"
+    EXCEPTION = "exception"
 
 
 class StudioDeviceStatusEnum:
     """Enumeration for Studio device status."""
-    UP = 'up'
-    DOWN = 'down'
+
+    UP = "up"
+    DOWN = "down"
 
 
 class StudioMaintenanceStatusEnum:
@@ -48,7 +50,14 @@ class StudioMaintenanceStatusEnum:
 class SmartStudioWebSocketClient:
     """Smart WebSocket client that learns from server responses."""
 
-    def __init__(self, server_url: str, table_id: str, device_name: str, token: str, fast_connect: bool = True):
+    def __init__(
+        self,
+        server_url: str,
+        table_id: str,
+        device_name: str,
+        token: str,
+        fast_connect: bool = True,
+    ):
         self.server_url = server_url
         self.table_id = table_id
         self.device_name = device_name
@@ -59,12 +68,13 @@ class SmartStudioWebSocketClient:
         self.sent_updates = []  # Track all sent updates for analysis
         self.auth_successful = False  # Track authentication status
         self.fast_connect = fast_connect  # Enable fast connection mode
+
     async def connect(self):
         """Connect to the WebSocket server."""
         try:
             # Create connection URL (without query parameters for now)
             connection_url = self.server_url
-            
+
             logger.info(f"Connecting to {connection_url}")
             self.websocket = await websockets.connect(connection_url)
             logger.info("✅ WebSocket connection established")
@@ -88,7 +98,7 @@ class SmartStudioWebSocketClient:
 
             # Always return True to allow testing to continue
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to connect: {e}")
             return False
@@ -165,13 +175,13 @@ class SmartStudioWebSocketClient:
             logger.info(
                 f"📝 Unknown response format: " f"{type(response)} - {response}"
             )
-    
+
     async def send_status_update(self, status_data: Dict[str, Any]):
         """Send status update to the server."""
         if not self.websocket:
             logger.error("Not connected to server")
             return False
-        
+
         try:
             # Send status update
             message = json.dumps(status_data)
@@ -185,25 +195,25 @@ class SmartStudioWebSocketClient:
             else:
                 logger.warning("⚠️  No response received for status update")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to send status update: {e}")
             return False
-    
+
     async def send_service_status(self, service: str, status: str):
         """Send service status update."""
         status_data = {service.lower(): status}
         return await self.send_status_update(status_data)
-    
+
     async def send_device_status(self, device: str, status: str):
         """Send device status update."""
         status_data = {device.lower(): status}
         return await self.send_status_update(status_data)
-    
+
     async def send_multiple_updates(self, updates: Dict[str, str]):
         """Send multiple status updates at once."""
         return await self.send_status_update(updates)
-    
+
     async def disconnect(self):
         """Disconnect from the server."""
         if self.websocket:
@@ -213,68 +223,68 @@ class SmartStudioWebSocketClient:
 
 async def demo_status_updates():
     """Demonstrate various status update scenarios."""
-    
+
     # Client configuration
     SERVER_URL = "ws://localhost:8080"
     TABLE_ID = "ARO-001"
     DEVICE_NAME = "dealerPC"
     TOKEN = "MY_TOKEN"
-    
+
     # Create client
     client = SmartStudioWebSocketClient(SERVER_URL, TABLE_ID, DEVICE_NAME, TOKEN)
-    
+
     try:
         # Connect to server
         if not await client.connect():
             logger.error("Failed to connect to server")
             return
-        
+
         logger.info("Starting status update demonstration...")
-        
+
         # 1. Send service status updates
         logger.info("\n--- Service Status Updates ---")
         await client.send_service_status("SDP", StudioServiceStatusEnum.UP)
         await asyncio.sleep(1)
-        
+
         await client.send_service_status("IDP", StudioServiceStatusEnum.STANDBY)
         await asyncio.sleep(1)
-        
+
         # 2. Send device status updates
         logger.info("\n--- Device Status Updates ---")
         await client.send_device_status("ROULETTE", StudioDeviceStatusEnum.UP)
         await asyncio.sleep(1)
-        
+
         await client.send_device_status("SHAKER", StudioDeviceStatusEnum.DOWN)
         await asyncio.sleep(1)
-        
+
         await client.send_device_status("BROKER", StudioDeviceStatusEnum.UP)
         await asyncio.sleep(1)
-        
+
         # 3. Send multiple updates at once
         logger.info("\n--- Multiple Updates ---")
         multiple_updates = {
             "zcam": StudioDeviceStatusEnum.UP,
             "barcode_scanner": StudioDeviceStatusEnum.UP,
-            "nfc_scanner": StudioDeviceStatusEnum.DOWN
+            "nfc_scanner": StudioDeviceStatusEnum.DOWN,
         }
         await client.send_multiple_updates(multiple_updates)
         await asyncio.sleep(1)
-        
+
         # 4. Send maintenance mode
         logger.info("\n--- Maintenance Mode ---")
         await client.send_status_update({"maintenance": True})
         await asyncio.sleep(1)
-        
+
         # 5. Send calibration status
         logger.info("\n--- Calibration Status ---")
         await client.send_service_status("SDP", StudioServiceStatusEnum.CALIBRATION)
         await asyncio.sleep(1)
-        
+
         logger.info("\nStatus update demonstration completed!")
-        
+
     except Exception as e:
         logger.error(f"Error during demonstration: {e}")
-    
+
     finally:
         # Disconnect from server
         await client.disconnect()
@@ -282,22 +292,22 @@ async def demo_status_updates():
 
 async def interactive_mode():
     """Interactive mode for manual status updates."""
-    
+
     # Client configuration
     SERVER_URL = "ws://localhost:8080"
     TABLE_ID = "ARO-001"
     DEVICE_NAME = "dealerPC"
     TOKEN = "MY_TOKEN"
-    
+
     # Create client
     client = SmartStudioWebSocketClient(SERVER_URL, TABLE_ID, DEVICE_NAME, TOKEN)
-    
+
     try:
         # Connect to server
         if not await client.connect():
             logger.error("Failed to connect to server")
             return
-        
+
         logger.info("Interactive mode started. Type 'quit' to exit.")
         logger.info("Available commands:")
         logger.info("  sdp <status>     - Update SDP service status")
@@ -310,37 +320,47 @@ async def interactive_mode():
         logger.info("  nfc <status>     - Update NFC scanner status")
         logger.info("  custom <json>    - Send custom JSON update")
         logger.info("  quit             - Exit")
-        
+
         while True:
             try:
                 command = input("\nEnter command: ").strip()
-                
-                if command.lower() == 'quit':
+
+                if command.lower() == "quit":
                     break
-                
+
                 parts = command.split()
                 if len(parts) < 2:
                     logger.info("Invalid command format. Use: <device> <status>")
                     continue
-                
+
                 device = parts[0].lower()
                 status = parts[1].lower()
-                
+
                 # Validate status values
-                valid_service_statuses = ['up', 'down', 'standby', 'calibration', 'exception']
-                valid_device_statuses = ['up', 'down']
-                
-                if device in ['sdp', 'idp']:
+                valid_service_statuses = [
+                    "up",
+                    "down",
+                    "standby",
+                    "calibration",
+                    "exception",
+                ]
+                valid_device_statuses = ["up", "down"]
+
+                if device in ["sdp", "idp"]:
                     if status not in valid_service_statuses:
-                        logger.error(f"Invalid service status. Use: {', '.join(valid_service_statuses)}")
+                        logger.error(
+                            f"Invalid service status. Use: {', '.join(valid_service_statuses)}"
+                        )
                         continue
                 else:
                     if status not in valid_device_statuses:
-                        logger.error(f"Invalid device status. Use: {', '.join(valid_device_statuses)}")
+                        logger.error(
+                            f"Invalid device status. Use: {', '.join(valid_device_statuses)}"
+                        )
                         continue
-                
+
                 # Send status update
-                if device == 'custom':
+                if device == "custom":
                     try:
                         custom_data = json.loads(status)
                         await client.send_status_update(custom_data)
@@ -348,15 +368,15 @@ async def interactive_mode():
                         logger.error("Invalid JSON format")
                 else:
                     await client.send_device_status(device, status)
-                
+
             except KeyboardInterrupt:
                 break
             except Exception as e:
                 logger.error(f"Error processing command: {e}")
-        
+
     except Exception as e:
         logger.error(f"Error in interactive mode: {e}")
-    
+
     finally:
         # Disconnect from server
         await client.disconnect()
@@ -365,7 +385,7 @@ async def interactive_mode():
 async def main():
     """Main function."""
     import sys
-    
+
     if len(sys.argv) > 1 and sys.argv[1] == "--interactive":
         await interactive_mode()
     else:
