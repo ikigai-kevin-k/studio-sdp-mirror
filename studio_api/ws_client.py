@@ -11,7 +11,7 @@ import logging
 import random
 import websockets
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -229,6 +229,22 @@ class SmartStudioWebSocketClient:
     async def send_multiple_updates(self, updates: Dict[str, str]):
         """Send multiple status updates at once."""
         return await self.send_status_update(updates)
+
+    def get_server_preferences(self) -> Dict[str, List[str]]:
+        """Get learned server preferences."""
+        return {
+            "accepted_fields": list(self.accepted_fields),
+            "rejected_fields": list(self.rejected_fields),
+        }
+
+    def get_sent_updates_summary(self) -> Dict[str, Any]:
+        """Get summary of all sent updates for analysis."""
+        return {
+            "total_updates": len(self.sent_updates),
+            "updates": self.sent_updates,
+            "accepted_fields": list(self.accepted_fields),
+            "rejected_fields": list(self.rejected_fields),
+        }
 
     async def disconnect(self):
         """Disconnect from the server."""
