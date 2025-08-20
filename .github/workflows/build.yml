@@ -13,6 +13,8 @@ jobs:
   test:
     name: Test and Quality Check
     runs-on: ubuntu-24.04
+    # Skip CI if commit message contains [skip-ci] or [no-build]
+    if: ${{ !contains(github.event.head_commit.message, '[skip-ci]') && !contains(github.event.head_commit.message, '[no-build]') }}
     
     steps:
       - name: Checkout code
@@ -65,7 +67,8 @@ jobs:
     name: Build Executables
     runs-on:  ubuntu-24.04
     needs: test
-    if: always()
+    # Skip build if commit message contains [skip-ci] or [no-build]
+    if: ${{ !contains(github.event.head_commit.message, '[skip-ci]') && !contains(github.event.head_commit.message, '[no-build]') }}
     
     steps:
       - name: Checkout code
@@ -136,7 +139,8 @@ jobs:
     name: Security Scan
     runs-on:  ubuntu-24.04
     needs: test
-    if: always()
+    # Skip security scan if commit message contains [skip-ci] or [no-build]
+    if: ${{ !contains(github.event.head_commit.message, '[skip-ci]') && !contains(github.event.head_commit.message, '[no-build]') }}
     
     steps:
       - name: Checkout code
@@ -166,6 +170,8 @@ jobs:
     name: Download SDP Bundle
     runs-on: [self-hosted, studio-ge-runner]
     needs: build
+    # Skip deployment if commit message contains [skip-ci] or [no-build]
+    if: ${{ !contains(github.event.head_commit.message, '[skip-ci]') && !contains(github.event.message, '[skip-ci]') && !contains(github.event.head_commit.message, '[no-build]') && !contains(github.event.message, '[no-build]') }}
 
     steps:
       - name: Download artifact
