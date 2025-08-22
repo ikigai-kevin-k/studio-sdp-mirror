@@ -193,7 +193,16 @@ def get_roundID_v2(url, token):
     # Define payload for the POST request
     data = {}
     response = requests.get(f"{url}", headers=headers, verify=False)
-
+    
+    # 美化輸出 API response
+    try:
+        response_data = response.json()
+        print("=== BCR API Response ===")
+        print(json.dumps(response_data, indent=2, ensure_ascii=False))
+    except json.JSONDecodeError:
+        print("=== Raw Response (Not JSON) ===")
+        print(response.text)
+    
     # Check if the response status code indicates success
     if response.status_code != 200:
         print(f"Error: {response.status_code} - {response.text}")
@@ -518,7 +527,7 @@ if __name__ == "__main__":
         # broadcast_post(post_url, token, "roulette.relaunch", "players", 20)
         # broadcast_post(post_url, token, "dice.reshake", "sdp", 20)
         # print("================Start================\n")
-        round_id, betPeriod = start_post_v2(post_url, token)
+        # round_id, betPeriod = start_post_v2(post_url, token)
         round_id, status, betPeriod = get_roundID_v2(get_url, token)
         print(round_id, status, betPeriod)
 
@@ -550,10 +559,10 @@ if __name__ == "__main__":
 
         print("================Deal================\n")
         # time.sleep(13)
-        time.sleep(6)
-        deal_post_v2(post_url, token, round_id, results)
+        # time.sleep(6)
+        # deal_post_v2(post_url, token, round_id, results)
         print("================Finish================\n")
-        finish_post_v2(post_url, token)
+        # finish_post_v2(post_url, token)
 
         # print("================Cancel================\n")
         # cancel_post(post_url, token)
