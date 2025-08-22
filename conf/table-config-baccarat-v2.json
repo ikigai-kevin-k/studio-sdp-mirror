@@ -1,33 +1,11 @@
 [
     {
-        "name": "CIT",
+        "name": "CIT_BCR",
         "get_url": "https://crystal-table.iki-cit.cc/v2/service/tables/",
         "post_url": "https://crystal-table.iki-cit.cc/v2/service/tables/",
-        "game_code": "SBO-001"
-    },
-    {
-        "name": "UAT",
-        "get_url": "https://crystal-table.iki-uat.cc/v2/service/tables/",
-        "post_url": "https://crystal-table.iki-uat.cc/v2/service/tables/",
-        "game_code": "SBO-001"
-    },
-    {
-        "name": "PRD",
-        "get_url": "https://crystal-los.crystal.live/v2/service/tables/",
-        "post_url": "https://crystal-los.crystal.live/v2/service/tables/",
-        "game_code": "SBO-001"
-    },
-    {
-        "name": "STG",
-        "get_url": "https://crystal-los.iki-stg.cc/v2/service/tables/",
-        "post_url": "https://crystal-los.iki-stg.cc/v2/service/tables/",
-        "game_code": "SBO-001"
-    },
-    {
-        "name": "QAT",
-        "get_url": "https://crystal-table.iki-qat.cc/v2/service/tables/",
-        "post_url": "https://crystal-table.iki-qat.cc/v2/service/tables/",
-        "game_code": "SBO-001"
+        "game_code": "BCR-001",
+        "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI2N2MyYjk5Mi1lOGEyLTQ4NWQtODA5Ni05ZTIxY2VjMjBmMTciLCJnYW1lQ29kZSI6WyJCQ1ItMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NTMzMjY2NDYyOTIsImlhdCI6MTc1MzMyNjY0Nn0.TwSFQybSKOqOwsBrHBRZYST3CGxwEUpJJA9a8-h_jXw",
+        "table_token": "E5LN4END9Q"
     }
-  ]
+]
   
