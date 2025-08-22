@@ -112,7 +112,9 @@ class BaseGameStateController:
         raise NotImplementedError
 
 
-def create_game_state_controller(game_type: GameType) -> BaseGameStateController:
+def create_game_state_controller(
+    game_type: GameType,
+) -> BaseGameStateController:
     """Factory function to create appropriate game state controller"""
     from device.roulette import RouletteStateController
     from device.sicbo import SicBoStateController

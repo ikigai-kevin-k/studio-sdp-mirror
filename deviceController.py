@@ -60,7 +60,10 @@ class IDPController(Controller):
                     "response" in response_data
                     and response_data["response"] == "result"
                 ):
-                    if "arg" in response_data and "res" in response_data["arg"]:
+                    if (
+                        "arg" in response_data
+                        and "res" in response_data["arg"]
+                    ):
                         dice_result = response_data["arg"]["res"]
                         # 檢查是否為有效的骰子結果 (三個數字)
                         if (
@@ -111,7 +114,9 @@ class IDPController(Controller):
             while (asyncio.get_event_loop().time() - start_time) < timeout:
                 # 發送檢測命令
                 self.logger.info(f"Sending detect command (attempt {attempt})")
-                self.mqtt_client.publish("ikg/idp/dice/command", json.dumps(command))
+                self.mqtt_client.publish(
+                    "ikg/idp/dice/command", json.dumps(command)
+                )
 
                 # 等待回應的小循環
                 wait_end = min(
@@ -137,7 +142,9 @@ class IDPController(Controller):
                 f"No valid response received within {elapsed:.2f}s after {attempt-1} attempts"
             )
             command = {"command": "timeout", "arg": {}}
-            self.mqtt_client.publish("ikg/idp/dice/command", json.dumps(command))
+            self.mqtt_client.publish(
+                "ikg/idp/dice/command", json.dumps(command)
+            )
             if self.last_response:
                 self.logger.warning(f"Last response was: {self.last_response}")
             return True, [""]  # 超時時返回預設值
@@ -205,7 +212,9 @@ class ShakerController(Controller):
                     elif payload == "S1":
                         self.logger.info("[STATUS] Shaker is SHAKING")
                     elif payload == "S2":
-                        self.logger.info("[STATUS] Shaker received SHAKE COMMAND")
+                        self.logger.info(
+                            "[STATUS] Shaker received SHAKE COMMAND"
+                        )
                     elif payload == "S90":
                         self.logger.warning(
                             "[STATUS] Shaker has MULTIPLE ERRORS in motion program"
@@ -299,17 +308,19 @@ class ShakerController(Controller):
         self.logger.info("Waiting for shaking to complete (S1 -> S0)...")
         # according to shake duration, calculate a reasonable timeout
         shake_duration = 9.59  # actual shake duration
-        network_delay = 2.0    # estimated network delay
+        network_delay = 2.0  # estimated network delay
         timeout = shake_duration + network_delay  # about 12 seconds
-        
-        self.logger.info(f"Expected shake duration: {shake_duration}s, timeout set to: {timeout}s")
-        
+
+        self.logger.info(
+            f"Expected shake duration: {shake_duration}s, timeout set to: {timeout}s"
+        )
+
         start_time = time.time()
         last_state = None
-        
+
         while (time.time() - start_time) < timeout:
             current_state = self.shaker_state
-            
+
             # record state changes
             if current_state != last_state:
                 if current_state == "S0":
@@ -320,24 +331,34 @@ class ShakerController(Controller):
                 elif current_state == "S2":
                     self.logger.info("→ Shaker is still in S2 state")
                 elif current_state == "S90":
-                    self.logger.error("⚠ Shaker has motion program errors during shaking")
+                    self.logger.error(
+                        "⚠ Shaker has motion program errors during shaking"
+                    )
                     return False
-                
+
                 last_state = current_state
-            
+
             # if shake duration exceeded, actively check state
             elapsed_time = time.time() - start_time
             if elapsed_time > shake_duration and current_state != "S0":
-                self.logger.info(f"Shake duration ({shake_duration}s) exceeded, actively checking state...")
-                self.mqtt_client.publish("ikg/sicbo/Billy-III/listens", "/state")
+                self.logger.info(
+                    f"Shake duration ({shake_duration}s) exceeded, actively checking state..."
+                )
+                self.mqtt_client.publish(
+                    "ikg/sicbo/Billy-III/listens", "/state"
+                )
                 await asyncio.sleep(0.1)  # wait for state response
-            
-            await asyncio.sleep(0.05)  # reduce to 0.05 seconds, more frequent checks
+
+            await asyncio.sleep(
+                0.05
+            )  # reduce to 0.05 seconds, more frequent checks
 
         if self.shaker_state != "S0":
             self.logger.warning("Shaking may not have completed properly")
             # even if not reaching S0, try to check shaker state one more time
-            self.logger.info("Attempting to check shaker state one more time...")
+            self.logger.info(
+                "Attempting to check shaker state one more time..."
+            )
             await asyncio.sleep(0.5)  # reduced from 1 to 0.5 second
             self.mqtt_client.publish("ikg/sicbo/Billy-III/listens", "/state")
             await asyncio.sleep(0.2)  # reduced from 0.5 to 0.2 second
@@ -351,48 +372,52 @@ class ShakerController(Controller):
 
         # ensure final state is set correctly
         if self.shaker_state == "S0":
-            self.logger.info("✓ Shake operation completed successfully with S0 state")
+            self.logger.info(
+                "✓ Shake operation completed successfully with S0 state"
+            )
         else:
             self.logger.info(f"Final shaker state: {self.shaker_state}")
-        
+
         self.logger.info(f"Shake operation completed for round {round_id}")
-        
+
         # if already S0, ensure state_received is True
         if self.shaker_state == "S0":
             self.state_received = True
-        
+
         return True
 
     async def wait_for_s0_state(self, timeout: float = 15.0) -> bool:
         """
         Wait for shaker to reach S0 (IDLE) state
-        
+
         Args:
             timeout: Maximum time to wait in seconds
-            
+
         Returns:
             True if S0 state reached, False if timeout
         """
         self.logger.info("Waiting for shaker to reach S0 (IDLE) state...")
-        
+
         # if current state is S0, return immediately
         if self.shaker_state == "S0":
             self.logger.info("✓ Shaker is already in S0 (IDLE) state")
             return True
-        
+
         # Reset state tracking
         self.state_received = False
-        
+
         # send state request once to check current state
-        self.logger.info("Sending state request to check current shaker state...")
+        self.logger.info(
+            "Sending state request to check current shaker state..."
+        )
         self.mqtt_client.publish("ikg/sicbo/Billy-III/listens", "/state")
         await asyncio.sleep(0.1)  # minimal wait time for faster response
-        
+
         # check if S0 state is received
         if self.shaker_state == "S0":
             self.logger.info("✓ Shaker reached S0 (IDLE) state")
             return True
-        
+
         # if not S0, wait for state change with minimal polling
         start_time = time.time()
         while (time.time() - start_time) < timeout:
@@ -403,16 +428,26 @@ class ShakerController(Controller):
                 self.logger.error("⚠ Shaker has motion program errors")
                 return False
             elif self.shaker_state in ["S1", "S2"]:
-                self.logger.info(f"Shaker is in {self.shaker_state} state, waiting for S0...")
-            
+                self.logger.info(
+                    f"Shaker is in {self.shaker_state} state, waiting for S0..."
+                )
+
             # only send one more state request if we haven't received any response
-            if not self.state_received and (time.time() - start_time) > 1:  # reduced from 3 to 1 second
-                self.logger.info("No state response received, sending one more state request...")
-                self.mqtt_client.publish("ikg/sicbo/Billy-III/listens", "/state")
+            if (
+                not self.state_received and (time.time() - start_time) > 1
+            ):  # reduced from 3 to 1 second
+                self.logger.info(
+                    "No state response received, sending one more state request..."
+                )
+                self.mqtt_client.publish(
+                    "ikg/sicbo/Billy-III/listens", "/state"
+                )
                 self.state_received = True  # prevent further requests
-            
-            await asyncio.sleep(0.02)  # reduced from 0.05 to 0.02 for faster response
-        
+
+            await asyncio.sleep(
+                0.02
+            )  # reduced from 0.05 to 0.02 for faster response
+
         self.logger.warning(f"Timeout waiting for S0 state after {timeout}s")
         return False
 
@@ -520,7 +555,9 @@ class BarcodeController(Controller):
 
         # 啟動掃描處理的非同步任務
         asyncio.create_task(self._read_barcode())
-        self.logger.info(f"Barcode scanner initialized with device: {device_path}")
+        self.logger.info(
+            f"Barcode scanner initialized with device: {device_path}"
+        )
 
     async def _read_barcode(self):
         """read barcode scanner data asynchronously"""
@@ -552,7 +589,9 @@ class BarcodeController(Controller):
                                             f"[LOG] ENTER detected, current_line before join: {self.current_line}"
                                         )
                                         if self.current_line:
-                                            barcode = "".join(self.current_line)
+                                            barcode = "".join(
+                                                self.current_line
+                                            )
                                             self.logger.info(
                                                 f"[LOG] Barcode to process: '{barcode}' (len={len(barcode)})"
                                             )
@@ -562,7 +601,9 @@ class BarcodeController(Controller):
                                                     f"Scanned barcode: {barcode}"
                                                 )
                                                 if self.callback:
-                                                    await self.callback(barcode)
+                                                    await self.callback(
+                                                        barcode
+                                                    )
                                             else:
                                                 self.logger.info(
                                                     f"Ignored barcode during pause: {barcode}"
@@ -585,7 +626,9 @@ class BarcodeController(Controller):
                                                 f"Ignored key during pause: {key}"
                                             )
                                         self.current_line.append(key)
-                        await asyncio.sleep(0.001)  # short sleep to avoid CPU overload
+                        await asyncio.sleep(
+                            0.001
+                        )  # short sleep to avoid CPU overload
         except Exception as e:
             import traceback
 

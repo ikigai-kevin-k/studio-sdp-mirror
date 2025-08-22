@@ -66,6 +66,7 @@ from datetime import datetime
 # Import the update function from ws_sb_update.py
 import sys
 import os
+
 sys.path.append(os.path.join(os.path.dirname(__file__), "studio_api"))
 from ws_sb_update import update_sicbo_game_status
 
@@ -80,7 +81,8 @@ from ws_sb_update import update_sicbo_game_status
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -94,7 +96,10 @@ def setup_logging(enable_logging: bool, log_dir: str):
         # set up file handler
         log_file = os.path.join(log_dir, f'SBO001_{time.strftime("%m%d")}.log')
         file_handler = logging.handlers.RotatingFileHandler(
-            log_file, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"  # 10MB
+            log_file,
+            maxBytes=10 * 1024 * 1024,
+            backupCount=5,
+            encoding="utf-8",  # 10MB
         )
 
         # set up formatter
@@ -131,7 +136,7 @@ async def start_round_for_table(table, token):
     """Start round for a single table - helper function for thread pool execution"""
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
-        
+
         if table["name"] == "CIT":
             round_id, bet_period = await retry_with_network_check(
                 start_post_v2, post_url, token
@@ -154,12 +159,12 @@ async def start_round_for_table(table, token):
             )
         else:
             return None, None
-            
+
         if round_id != -1:
             return table, round_id, bet_period
         else:
             return None, None
-            
+
     except Exception as e:
         logger.error(f"Error starting round for table {table['name']}: {e}")
         return None, None
@@ -169,7 +174,7 @@ async def deal_round_for_table(table, token, round_id, dice_result):
     """Deal round for a single table - helper function for thread pool execution"""
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
-        
+
         if table["name"] == "CIT":
             await retry_with_network_check(
                 deal_post_v2, post_url, token, round_id, dice_result
@@ -190,9 +195,9 @@ async def deal_round_for_table(table, token, round_id, dice_result):
             await retry_with_network_check(
                 deal_post_v2_qat, post_url, token, round_id, dice_result
             )
-        
+
         return table["name"], True
-        
+
     except Exception as e:
         logger.error(f"Error dealing round for table {table['name']}: {e}")
         return table["name"], False
@@ -202,30 +207,20 @@ async def finish_round_for_table(table, token):
     """Finish round for a single table - helper function for thread pool execution"""
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
-        
+
         if table["name"] == "CIT":
-            await retry_with_network_check(
-                finish_post_v2, post_url, token
-            )
+            await retry_with_network_check(finish_post_v2, post_url, token)
         elif table["name"] == "UAT":
-            await retry_with_network_check(
-                finish_post_v2_uat, post_url, token
-            )
+            await retry_with_network_check(finish_post_v2_uat, post_url, token)
         elif table["name"] == "PRD":
-            await retry_with_network_check(
-                finish_post_v2_prd, post_url, token
-            )
+            await retry_with_network_check(finish_post_v2_prd, post_url, token)
         elif table["name"] == "STG":
-            await retry_with_network_check(
-                finish_post_v2_stg, post_url, token
-            )
+            await retry_with_network_check(finish_post_v2_stg, post_url, token)
         elif table["name"] == "QAT":
-            await retry_with_network_check(
-                finish_post_v2_qat, post_url, token
-            )
-        
+            await retry_with_network_check(finish_post_v2_qat, post_url, token)
+
         return table["name"], True
-        
+
     except Exception as e:
         logger.error(f"Error finishing round for table {table['name']}: {e}")
         return table["name"], False
@@ -249,7 +244,9 @@ async def retry_with_network_check(func, *args, max_retries=5, retry_delay=5):
     while retry_count < max_retries:
         try:
             return (
-                await func(*args) if asyncio.iscoroutinefunction(func) else func(*args)
+                await func(*args)
+                if asyncio.iscoroutinefunction(func)
+                else func(*args)
             )
         except (
             ConnectionError,
@@ -290,7 +287,9 @@ class SDPGame:
         # load all table configs
         self.table_configs = load_table_config()
         self.token = "E5LN4END9Q"
-        self.logger.info(f"Loaded {len(self.table_configs)} table configurations")
+        self.logger.info(
+            f"Loaded {len(self.table_configs)} table configurations"
+        )
 
         self.stream_started = False
 
@@ -307,7 +306,9 @@ class SDPGame:
 
             # set up MQTT controller for SicBo game
             if self.config.game_type == GameType.SICBO:
-                await self.game_controller.set_mqtt_controller(self.mqtt_controller)
+                await self.game_controller.set_mqtt_controller(
+                    self.mqtt_controller
+                )
 
             self.logger.info("All controllers initialized successfully")
             return True
@@ -374,7 +375,10 @@ class SDPGame:
                         if table["name"] == "CIT":
                             round_id, status, bet_period = (
                                 await retry_with_network_check(
-                                    get_roundID_v2, get_url, self.token, max_retries=2
+                                    get_roundID_v2,
+                                    get_url,
+                                    self.token,
+                                    max_retries=2,
                                 )
                             )
                         elif table["name"] == "UAT":
@@ -423,36 +427,48 @@ class SDPGame:
                 self.logger.info("Updating Sicbo game device status...")
                 try:
                     await update_sicbo_game_status(fast_mode=True)
-                    self.logger.info("✅ Sicbo game device status updated successfully")
+                    self.logger.info(
+                        "✅ Sicbo game device status updated successfully"
+                    )
                 except Exception as e:
-                    self.logger.warning(f"⚠️  Failed to update Sicbo game device status: {e}")
+                    self.logger.warning(
+                        f"⚠️  Failed to update Sicbo game device status: {e}"
+                    )
                     self.logger.info("Continuing with round start...")
 
                 # send start request to all tables using thread pool for parallel execution
                 round_ids = []
-                self.logger.info("Starting rounds for all tables in parallel...")
-                
+                self.logger.info(
+                    "Starting rounds for all tables in parallel..."
+                )
+
                 # Create tasks for all tables
                 tasks = []
                 for table in self.table_configs:
                     task = start_round_for_table(table, self.token)
                     tasks.append(task)
-                
+
                 # Execute all tasks concurrently
                 results = await asyncio.gather(*tasks, return_exceptions=True)
-                
+
                 # Process results
                 for i, result in enumerate(results):
                     if isinstance(result, Exception):
-                        self.logger.error(f"Error starting round for table {self.table_configs[i]['name']}: {result}")
-                    elif result and result[0] and result[1]:  # Check if we got valid table and round_id
+                        self.logger.error(
+                            f"Error starting round for table {self.table_configs[i]['name']}: {result}"
+                        )
+                    elif (
+                        result and result[0] and result[1]
+                    ):  # Check if we got valid table and round_id
                         table, round_id, bet_period = result
                         round_ids.append((table, round_id, bet_period))
                         self.logger.info(
                             f"Started round {round_id} for {table['name']} with bet period {bet_period}"
                         )
                     else:
-                        self.logger.warning(f"Failed to start round for table {self.table_configs[i]['name']}")
+                        self.logger.warning(
+                            f"Failed to start round for table {self.table_configs[i]['name']}"
+                        )
 
                 if not round_ids:
                     self.logger.error("Failed to start round on any table")
@@ -463,7 +479,9 @@ class SDPGame:
                 if round_ids:
                     # use first table's round_id as recording identifier
                     first_table, first_round_id, _ = round_ids[0]
-                    await self.send_to_recorder(f"start_recording:{first_round_id}")
+                    await self.send_to_recorder(
+                        f"start_recording:{first_round_id}"
+                    )
 
                 ## wait for betting period
                 pre_shaking_duration = 2
@@ -476,20 +494,28 @@ class SDPGame:
                 if round_ids:
                     # use first table's round_id as recording identifier
                     first_table, first_round_id, _ = round_ids[0]
-                    await self.send_to_recorder(f"start_recording:{first_round_id}")
+                    await self.send_to_recorder(
+                        f"start_recording:{first_round_id}"
+                    )
 
                 # Shake command
-                self.logger.info(f"Shake command with round ID: {first_round_id}")
+                self.logger.info(
+                    f"Shake command with round ID: {first_round_id}"
+                )
                 await self.shaker_controller.shake(first_round_id)
 
                 # Wait for shaker to reach S0 state before sending detect command
                 self.logger.info("Waiting for shaker to reach S0 state...")
                 s0_reached = await self.shaker_controller.wait_for_s0_state()
-                
+
                 if not s0_reached:
-                    self.logger.warning("Shaker did not reach S0 state, but continuing with detect command...")
+                    self.logger.warning(
+                        "Shaker did not reach S0 state, but continuing with detect command..."
+                    )
                 else:
-                    self.logger.info("Shaker successfully reached S0 state, proceeding with detect command...")
+                    self.logger.info(
+                        "Shaker successfully reached S0 state, proceeding with detect command..."
+                    )
 
                 # Detect command
                 # max_retries = 3
@@ -500,7 +526,7 @@ class SDPGame:
                     self.logger.info(
                         f"Testing detect command... (attempt {retry_count + 1})"
                     )
-                    
+
                     # Log timing information
                     self.logger.info("====================")
                     self.logger.info("[DEBUG] detect command, time:")
@@ -510,15 +536,19 @@ class SDPGame:
                         str(datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")),
                     )
                     self.logger.info("====================")
-                    
+
                     detect_time = int(time.time() * 1000)
-                    success, dice_result = await self.idp_controller.detect(first_round_id)
+                    success, dice_result = await self.idp_controller.detect(
+                        first_round_id
+                    )
 
                     is_valid_result = (
                         success
                         and dice_result
                         and isinstance(dice_result, list)
-                        and all(isinstance(x, int) and x > 0 for x in dice_result)
+                        and all(
+                            isinstance(x, int) and x > 0 for x in dice_result
+                        )
                     )
 
                     # for test, temporarily set is_valid_result to False
@@ -544,21 +574,29 @@ class SDPGame:
                         self.logger.info(
                             str(int(time.time() * 1000)),
                             "HH:MM:SS.msmsms",
-                            str(datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")),
+                            str(
+                                datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+                            ),
                         )
                         self.logger.info("====================")
                         # Deal round for all tables using thread pool for parallel execution
-                        self.logger.info("Dealing rounds for all tables in parallel...")
-                        
+                        self.logger.info(
+                            "Dealing rounds for all tables in parallel..."
+                        )
+
                         # Create tasks for all tables
                         deal_tasks = []
                         for table, round_id, _ in round_ids:
-                            task = deal_round_for_table(table, self.token, round_id, dice_result)
+                            task = deal_round_for_table(
+                                table, self.token, round_id, dice_result
+                            )
                             deal_tasks.append(task)
-                        
+
                         # Execute all deal tasks concurrently
-                        deal_results = await asyncio.gather(*deal_tasks, return_exceptions=True)
-                        
+                        deal_results = await asyncio.gather(
+                            *deal_tasks, return_exceptions=True
+                        )
+
                         # Process deal results and record timing for CIT table
                         deal_time = int(time.time() * 1000)
                         self.logger.info(f"deal_time: {deal_time}")
@@ -566,36 +604,56 @@ class SDPGame:
                         self.logger.info(
                             f"[DEBUG]Detect to deal time: {detect_to_deal_time:.1f} ms"
                         )
-                        
+
                         # Log deal results
                         for i, result in enumerate(deal_results):
                             if isinstance(result, Exception):
-                                self.logger.error(f"Error dealing round for table {round_ids[i][0]['name']}: {result}")
-                            elif result and result[1]:  # Check if deal was successful
-                                self.logger.info(f"Successfully dealt round for table {result[0]}")
+                                self.logger.error(
+                                    f"Error dealing round for table {round_ids[i][0]['name']}: {result}"
+                                )
+                            elif (
+                                result and result[1]
+                            ):  # Check if deal was successful
+                                self.logger.info(
+                                    f"Successfully dealt round for table {result[0]}"
+                                )
                             else:
-                                self.logger.warning(f"Failed to deal round for table {round_ids[i][0]['name']}")
+                                self.logger.warning(
+                                    f"Failed to deal round for table {round_ids[i][0]['name']}"
+                                )
 
                         # Finish round for all tables using thread pool for parallel execution
-                        self.logger.info("Finishing rounds for all tables in parallel...")
-                        
+                        self.logger.info(
+                            "Finishing rounds for all tables in parallel..."
+                        )
+
                         # Create tasks for all tables
                         finish_tasks = []
                         for table, round_id, _ in round_ids:
                             task = finish_round_for_table(table, self.token)
                             finish_tasks.append(task)
-                        
+
                         # Execute all finish tasks concurrently
-                        finish_results = await asyncio.gather(*finish_tasks, return_exceptions=True)
-                        
+                        finish_results = await asyncio.gather(
+                            *finish_tasks, return_exceptions=True
+                        )
+
                         # Log finish results
                         for i, result in enumerate(finish_results):
                             if isinstance(result, Exception):
-                                self.logger.error(f"Error finishing round for table {round_ids[i][0]['name']}: {result}")
-                            elif result and result[1]:  # Check if finish was successful
-                                self.logger.info(f"Successfully finished round for table {result[0]}")
+                                self.logger.error(
+                                    f"Error finishing round for table {round_ids[i][0]['name']}: {result}"
+                                )
+                            elif (
+                                result and result[1]
+                            ):  # Check if finish was successful
+                                self.logger.info(
+                                    f"Successfully finished round for table {result[0]}"
+                                )
                             else:
-                                self.logger.warning(f"Failed to finish round for table {round_ids[i][0]['name']}")
+                                self.logger.warning(
+                                    f"Failed to finish round for table {round_ids[i][0]['name']}"
+                                )
                         # notify recorder to stop recording
                         await self.send_to_recorder("stop_recording")
 
@@ -622,7 +680,9 @@ class SDPGame:
                         )
                         # re-shake
                         for table in self.table_configs:
-                            post_url = f"{table['post_url']}{table['game_code']}"
+                            post_url = (
+                                f"{table['post_url']}{table['game_code']}"
+                            )
                             if table["name"] == "CIT":
                                 broadcast_post_v2(
                                     post_url,
@@ -672,9 +732,13 @@ class SDPGame:
                         retry_count += 1
                         if retry_count >= max_retries:
                             # self.logger.error("Max retries reached, cancelling round")
-                            self.logger.info("Max retries reached, pause round")
+                            self.logger.info(
+                                "Max retries reached, pause round"
+                            )
                             for table, round_id, _ in round_ids:
-                                post_url = f"{table['post_url']}{table['game_code']}"
+                                post_url = (
+                                    f"{table['post_url']}{table['game_code']}"
+                                )
 
                                 # Initialize status variables
                                 status_cit = None
@@ -691,7 +755,8 @@ class SDPGame:
                                         "IDP cannot detect  the result for 3 times",
                                     )
                                     print(
-                                        "after pause_post_v2, status_cit:", status_cit
+                                        "after pause_post_v2, status_cit:",
+                                        status_cit,
                                     )
                                 elif table["name"] == "UAT":
                                     # pause_post(post_url, self.token, "IDP cannot detect  the result for 3 times")
@@ -700,28 +765,40 @@ class SDPGame:
                                         self.token,
                                         "IDP cannot detect  the result for 3 times",
                                     )
-                                    print("after pause_post, status_uat:", status_uat)
+                                    print(
+                                        "after pause_post, status_uat:",
+                                        status_uat,
+                                    )
                                 elif table["name"] == "PRD":
                                     pause_post_v2_prd(
                                         post_url,
                                         self.token,
                                         "IDP cannot detect  the result for 3 times",
                                     )
-                                    print("after pause_post, status_prd:", status_prd)
+                                    print(
+                                        "after pause_post, status_prd:",
+                                        status_prd,
+                                    )
                                 elif table["name"] == "STG":
                                     pause_post_v2_stg(
                                         post_url,
                                         self.token,
                                         "IDP cannot detect  the result for 3 times",
                                     )
-                                    print("after pause_post, status_stg:", status_stg)
+                                    print(
+                                        "after pause_post, status_stg:",
+                                        status_stg,
+                                    )
                                 elif table["name"] == "QAT":
                                     pause_post_v2_qat(
                                         post_url,
                                         self.token,
                                         "IDP cannot detect  the result for 3 times",
                                     )
-                                    print("after pause_post, status_qat:", status_qat)
+                                    print(
+                                        "after pause_post, status_qat:",
+                                        status_qat,
+                                    )
                                 # start polling, until status is "finished" or "canceled", then start a new round
                                 while True:
 
@@ -808,7 +885,10 @@ async def amain():
         help="MQTT broker address (default: 192.168.88.180)",
     )
     parser.add_argument(
-        "--port", type=int, default=1883, help="MQTT broker port (default: 1883)"
+        "--port",
+        type=int,
+        default=1883,
+        help="MQTT broker port (default: 1883)",
     )
     parser.add_argument(
         "--game-type",
@@ -842,7 +922,8 @@ async def amain():
         help="Token for SDP config (default: E5LN4END9Q)",
     )
     parser.add_argument(
-        "-r", "--relaunch",
+        "-r",
+        "--relaunch",
         action="store_true",
         default=True,
         help="Execute api_v2_all_sb.py before running main program (default: True)",
@@ -853,47 +934,60 @@ async def amain():
     if args.relaunch:
         try:
             logger.info("Executing api_v2_all_sb.py before main program...")
-            
+
             # construct the full path of api_v2_all_sb.py
             current_dir = Path(__file__).parent
-            api_v2_all_sb_path = current_dir / "los_api" / "sb" / "api_v2_all_sb.py"
-            
+            api_v2_all_sb_path = (
+                current_dir / "los_api" / "sb" / "api_v2_all_sb.py"
+            )
+
             if api_v2_all_sb_path.exists():
                 # execute api_v2_all_sb.py
                 import subprocess
                 import sys
-                
+
                 logger.info(f"Running {api_v2_all_sb_path}")
                 result = subprocess.run(
-                    [sys.executable, str(api_v2_all_sb_path), "--mode", "parallel"],
+                    [
+                        sys.executable,
+                        str(api_v2_all_sb_path),
+                        "--mode",
+                        "parallel",
+                    ],
                     capture_output=True,
                     text=True,
                     timeout=120,  # 2 minutes timeout
-                    cwd=api_v2_all_sb_path.parent
+                    cwd=api_v2_all_sb_path.parent,
                 )
-                
+
                 if result.returncode == 0:
                     logger.info("api_v2_all_sb.py executed successfully")
                     logger.info("Output preview:")
                     # 顯示前幾行輸出
-                    output_lines = result.stdout.strip().split('\n')[:10]
+                    output_lines = result.stdout.strip().split("\n")[:10]
                     for line in output_lines:
                         logger.info(f"  {line}")
-                    if len(result.stdout.strip().split('\n')) > 10:
+                    if len(result.stdout.strip().split("\n")) > 10:
                         logger.info("  ... (output truncated)")
                 else:
-                    logger.warning(f"api_v2_all_sb.py failed with return code {result.returncode}")
+                    logger.warning(
+                        f"api_v2_all_sb.py failed with return code {result.returncode}"
+                    )
                     logger.warning(f"Error output: {result.stderr}")
-                    
+
             else:
-                logger.warning(f"api_v2_all_sb.py not found at {api_v2_all_sb_path}")
-                
+                logger.warning(
+                    f"api_v2_all_sb.py not found at {api_v2_all_sb_path}"
+                )
+
         except subprocess.TimeoutExpired:
-            logger.error("api_v2_all_sb.py execution timed out after 2 minutes")
+            logger.error(
+                "api_v2_all_sb.py execution timed out after 2 minutes"
+            )
         except Exception as e:
             logger.error(f"Error executing api_v2_all_sb.py: {e}")
             logger.info("Continuing with main program execution...")
-    
+
     # set up logging - directly use default values
     setup_logging(True, args.log_dir)
 
