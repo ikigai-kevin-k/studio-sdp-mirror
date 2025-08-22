@@ -130,10 +130,7 @@ class RouletteStateController(BaseGameStateController):
                 self.current_state = RouletteState.TABLE_CLOSED
                 self.current_data_protocol_mode = "power_setting_mode"
 
-                if (
-                    "*X:6" not in data
-                    and self.p0_delay_counter < self.P0_MAX_DELAY
-                ):
+                if "*X:6" not in data and self.p0_delay_counter < self.P0_MAX_DELAY:
                     self.p0_delay_counter += 1
                 else:
                     raise Exception(
@@ -189,9 +186,7 @@ class RouletteStateController(BaseGameStateController):
     def roulette_write_data_to_sdp(self, data):
         """Write data to SDP"""
         os.write(self.masterRoulettePort, data.encode())
-        log_with_color(
-            f"Roulette simulator sent to SDP: {data.encode().strip()}"
-        )
+        log_with_color(f"Roulette simulator sent to SDP: {data.encode().strip()}")
 
     def roulette_read_data_from_sdp(self):
         """Read data from SDP"""
@@ -355,9 +350,7 @@ class SicBoStateController(BaseGameStateController):
 
         # 呼叫 LOS API start
         headers = self._get_los_headers()
-        response = requests.post(
-            f"{self.los_url}/start", headers=headers, json={}
-        )
+        response = requests.post(f"{self.los_url}/start", headers=headers, json={})
 
         if response.status_code != 200:
             self.logger.error(
@@ -393,10 +386,7 @@ class SicBoStateController(BaseGameStateController):
         self.logger.info("Shaking dice...")
 
         # 發送搖骰子命令
-        shake_command = {
-            "command": "shake",
-            "arg": {"round_id": self.current_round_id},
-        }
+        shake_command = {"command": "shake", "arg": {"round_id": self.current_round_id}}
 
         # 等待搖骰子完成
         await asyncio.sleep(self.shake_duration)
@@ -444,10 +434,7 @@ class SicBoStateController(BaseGameStateController):
 
         # 發送結果到 LOS API
         headers = self._get_los_headers()
-        deal_data = {
-            "roundId": self.current_round_id,
-            "sicBo": self.current_result,
-        }
+        deal_data = {"roundId": self.current_round_id, "sicBo": self.current_result}
 
         deal_response = requests.post(
             f"{self.los_url}/deal", headers=headers, json=deal_data
@@ -469,9 +456,7 @@ class SicBoStateController(BaseGameStateController):
         )
 
         if finish_response.status_code != 200:
-            self.logger.error(
-                f"Failed to finish round: {finish_response.status_code}"
-            )
+            self.logger.error(f"Failed to finish round: {finish_response.status_code}")
             self.transition_to(SicBoState.ERROR)
             return
 
@@ -533,9 +518,7 @@ class BlackJackStateController(BaseGameStateController):
         pass  # To be implemented
 
 
-def create_game_state_controller(
-    game_type: GameType,
-) -> BaseGameStateController:
+def create_game_state_controller(game_type: GameType) -> BaseGameStateController:
     """Factory function to create appropriate game state controller"""
     controllers = {
         GameType.ROULETTE: RouletteStateController,
