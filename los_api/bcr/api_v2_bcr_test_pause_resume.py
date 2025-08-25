@@ -9,11 +9,12 @@ import os
 
 # Add the parent directory to path to import slack package
 current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.join(current_dir, '..', '..')
+project_root = os.path.join(current_dir, "..", "..")
 sys.path.insert(0, project_root)
 
 try:
     from slack import send_error_to_slack
+
     SLACK_AVAILABLE = True
     print("✅ Slack notifications enabled")
 except ImportError as e:
@@ -53,25 +54,25 @@ def get_access_token():
 def load_config(config_file="conf/table-config-baccarat-v2.json"):
     """
     Load configuration from JSON file
-    
+
     Args:
         config_file (str): Path to configuration file
-        
+
     Returns:
         dict: Configuration for BCR-001 table
     """
     try:
         config_path = os.path.join(project_root, config_file)
-        with open(config_path, 'r') as f:
+        with open(config_path, "r") as f:
             configs = json.load(f)
-        
+
         # Find BCR-001 configuration
         for config in configs:
             if config.get("game_code") == "BCR-001":
                 return config
-        
+
         raise ValueError("BCR-001 configuration not found in config file")
-        
+
     except FileNotFoundError:
         print(f"❌ Config file not found: {config_file}")
         return None
@@ -81,6 +82,7 @@ def load_config(config_file="conf/table-config-baccarat-v2.json"):
     except Exception as e:
         print(f"❌ Error loading config: {e}")
         return None
+
 
 # Load configuration
 config = load_config()
@@ -134,27 +136,33 @@ def start_post_v2(url, token):
     # Check if the response status code indicates success
     if response.status_code != 200:
         print(f"Error: {response.status_code} - {response.text}")
-        
+
         # Handle 403 errors
         if response.status_code == 403:
             try:
                 error_data = response.json()
                 error_code = error_data.get("error", {}).get("code")
                 error_message = error_data.get("error", {}).get("message", "")
-                
+
                 # Case 1: Round isn't finished yet (code 13003)
-                if (error_code == 13003 and 
-                    "isn't finished yet" in error_message):
-                    
-                    print("=== detected previous round not finished, auto pause and wait ===")
-                    
+                if (
+                    error_code == 13003
+                    and "isn't finished yet" in error_message
+                ):
+
+                    print(
+                        "=== detected previous round not finished, auto pause and wait ==="
+                    )
+
                     # Send Slack notification (only once)
-                    slack_message = "🚨 BCR-001 previous round not finished!\n\n" \
-                                  "Dealer needs to:\n" \
-                                  "1. Fill in the previous round result\n" \
-                                  "2. Manually finish the previous round\n\n" \
-                                  "System has automatically paused and entered waiting state..."
-                    
+                    slack_message = (
+                        "🚨 BCR-001 previous round not finished!\n\n"
+                        "Dealer needs to:\n"
+                        "1. Fill in the previous round result\n"
+                        "2. Manually finish the previous round\n\n"
+                        "System has automatically paused and entered waiting state..."
+                    )
+
                     if SLACK_AVAILABLE:
                         try:
                             send_error_to_slack(slack_message)
@@ -162,9 +170,11 @@ def start_post_v2(url, token):
                         except Exception as e:
                             print(f"❌ Slack notification failed: {e}")
                     else:
-                        print("⚠️ Slack notifications disabled - message would be:")
+                        print(
+                            "⚠️ Slack notifications disabled - message would be:"
+                        )
                         print(slack_message)
-                    
+
                     # Auto pause the table
                     pause_reason = "auto-pause-waiting-for-previous-round"
                     try:
@@ -172,24 +182,34 @@ def start_post_v2(url, token):
                         print("✅ Table has automatically paused")
                     except Exception as e:
                         print(f"❌ Auto pause failed: {e}")
-                    
+
                     # Enter idle state and wait for resume
                     return "IDLE_WAITING", pause_reason
-                
+
                 # Case 2: Table is already paused (code 13007)
-                elif (error_code == 13007 and 
-                      "table is currently paused" in error_message):
-                    
-                    print("=== detected table is already paused, waiting for resume ===")
-                    
+                elif (
+                    error_code == 13007
+                    and "table is currently paused" in error_message
+                ):
+
+                    print(
+                        "=== detected table is already paused, waiting for resume ==="
+                    )
+
                     # Extract pause reason from error message
-                    pause_reason = error_message.split("due to: ")[-1] if "due to: " in error_message else "unknown"
-                    
+                    pause_reason = (
+                        error_message.split("due to: ")[-1]
+                        if "due to: " in error_message
+                        else "unknown"
+                    )
+
                     # Send Slack notification (only once)
-                    slack_message = "⏸️ BCR-001 table is already paused!\n\n" \
-                                  f"Current pause reason: {pause_reason}\n\n" \
-                                  "System will wait for table to resume..."
-                    
+                    slack_message = (
+                        "⏸️ BCR-001 table is already paused!\n\n"
+                        f"Current pause reason: {pause_reason}\n\n"
+                        "System will wait for table to resume..."
+                    )
+
                     if SLACK_AVAILABLE:
                         try:
                             send_error_to_slack(slack_message)
@@ -197,15 +217,17 @@ def start_post_v2(url, token):
                         except Exception as e:
                             print(f"❌ Slack notification failed: {e}")
                     else:
-                        print("⚠️ Slack notifications disabled - message would be:")
+                        print(
+                            "⚠️ Slack notifications disabled - message would be:"
+                        )
                         print(slack_message)
-                    
+
                     # Enter idle state and wait for resume
                     return "IDLE_WAITING", pause_reason
-                    
+
             except json.JSONDecodeError:
                 pass  # If response is not JSON, continue with normal error handling
-        
+
         return -1, -1
 
     try:
@@ -333,7 +355,7 @@ def get_roundID_v2(url, token):
     # Define payload for the POST request
     data = {}
     response = requests.get(f"{url}", headers=headers, verify=False)
-    
+
     # 美化輸出 API response
     try:
         response_data = response.json()
@@ -342,7 +364,7 @@ def get_roundID_v2(url, token):
     except json.JSONDecodeError:
         print("=== Raw Response (Not JSON) ===")
         print(response.text)
-    
+
     # Check if the response status code indicates success
     if response.status_code != 200:
         print(f"Error: {response.status_code} - {response.text}")
@@ -389,13 +411,13 @@ def get_roundID_v2(url, token):
 def wait_for_resume(url, token, max_wait_time=300, pause_reason=None):
     """
     Wait for the table to resume from pause state
-    
+
     Args:
         url (str): API endpoint URL
         token (str): Authentication token
         max_wait_time (int): Maximum wait time in seconds (default: 5 minutes)
         pause_reason (str): Reason for the pause to track notification count
-    
+
     Returns:
         bool: True if resumed, False if timeout
     """
@@ -405,95 +427,116 @@ def wait_for_resume(url, token, max_wait_time=300, pause_reason=None):
     max_notifications = 1  # Changed to 1: send notification only once
     last_notification_time = 0
     notification_interval = 60  # Send notification every 60 seconds max
-    
+
     # Flag to track if we've already sent a pause notification
     # This prevents duplicate notifications from start_post_v2 and wait_for_resume
     pause_notification_sent = False
-    
+
     while time.time() - start_time < max_wait_time:
         try:
             # Get current table status and pause information
             round_id, status, betPeriod = get_roundID_v2(url, token)
-            
+
             # First check pause information - this is the primary indicator
             try:
-                response = requests.get(f"{url}", headers={
-                    "accept": "application/json",
-                    "Bearer": f"Bearer {token}",
-                    "x-signature": "los-local-signature",
-                    "Content-Type": "application/json",
-                    "Cookie": f"accessToken={accessToken}",
-                    "Connection": "close",
-                }, verify=False)
-                
+                response = requests.get(
+                    f"{url}",
+                    headers={
+                        "accept": "application/json",
+                        "Bearer": f"Bearer {token}",
+                        "x-signature": "los-local-signature",
+                        "Content-Type": "application/json",
+                        "Cookie": f"accessToken={accessToken}",
+                        "Connection": "close",
+                    },
+                    verify=False,
+                )
+
                 if response.status_code == 200:
                     response_data = response.json()
-                    pause_info = response_data.get("data", {}).get("table", {}).get("pause", {})
-                    
+                    pause_info = (
+                        response_data.get("data", {})
+                        .get("table", {})
+                        .get("pause", {})
+                    )
+
                     if not pause_info:  # pause is cleared - table has resumed
                         print("✅ pause status cleared, table resumed")
-                        
+
                         # Send resume notification (only once)
                         if SLACK_AVAILABLE and pause_reason:
                             try:
-                                resume_message = f"✅ SDP Status: BCR-001 table has resumed!\n\n" \
-                                               f"Previous pause reason: {pause_reason}\n" \
-                                               f"Resume time: {time.strftime('%Y-%m-%d %H:%M:%S')}\n" \
-                                               f"System is now ready for new operations."
-                                
+                                resume_message = (
+                                    f"✅ SDP Status: BCR-001 table has resumed!\n\n"
+                                    f"Previous pause reason: {pause_reason}\n"
+                                    f"Resume time: {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                                    f"System is now ready for new operations."
+                                )
+
                                 send_error_to_slack(resume_message)
                                 print("✅ Resume notification sent to Slack")
                             except Exception as e:
                                 print(f"❌ Resume notification failed: {e}")
-                        
+
                         return True
                     else:
                         # pause still exists - table is still paused
-                        current_reason = pause_info.get('reason', 'unknown')
+                        current_reason = pause_info.get("reason", "unknown")
                         print(f"⏳ Waiting... pause reason: {current_reason}")
-                        
+
                         # Send periodic notifications (max 1 time)
                         # Only send if we haven't sent a pause notification yet
                         current_time = time.time()
-                        if (SLACK_AVAILABLE and 
-                            not pause_notification_sent and 
-                            current_time - last_notification_time >= notification_interval):
-                            
+                        if (
+                            SLACK_AVAILABLE
+                            and not pause_notification_sent
+                            and current_time - last_notification_time
+                            >= notification_interval
+                        ):
+
                             try:
                                 # Send notification only once with SDP Error title
-                                notification_message = f"🚨 SDP Error: BCR-001 table is paused\n\n" \
-                                                     f"Pause reason: {current_reason}\n" \
-                                                     f"Pause time: {time.strftime('%Y-%m-%d %H:%M:%S')}\n" \
-                                                     f"System is waiting for manual intervention..."
-                                
+                                notification_message = (
+                                    f"🚨 SDP Error: BCR-001 table is paused\n\n"
+                                    f"Pause reason: {current_reason}\n"
+                                    f"Pause time: {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                                    f"System is waiting for manual intervention..."
+                                )
+
                                 send_error_to_slack(notification_message)
-                                print("✅ Pause notification sent to Slack (from wait_for_resume)")
+                                print(
+                                    "✅ Pause notification sent to Slack (from wait_for_resume)"
+                                )
                                 pause_notification_sent = True  # Mark as sent
                                 last_notification_time = current_time
-                                
+
                             except Exception as e:
                                 print(f"❌ Pause notification failed: {e}")
-                        
+
             except Exception as e:
                 print(f"⚠️ Error checking pause status: {e}")
-            
+
             # Additional status check as backup (but pause info is primary)
             if status == "PAUSED" or status == "bet-txn-stopped":
                 print(f"⏳ Table status indicates paused: {status}")
             else:
-                print(f"ℹ️ Table status: {status} (but checking pause info is primary)")
-            
+                print(
+                    f"ℹ️ Table status: {status} (but checking pause info is primary)"
+                )
+
             # Wait 10 seconds before next check
             time.sleep(10)
-            
+
             # Wait 10 seconds before next check
             time.sleep(10)
-            
+
         except Exception as e:
             print(f"⚠️ Error waiting for resume: {e}")
             time.sleep(10)
-    
-    print(f"⏰ Timeout ({max_wait_time} seconds), please check table status manually")
+
+    print(
+        f"⏰ Timeout ({max_wait_time} seconds), please check table status manually"
+    )
     return False
 
 
@@ -760,11 +803,15 @@ if __name__ == "__main__":
     print("================Start================\n")
     round_id, betPeriod = start_post_v2(post_url, token)
     round_id, betPeriod = start_post_v2(post_url, token)
-        
+
     # Check if we're in IDLE state
     if round_id == "IDLE_WAITING":
-        pause_reason = betPeriod  # betPeriod contains the pause reason in this case
-        print(f"🔄 Enter IDLE state, waiting for table to resume... (Reason: {pause_reason})")
+        pause_reason = (
+            betPeriod  # betPeriod contains the pause reason in this case
+        )
+        print(
+            f"🔄 Enter IDLE state, waiting for table to resume... (Reason: {pause_reason})"
+        )
         if wait_for_resume(get_url, token, pause_reason=pause_reason):
             print("🔄 Table has resumed, try start again...")
             round_id, betPeriod = start_post_v2(post_url, token)
@@ -775,18 +822,20 @@ if __name__ == "__main__":
                 print("❌ start failed after resume, skip this round")
                 exit(1)
             else:
-                print(f"✅ Start successful after resume: round_id={round_id}, betPeriod={betPeriod}")
+                print(
+                    f"✅ Start successful after resume: round_id={round_id}, betPeriod={betPeriod}"
+                )
         else:
             print("❌ Timeout waiting for resume, skip this round")
             exit(1)
-    
+
     # Check if start was successful
     if round_id == -1:
         print("❌ start failed, skip this round")
         exit(1)
-        
+
     print(f"✅ Start successful: round_id={round_id}, betPeriod={betPeriod}")
-        
+
     # Get current status
     _, status, _ = get_roundID_v2(get_url, token)
     print(f"Current status: {status}")

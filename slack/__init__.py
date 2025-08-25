@@ -16,18 +16,14 @@ Main components:
 from .slack_notifier import (
     SlackNotifier,
     send_error_to_slack,
-    send_success_to_slack
+    send_success_to_slack,
 )
 
 __version__ = "1.4.0"
 __author__ = "SDP Roulette Team"
 
 # Provide convenient import methods
-__all__ = [
-    "SlackNotifier",
-    "send_error_to_slack", 
-    "send_success_to_slack"
-]
+__all__ = ["SlackNotifier", "send_error_to_slack", "send_success_to_slack"]
 
 # Version information
 VERSION = __version__

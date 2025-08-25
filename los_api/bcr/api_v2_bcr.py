@@ -193,7 +193,7 @@ def get_roundID_v2(url, token):
     # Define payload for the POST request
     data = {}
     response = requests.get(f"{url}", headers=headers, verify=False)
-    
+
     # 美化輸出 API response
     try:
         response_data = response.json()
@@ -202,7 +202,7 @@ def get_roundID_v2(url, token):
     except json.JSONDecodeError:
         print("=== Raw Response (Not JSON) ===")
         print(response.text)
-    
+
     # Check if the response status code indicates success
     if response.status_code != 200:
         print(f"Error: {response.status_code} - {response.text}")

@@ -12,11 +12,13 @@ from datetime import datetime
 
 class JSONFormatter:
     """JSON 格式化器"""
-    
-    def __init__(self, indent: int = 2, width: int = 80, sort_keys: bool = True):
+
+    def __init__(
+        self, indent: int = 2, width: int = 80, sort_keys: bool = True
+    ):
         """
         初始化格式化器
-        
+
         Args:
             indent: 縮進空格數
             width: 最大行寬
@@ -25,15 +27,15 @@ class JSONFormatter:
         self.indent = indent
         self.width = width
         self.sort_keys = sort_keys
-    
+
     def format_json(self, data: Any, title: str = None) -> str:
         """
         格式化 JSON 數據
-        
+
         Args:
             data: 要格式化的數據
             title: 可選的標題
-            
+
         Returns:
             格式化後的字串
         """
@@ -44,50 +46,51 @@ class JSONFormatter:
                     data = json.loads(data)
                 except json.JSONDecodeError:
                     return f"原始字符串:\n{data}"
-            
+
             # 格式化 JSON
             formatted = json.dumps(
-                data, 
-                indent=self.indent, 
-                ensure_ascii=False, 
-                sort_keys=self.sort_keys
+                data,
+                indent=self.indent,
+                ensure_ascii=False,
+                sort_keys=self.sort_keys,
             )
-            
+
             # 添加標題
             if title:
                 return f"=== {title} ===\n{formatted}"
             else:
                 return formatted
-                
+
         except Exception as e:
             return f"格式化失敗: {e}\n原始數據: {data}"
-    
+
     def print_json(self, data: Any, title: str = None, color: bool = True):
         """
         直接打印格式化的 JSON
-        
+
         Args:
             data: 要格式化的數據
             title: 可選的標題
             color: 是否使用顏色
         """
         formatted = self.format_json(data, title)
-        
+
         if color:
             # 添加顏色 (如果支援)
             try:
                 from colorama import init, Fore, Style
+
                 init()
                 print(f"{Fore.CYAN}{formatted}{Style.RESET_ALL}")
             except ImportError:
                 print(formatted)
         else:
             print(formatted)
-    
+
     def print_table(self, data: Union[Dict, List], title: str = None):
         """
         以表格形式輸出數據
-        
+
         Args:
             data: 要輸出的數據
             title: 可選的標題
@@ -96,39 +99,39 @@ class JSONFormatter:
             print(f"\n{'='*50}")
             print(f"  {title}")
             print(f"{'='*50}")
-        
+
         if isinstance(data, dict):
             self._print_dict_table(data)
         elif isinstance(data, list):
             self._print_list_table(data)
         else:
             print(f"不支援的數據類型: {type(data)}")
-    
+
     def _print_dict_table(self, data: Dict):
         """以表格形式輸出字典"""
         if not data:
             print("(空字典)")
             return
-        
+
         # 計算最大鍵長度
         max_key_len = max(len(str(k)) for k in data.keys())
-        
+
         for key, value in data.items():
             key_str = str(key).ljust(max_key_len)
-            
+
             if isinstance(value, (dict, list)):
                 print(f"{key_str}: {type(value).__name__}")
                 # 遞歸輸出複雜類型
                 self.print_json(value, f"  {key}", color=False)
             else:
                 print(f"{key_str}: {value}")
-    
+
     def _print_list_table(self, data: List):
         """以表格形式輸出列表"""
         if not data:
             print("(空列表)")
             return
-        
+
         print(f"列表長度: {len(data)}")
         for i, item in enumerate(data):
             if isinstance(item, (dict, list)):
@@ -141,7 +144,7 @@ class JSONFormatter:
 def print_beautiful_json(data: Any, title: str = None, indent: int = 2):
     """
     快速美化輸出 JSON
-    
+
     Args:
         data: 要格式化的數據
         title: 可選的標題
@@ -154,7 +157,7 @@ def print_beautiful_json(data: Any, title: str = None, indent: int = 2):
 def print_json_table(data: Any, title: str = None):
     """
     以表格形式輸出 JSON 數據
-    
+
     Args:
         data: 要輸出的數據
         title: 可選的標題
@@ -163,14 +166,16 @@ def print_json_table(data: Any, title: str = None):
     formatter.print_table(data, title)
 
 
-def format_api_response(response_data: Any, title: str = "API Response") -> str:
+def format_api_response(
+    response_data: Any, title: str = "API Response"
+) -> str:
     """
     格式化 API response
-    
+
     Args:
         response_data: API 響應數據
         title: 響應標題
-        
+
     Returns:
         格式化後的字串
     """
@@ -193,7 +198,7 @@ if __name__ == "__main__":
                 "pause": {
                     "reason": "dev",
                     "createdAt": "2025-08-22T06:21:20.972Z",
-                    "createdBy": "SDP"
+                    "createdBy": "SDP",
                 },
                 "streams": {},
                 "autopilot": {},
@@ -205,15 +210,15 @@ if __name__ == "__main__":
                     "betStopTime": "2025-08-22T06:11:53.103Z",
                     "status": "bet-txn-stopped",
                     "createdAt": "2025-08-22T06:11:48.104Z",
-                    "result": {}
+                    "result": {},
                 },
-                "metadata": {}
+                "metadata": {},
             }
-        }
+        },
     }
-    
+
     print("=== 美化 JSON 輸出 ===")
     print_beautiful_json(sample_data, "API Response")
-    
+
     print("\n=== 表格形式輸出 ===")
     print_json_table(sample_data, "API Response")
