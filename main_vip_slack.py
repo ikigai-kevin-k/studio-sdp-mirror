@@ -48,6 +48,7 @@ from slack_notifier import SlackNotifier, send_error_to_slack
 # Try to load environment variables from .env file
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
     print("Loaded environment variables from .env file")
 except ImportError:
@@ -191,40 +192,58 @@ def init_slack_notifier():
 # Function to send sensor error notification to Slack
 def send_sensor_error_to_slack():
     """Send sensor error notification to Slack for ARO-002 table"""
-    global slack_notifier, sensor_error_sent
-    
+    global sensor_error_sent
+
     if sensor_error_sent:
-        print(f"[{get_timestamp()}] Sensor error already sent to Slack, skipping...")
+        print(
+            f"[{get_timestamp()}] Sensor error already sent to Slack, skipping..."
+        )
         return False
-    
+
     if not slack_notifier:
-        print(f"[{get_timestamp()}] Slack notifier not available, attempting to initialize...")
+        print(
+            f"[{get_timestamp()}] Slack notifier not available, attempting to initialize..."
+        )
         if not init_slack_notifier():
             print(f"[{get_timestamp()}] Failed to initialize Slack notifier")
             return False
-    
+
     try:
         # Send error notification using the convenience function
         success = send_error_to_slack(
             error_message="SENSOR ERROR - Detected warning_flag=4 in *X;6 message",
             error_code="SENSOR_STUCK",
             table_name="ARO-002",
-            environment="VIP_ROULETTE"
+            environment="VIP_ROULETTE",
         )
-        
+
         if success:
             sensor_error_sent = True
-            print(f"[{get_timestamp()}] Sensor error notification sent to Slack successfully")
-            log_to_file("Sensor error notification sent to Slack successfully", "Slack >>>")
+            print(
+                f"[{get_timestamp()}] Sensor error notification sent to Slack successfully"
+            )
+            log_to_file(
+                "Sensor error notification sent to Slack successfully",
+                "Slack >>>",
+            )
             return True
         else:
-            print(f"[{get_timestamp()}] Failed to send sensor error notification to Slack")
-            log_to_file("Failed to send sensor error notification to Slack", "Slack >>>")
+            print(
+                f"[{get_timestamp()}] Failed to send sensor error notification to Slack"
+            )
+            log_to_file(
+                "Failed to send sensor error notification to Slack",
+                "Slack >>>",
+            )
             return False
-            
+
     except Exception as e:
-        print(f"[{get_timestamp()}] Error sending sensor error notification: {e}")
-        log_to_file(f"Error sending sensor error notification: {e}", "Slack >>>")
+        print(
+            f"[{get_timestamp()}] Error sending sensor error notification: {e}"
+        )
+        log_to_file(
+            f"Error sending sensor error notification: {e}", "Slack >>>"
+        )
         return False
 
 
@@ -255,21 +274,37 @@ def read_from_serial():
             if "*X;6" in data:
                 try:
                     parts = data.split(";")
-                    if len(parts) >= 5:  # Ensure there are enough parts to get warning_flag
+                    if (
+                        len(parts) >= 5
+                    ):  # Ensure there are enough parts to get warning_flag
                         warning_flag = parts[4]
-                        print(f"[{get_timestamp()}] Detected *X;6 message with warning_flag: {warning_flag}")
-                        log_to_file(f"Detected *X;6 message with warning_flag: {warning_flag}", "Receive >>>")
-                        
+                        print(
+                            f"[{get_timestamp()}] Detected *X;6 message with warning_flag: {warning_flag}"
+                        )
+                        log_to_file(
+                            f"Detected *X;6 message with warning_flag: {warning_flag}",
+                            "Receive >>>",
+                        )
+
                         # Check if warning_flag is 4 (sensor error)
                         if warning_flag == "4":
-                            print(f"[{get_timestamp()}] SENSOR ERROR detected! Sending notification to Slack...")
-                            log_to_file("SENSOR ERROR detected! Sending notification to Slack...", "Receive >>>")
-                            
+                            print(
+                                f"[{get_timestamp()}] SENSOR ERROR detected! Sending notification to Slack..."
+                            )
+                            log_to_file(
+                                "SENSOR ERROR detected! Sending notification to Slack...",
+                                "Receive >>>",
+                            )
+
                             # Send sensor error notification to Slack
                             send_sensor_error_to_slack()
                 except Exception as e:
-                    print(f"[{get_timestamp()}] Error parsing *X;6 message: {e}")
-                    log_to_file(f"Error parsing *X;6 message: {e}", "Error >>>")
+                    print(
+                        f"[{get_timestamp()}] Error parsing *X;6 message: {e}"
+                    )
+                    log_to_file(
+                        f"Error parsing *X;6 message: {e}", "Error >>>"
+                    )
 
             # Handle *X;2 count
             if "*X;2" in data:
@@ -814,7 +849,7 @@ def main():
     # Initialize Slack notifier
     print(f"[{get_timestamp()}] Initializing Slack notifier...")
     init_slack_notifier()
-    
+
     # Create and start read thread
     read_thread = threading.Thread(target=read_from_serial)
     read_thread.daemon = True
