@@ -108,7 +108,7 @@ async def multiple_detections():
             success, result = await controller.detect(round_id)
 
             if success and result and result != [""] * 6:
-                results.append((f"Test {i+1}", result, "成功"))
+                results.append((f"Test {i+1}", result, "Success"))
             else:
                 if result == [""] * 6:
                     results.append(
