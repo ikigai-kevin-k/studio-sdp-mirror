@@ -284,106 +284,124 @@ class ShakerController(Controller):
 
         # reset state tracking, but keep shaker_state
         self.state_received = False
-        # self.shaker_state = None  # don't reset, so wait_for_s0_state can detect current state
 
-        # 等待搖動開始 (S2 -> S1)
-        self.logger.info("Waiting for shake command to be received (S2)...")
-        timeout = 3  # 增加到 3 秒超時，考慮網路延遲
-        start_time = time.time()
-        while (time.time() - start_time) < timeout:
-            if self.shaker_state == "S2":
-                self.logger.info("✓ Shake command received by shaker")
-                break
-            elif self.shaker_state == "S90":
-                self.logger.error("⚠ Shaker has motion program errors")
-                return False
-            await asyncio.sleep(0.05)  # 減少到 0.05 秒，更頻繁檢查
-
-        if self.shaker_state != "S2":
-            self.logger.warning(
-                "Did not receive S2 (shake command received) within timeout"
-            )
-
-        # wait for shaking to complete (S1 -> S0)
-        self.logger.info("Waiting for shaking to complete (S1 -> S0)...")
-        # according to shake duration, calculate a reasonable timeout
-        shake_duration = 9.59  # actual shake duration
+        # improved state monitoring logic: not rely on fixed state sequence
+        self.logger.info("Monitoring shaker state changes...")
+        
+        # record shake start time
+        expected_shake_duration = 9.59  # actual shake duration
         network_delay = 2.0  # estimated network delay
-        timeout = shake_duration + network_delay  # about 12 seconds
-
+        # extra buffer time
+        total_timeout = (expected_shake_duration +
+                         network_delay + 5.0)
+        
         self.logger.info(
-            f"Expected shake duration: {shake_duration}s, timeout set to: {timeout}s"
+            f"Expected shake duration: {expected_shake_duration}s, "
+            f"total timeout: {total_timeout}s"
         )
 
-        start_time = time.time()
-        last_state = None
+        # state tracking variables
+        last_state = self.shaker_state
+        state_changes = []
+        shake_command_received = False
+        shaking_started = False
+        shaking_completed = False
 
-        while (time.time() - start_time) < timeout:
+        start_time = time.time()
+        while (time.time() - start_time) < total_timeout:
             current_state = self.shaker_state
+            elapsed_time = time.time() - start_time
 
             # record state changes
-            if current_state != last_state:
-                if current_state == "S0":
-                    self.logger.info("✓ Shaking completed successfully")
-                    break
+            if current_state != last_state and current_state is not None:
+                state_changes.append({
+                    'time': elapsed_time,
+                    'state': current_state,
+                    'timestamp': time.strftime("%H:%M:%S")
+                })
+                
+                self.logger.info(
+                    f"State change detected: {last_state} → {current_state} "
+                    f"at {elapsed_time:.2f}s"
+                )
+                
+                # update state flags
+                if current_state == "S2":
+                    shake_command_received = True
+                    self.logger.info("✓ Shake command received by shaker (S2)")
                 elif current_state == "S1":
-                    self.logger.info("→ Shaker is now SHAKING (S1)")
-                elif current_state == "S2":
-                    self.logger.info("→ Shaker is still in S2 state")
+                    shaking_started = True
+                    self.logger.info("✓ Shaking started (S1)")
+                elif current_state == "S0":
+                    shaking_completed = True
+                    self.logger.info("✓ Shaking completed successfully (S0)")
+                    break
                 elif current_state == "S90":
-                    self.logger.error(
-                        "⚠ Shaker has motion program errors during shaking"
-                    )
+                    self.logger.error("⚠ Shaker has motion program errors (S90)")
                     return False
-
+                
                 last_state = current_state
 
-            # if shake duration exceeded, actively check state
-            elapsed_time = time.time() - start_time
-            if elapsed_time > shake_duration and current_state != "S0":
+            # actively check state (if no state changes for a while)
+            if elapsed_time > 2.0 and not self.state_received:
                 self.logger.info(
-                    f"Shake duration ({shake_duration}s) exceeded, actively checking state..."
+                    "No state response received, sending state request..."
                 )
-                self.mqtt_client.publish(
-                    "ikg/sicbo/Billy-III/listens", "/state"
+                self.mqtt_client.publish(topic, "/state")
+                await asyncio.sleep(0.1)
+
+            # if shake duration exceeded, actively check state
+            if elapsed_time > expected_shake_duration and not shaking_completed:
+                self.logger.info(
+                    f"Shake duration ({expected_shake_duration}s) exceeded, actively checking state..."
                 )
-                await asyncio.sleep(0.1)  # wait for state response
+                self.mqtt_client.publish(topic, "/state")
+                await asyncio.sleep(0.1)
 
-            await asyncio.sleep(
-                0.05
-            )  # reduce to 0.05 seconds, more frequent checks
+            await asyncio.sleep(0.05)  # check frequency
 
-        if self.shaker_state != "S0":
-            self.logger.warning("Shaking may not have completed properly")
-            # even if not reaching S0, try to check shaker state one more time
-            self.logger.info(
-                "Attempting to check shaker state one more time..."
-            )
-            await asyncio.sleep(0.5)  # reduced from 1 to 0.5 second
-            self.mqtt_client.publish("ikg/sicbo/Billy-III/listens", "/state")
-            await asyncio.sleep(0.2)  # reduced from 0.5 to 0.2 second
+        # analyze shake result
+        self.logger.info("\n=== Shake Operation Analysis ===")
+        self.logger.info(f"Total monitoring time: {time.time() - start_time:.2f}s")
+        self.logger.info(f"State changes detected: {len(state_changes)}")
+        
+        for change in state_changes:
+            self.logger.info(f"  {change['timestamp']} ({change['time']:.2f}s): {change['state']}")
+        
+        # check if shake completed
+        if shaking_completed:
+            self.logger.info("✓ Shake operation completed successfully")
+            return True
+        else:
+            # even if not completed, try final state check
+            self.logger.info("Attempting final state check...")
+            self.mqtt_client.publish(topic, "/state")
+            await asyncio.sleep(0.5)
+            
+            if self.shaker_state == "S0":
+                self.logger.info("✓ Final check: Shaker reached S0 state")
+                return True
+            else:
+                self.logger.warning(f"Final shaker state: {self.shaker_state}")
+                
+                # analyze state changes
+                if not shake_command_received:
+                    self.logger.error("❌ Shake command was not received by shaker")
+                elif not shaking_started:
+                    self.logger.error("❌ Shaking did not start after command received")
+                elif not shaking_completed:
+                    self.logger.error("❌ Shaking started but did not complete")
+                
+                return False
 
-        # 輸出訊息摘要
+        # output message summary
         self.logger.info("\nShake Operation Summary:")
         for msg in self.all_messages:
             self.logger.info(
                 f"Time: {msg['time']} - Topic: {msg['topic']} - Payload: {msg['payload']}"
             )
 
-        # ensure final state is set correctly
-        if self.shaker_state == "S0":
-            self.logger.info(
-                "✓ Shake operation completed successfully with S0 state"
-            )
-        else:
-            self.logger.info(f"Final shaker state: {self.shaker_state}")
-
         self.logger.info(f"Shake operation completed for round {round_id}")
-
-        # if already S0, ensure state_received is True
-        if self.shaker_state == "S0":
-            self.state_received = True
-
         return True
 
     async def wait_for_s0_state(self, timeout: float = 15.0) -> bool:
@@ -418,37 +436,66 @@ class ShakerController(Controller):
             self.logger.info("✓ Shaker reached S0 (IDLE) state")
             return True
 
-        # if not S0, wait for state change with minimal polling
+        # improved state waiting logic
         start_time = time.time()
+        last_state = self.shaker_state
+        state_changes = []
+        
         while (time.time() - start_time) < timeout:
-            if self.shaker_state == "S0":
-                self.logger.info("✓ Shaker reached S0 (IDLE) state")
-                return True
-            elif self.shaker_state == "S90":
-                self.logger.error("⚠ Shaker has motion program errors")
-                return False
-            elif self.shaker_state in ["S1", "S2"]:
+            current_state = self.shaker_state
+            elapsed_time = time.time() - start_time
+            
+            # record state changes
+            if current_state != last_state and current_state is not None:
+                state_changes.append({
+                    'time': elapsed_time,
+                    'state': current_state
+                })
+                
                 self.logger.info(
-                    f"Shaker is in {self.shaker_state} state, waiting for S0..."
+                    f"State change: {last_state} → {current_state} "
+                    f"at {elapsed_time:.2f}s"
                 )
+                
+                if current_state == "S0":
+                    self.logger.info("✓ Shaker reached S0 (IDLE) state")
+                    return True
+                elif current_state == "S90":
+                    self.logger.error("⚠ Shaker has motion program errors")
+                    return False
+                elif current_state in ["S1", "S2"]:
+                    self.logger.info(
+                        f"Shaker is in {current_state} state, waiting for S0..."
+                    )
+                
+                last_state = current_state
 
-            # only send one more state request if we haven't received any response
-            if (
-                not self.state_received and (time.time() - start_time) > 1
-            ):  # reduced from 3 to 1 second
+            # actively check state (if no state changes for a while)
+            if elapsed_time > 2.0 and not self.state_received:
                 self.logger.info(
-                    "No state response received, sending one more state request..."
+                    "No state response received, sending state request..."
                 )
                 self.mqtt_client.publish(
                     "ikg/sicbo/Billy-III/listens", "/state"
                 )
-                self.state_received = True  # prevent further requests
+                await asyncio.sleep(0.1)
 
-            await asyncio.sleep(
-                0.02
-            )  # reduced from 0.05 to 0.02 for faster response
+            await asyncio.sleep(0.02)  # check frequency
 
+        # timeout
         self.logger.warning(f"Timeout waiting for S0 state after {timeout}s")
+        
+        # provide diagnostic information
+        if state_changes:
+            self.logger.info("State changes observed during wait:")
+            for change in state_changes:
+                self.logger.info(
+                    f"  {change['time']:.2f}s: {change['state']}"
+                )
+        else:
+            self.logger.info("No state changes observed during wait")
+        
+        self.logger.info(f"Final shaker state: {self.shaker_state}")
         return False
 
     async def shake_rpi(self, round_id: str):
