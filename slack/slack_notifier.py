@@ -96,7 +96,7 @@ class SlackNotifier:
         self,
         message: str,
         channel: Optional[str] = None,
-        username: str = "SDP Roulette Bot",
+        username: str = "SDP Bot",
         icon_emoji: str = ":game_die:",
     ) -> bool:
         """
@@ -155,7 +155,7 @@ class SlackNotifier:
         try:
             response = self.bot_client.chat_postMessage(
                 channel=channel,
-                text=text or "SDP Roulette Notification",
+                text=text or "SDP Notification",
                 blocks=blocks,
             )
 
@@ -202,7 +202,7 @@ class SlackNotifier:
                 "type": "header",
                 "text": {
                     "type": "plain_text",
-                    "text": f"🚨 SDP Roulette Error - {environment}",
+                    "text": f"🚨 SDP Error - {environment}",
                     "emoji": True,
                 },
             },
@@ -258,7 +258,7 @@ class SlackNotifier:
                 return True
 
         # Fallback to simple message
-        simple_message = f"🚨 SDP Roulette Error in {environment}\n"
+        simple_message = f"🚨 SDP Error in {environment}\n"
         if table_name:
             simple_message += f"Table: {table_name}\n"
         if error_code:
@@ -286,7 +286,7 @@ class SlackNotifier:
         """
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        simple_message = f"✅ SDP Roulette Success in {environment}\n"
+        simple_message = f"✅ SDP Success in {environment}\n"
         if table_name:
             simple_message += f"Table: {table_name}\n"
         simple_message += f"Message: {message}\nTime: {timestamp}"
@@ -319,7 +319,7 @@ class SlackNotifier:
         payload = {
             "text": message,
             "channel": channel,
-            "username": "SDP Roulette Bot",
+            "username": "SDP Bot",
             "icon_emoji": ":game_die:",
         }
 
@@ -402,7 +402,7 @@ if __name__ == "__main__":
     notifier = SlackNotifier()
 
     # Test simple message
-    notifier.send_simple_message("Hello from SDP Roulette!")
+    notifier.send_simple_message("Hello from SDP!")
 
     # Test error notification
     notifier.send_error_notification(
