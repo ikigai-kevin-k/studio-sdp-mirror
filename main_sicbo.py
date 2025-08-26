@@ -62,6 +62,57 @@ from los_api.sb.api_v2_qat_sb import (
 )
 from networkChecker import networkChecker
 from datetime import datetime
+from slack import send_error_to_slack
+
+# Global error notification state tracker to prevent duplicate Slack messages
+# Key: environment_name, Value: last_error_time
+error_notification_state = {}
+
+
+def should_send_error_notification(
+    environment_name: str, cooldown_minutes: int = 30
+) -> bool:
+    """
+    Check if error notification should be sent for the given environment.
+    Prevents duplicate notifications within the cooldown period.
+
+    Args:
+        environment_name: Name of the environment (PRD/STG)
+        cooldown_minutes: Minutes to wait before allowing another notification
+
+    Returns:
+        bool: True if notification should be sent, False otherwise
+    """
+    current_time = time.time()
+
+    if environment_name not in error_notification_state:
+        # First time error for this environment, allow notification
+        error_notification_state[environment_name] = current_time
+        return True
+
+    last_error_time = error_notification_state[environment_name]
+    time_since_last_error = current_time - last_error_time
+
+    # Allow notification if cooldown period has passed
+    if time_since_last_error >= (cooldown_minutes * 60):
+        error_notification_state[environment_name] = current_time
+        return True
+
+    return False
+
+
+def reset_error_notification_state(environment_name: str):
+    """
+    Reset error notification state for the given environment.
+    Call this when the environment recovers successfully.
+
+    Args:
+        environment_name: Name of the environment to reset
+    """
+    if environment_name in error_notification_state:
+        del error_notification_state[environment_name]
+        logger.info(f"Reset error notification state for {environment_name}")
+
 
 # Import the update function from ws_sb_update.py
 import sys
@@ -146,13 +197,88 @@ async def start_round_for_table(table, token):
                 start_post_v2_uat, post_url, token
             )
         elif table["name"] == "PRD":
-            round_id, bet_period = await retry_with_network_check(
-                start_post_v2_prd, post_url, token
-            )
+            try:
+                round_id, bet_period = await retry_with_network_check(
+                    start_post_v2_prd, post_url, token
+                )
+                if round_id == -1:
+                    # Send Slack error notification for PRD start post failure
+                    # Only send if we haven't sent one recently
+                    if should_send_error_notification("PRD"):
+                        send_error_to_slack(
+                            error_message="PRD Start Post Failed",
+                            environment="Sicbo - TableAPI Error",
+                            table_name=table["name"],
+                            error_code="START_POST_FAILED",
+                        )
+                        logger.warning(
+                            "PRD Start Post Failed - Slack notification sent"
+                        )
+                    else:
+                        logger.info(
+                            "PRD Start Post Failed - Skipping duplicate "
+                            "Slack notification"
+                        )
+            except Exception as e:
+                logger.error(f"PRD start_post_v2_prd failed: {e}")
+                # Send Slack error notification for PRD start post failure
+                # Only send if we haven't sent one recently
+                if should_send_error_notification("PRD"):
+                    send_error_to_slack(
+                        error_message="PRD Start Post Failed",
+                        environment="Sicbo - TableAPI Error",
+                        table_name=table["name"],
+                        error_code="START_POST_FAILED",
+                    )
+                    logger.warning(
+                        "PRD Start Post Failed - Slack notification sent"
+                    )
+                else:
+                    logger.info(
+                        "PRD Start Post Failed - Skipping duplicate Slack notification"
+                    )
+                round_id, bet_period = -1, None
         elif table["name"] == "STG":
-            round_id, bet_period = await retry_with_network_check(
-                start_post_v2_stg, post_url, token
-            )
+            try:
+                round_id, bet_period = await retry_with_network_check(
+                    start_post_v2_stg, post_url, token
+                )
+                if round_id == -1:
+                    # Send Slack error notification for STG start post failure
+                    # Only send if we haven't sent one recently
+                    if should_send_error_notification("STG"):
+                        send_error_to_slack(
+                            error_message="STG Start Post Failed",
+                            environment="Sicbo - TableAPI Error",
+                            table_name=table["name"],
+                            error_code="START_POST_FAILED",
+                        )
+                        logger.warning(
+                            "STG Start Post Failed - Slack notification sent"
+                        )
+                    else:
+                        logger.info(
+                            "STG Start Post Failed - Skipping duplicate Slack notification"
+                        )
+            except Exception as e:
+                logger.error(f"STG start_post_v2_stg failed: {e}")
+                # Send Slack error notification for STG start post failure
+                # Only send if we haven't sent one recently
+                if should_send_error_notification("STG"):
+                    send_error_to_slack(
+                        error_message="STG Start Post Failed",
+                        environment="Sicbo - TableAPI Error",
+                        table_name=table["name"],
+                        error_code="START_POST_FAILED",
+                    )
+                    logger.warning(
+                        "STG Start Post Failed - Slack notification sent"
+                    )
+                else:
+                    logger.info(
+                        "STG Start Post Failed - Skipping duplicate Slack notification"
+                    )
+                round_id, bet_period = -1, None
         elif table["name"] == "QAT":
             round_id, bet_period = await retry_with_network_check(
                 start_post_v2_qat, post_url, token
