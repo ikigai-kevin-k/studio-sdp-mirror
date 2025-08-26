@@ -287,14 +287,13 @@ class ShakerController(Controller):
 
         # improved state monitoring logic: not rely on fixed state sequence
         self.logger.info("Monitoring shaker state changes...")
-        
+
         # record shake start time
         expected_shake_duration = 9.59  # actual shake duration
         network_delay = 2.0  # estimated network delay
         # extra buffer time
-        total_timeout = (expected_shake_duration +
-                         network_delay + 5.0)
-        
+        total_timeout = expected_shake_duration + network_delay + 5.0
+
         self.logger.info(
             f"Expected shake duration: {expected_shake_duration}s, "
             f"total timeout: {total_timeout}s"
@@ -314,17 +313,19 @@ class ShakerController(Controller):
 
             # record state changes
             if current_state != last_state and current_state is not None:
-                state_changes.append({
-                    'time': elapsed_time,
-                    'state': current_state,
-                    'timestamp': time.strftime("%H:%M:%S")
-                })
-                
+                state_changes.append(
+                    {
+                        "time": elapsed_time,
+                        "state": current_state,
+                        "timestamp": time.strftime("%H:%M:%S"),
+                    }
+                )
+
                 self.logger.info(
                     f"State change detected: {last_state} → {current_state} "
                     f"at {elapsed_time:.2f}s"
                 )
-                
+
                 # update state flags
                 if current_state == "S2":
                     shake_command_received = True
@@ -337,9 +338,11 @@ class ShakerController(Controller):
                     self.logger.info("✓ Shaking completed successfully (S0)")
                     break
                 elif current_state == "S90":
-                    self.logger.error("⚠ Shaker has motion program errors (S90)")
+                    self.logger.error(
+                        "⚠ Shaker has motion program errors (S90)"
+                    )
                     return False
-                
+
                 last_state = current_state
 
             # actively check state (if no state changes for a while)
@@ -351,7 +354,10 @@ class ShakerController(Controller):
                 await asyncio.sleep(0.1)
 
             # if shake duration exceeded, actively check state
-            if elapsed_time > expected_shake_duration and not shaking_completed:
+            if (
+                elapsed_time > expected_shake_duration
+                and not shaking_completed
+            ):
                 self.logger.info(
                     f"Shake duration ({expected_shake_duration}s) exceeded, actively checking state..."
                 )
@@ -362,12 +368,16 @@ class ShakerController(Controller):
 
         # analyze shake result
         self.logger.info("\n=== Shake Operation Analysis ===")
-        self.logger.info(f"Total monitoring time: {time.time() - start_time:.2f}s")
+        self.logger.info(
+            f"Total monitoring time: {time.time() - start_time:.2f}s"
+        )
         self.logger.info(f"State changes detected: {len(state_changes)}")
-        
+
         for change in state_changes:
-            self.logger.info(f"  {change['timestamp']} ({change['time']:.2f}s): {change['state']}")
-        
+            self.logger.info(
+                f"  {change['timestamp']} ({change['time']:.2f}s): {change['state']}"
+            )
+
         # check if shake completed
         if shaking_completed:
             self.logger.info("✓ Shake operation completed successfully")
@@ -377,21 +387,27 @@ class ShakerController(Controller):
             self.logger.info("Attempting final state check...")
             self.mqtt_client.publish(topic, "/state")
             await asyncio.sleep(0.5)
-            
+
             if self.shaker_state == "S0":
                 self.logger.info("✓ Final check: Shaker reached S0 state")
                 return True
             else:
                 self.logger.warning(f"Final shaker state: {self.shaker_state}")
-                
+
                 # analyze state changes
                 if not shake_command_received:
-                    self.logger.error("❌ Shake command was not received by shaker")
+                    self.logger.error(
+                        "❌ Shake command was not received by shaker"
+                    )
                 elif not shaking_started:
-                    self.logger.error("❌ Shaking did not start after command received")
+                    self.logger.error(
+                        "❌ Shaking did not start after command received"
+                    )
                 elif not shaking_completed:
-                    self.logger.error("❌ Shaking started but did not complete")
-                
+                    self.logger.error(
+                        "❌ Shaking started but did not complete"
+                    )
+
                 return False
 
         # output message summary
@@ -440,23 +456,22 @@ class ShakerController(Controller):
         start_time = time.time()
         last_state = self.shaker_state
         state_changes = []
-        
+
         while (time.time() - start_time) < timeout:
             current_state = self.shaker_state
             elapsed_time = time.time() - start_time
-            
+
             # record state changes
             if current_state != last_state and current_state is not None:
-                state_changes.append({
-                    'time': elapsed_time,
-                    'state': current_state
-                })
-                
+                state_changes.append(
+                    {"time": elapsed_time, "state": current_state}
+                )
+
                 self.logger.info(
                     f"State change: {last_state} → {current_state} "
                     f"at {elapsed_time:.2f}s"
                 )
-                
+
                 if current_state == "S0":
                     self.logger.info("✓ Shaker reached S0 (IDLE) state")
                     return True
@@ -467,7 +482,7 @@ class ShakerController(Controller):
                     self.logger.info(
                         f"Shaker is in {current_state} state, waiting for S0..."
                     )
-                
+
                 last_state = current_state
 
             # actively check state (if no state changes for a while)
@@ -484,17 +499,15 @@ class ShakerController(Controller):
 
         # timeout
         self.logger.warning(f"Timeout waiting for S0 state after {timeout}s")
-        
+
         # provide diagnostic information
         if state_changes:
             self.logger.info("State changes observed during wait:")
             for change in state_changes:
-                self.logger.info(
-                    f"  {change['time']:.2f}s: {change['state']}"
-                )
+                self.logger.info(f"  {change['time']:.2f}s: {change['state']}")
         else:
             self.logger.info("No state changes observed during wait")
-        
+
         self.logger.info(f"Final shaker state: {self.shaker_state}")
         return False
 
