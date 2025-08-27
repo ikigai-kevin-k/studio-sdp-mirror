@@ -728,3 +728,151 @@ class BarcodeController(Controller):
         # ensure buffer is empty
         self.current_line = []
         self.logger.info(f"Barcode scanning resumed at {time.time()}")
+
+
+class BaccaratIDPController(Controller):
+    """Controls Baccarat IDP (Image Detection Processing) operations"""
+
+    def __init__(self, config: GameConfig):
+        super().__init__(config)
+        self.mqtt_client = MQTTLogger(
+            client_id=f"baccarat_idp_controller_{config.room_id}",
+            broker="192.168.20.10",  # Baccarat-specific broker
+            port=1883,  # Baccarat-specific port
+        )
+        self.response_received = False
+        self.last_response = None
+        self.baccarat_result = None
+        self.mqtt_client.client.username_pw_set("PFC", "wago")
+
+    async def initialize(self):
+        """Initialize Baccarat IDP controller"""
+        if not self.mqtt_client.connect():
+            raise Exception("Failed to connect to MQTT broker")
+        self.mqtt_client.start_loop()
+
+        # Set message handling callback
+        self.mqtt_client.client.on_message = self._on_message
+        self.mqtt_client.subscribe("ikg/idp/BAC-001/response")
+
+    def _on_message(self, client, userdata, message):
+        """Handle received messages"""
+        try:
+            payload = message.payload.decode()
+            self.logger.info(f"Received message on {message.topic}: {payload}")
+
+            # Process message
+            self._process_message(message.topic, payload)
+
+        except Exception as e:
+            self.logger.error(f"Error in _on_message: {e}")
+
+    def _process_message(self, topic, payload):
+        """Process received message"""
+        try:
+            self.logger.info(f"Processing message from {topic}: {payload}")
+
+            if topic == "ikg/idp/BAC-001/response":
+                response_data = json.loads(payload)
+                if (
+                    "response" in response_data
+                    and response_data["response"] == "result"
+                ):
+                    if (
+                        "arg" in response_data
+                        and "res" in response_data["arg"]
+                    ):
+                        baccarat_result = response_data["arg"]["res"]
+                        # Check if it's a valid baccarat result (6 cards)
+                        if (
+                            isinstance(baccarat_result, list)
+                            and len(baccarat_result) == 6
+                        ):
+                            self.baccarat_result = baccarat_result
+                            self.response_received = True
+                            self.last_response = payload
+                            self.logger.info(
+                                f"Got valid baccarat result: {self.baccarat_result}"
+                            )
+                            return  # Return immediately, don't wait for more results
+                        else:
+                            self.logger.info(
+                                f"Received invalid result: {baccarat_result}, "
+                                f"continuing to wait..."
+                            )
+
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Failed to parse message JSON: {e}")
+        except Exception as e:
+            self.logger.error(f"Error processing message: {e}")
+
+    async def detect(self, round_id: str) -> Tuple[bool, Optional[list]]:
+        """Send detect command and wait for response"""
+        try:
+            # Reset state
+            self.response_received = False
+            self.last_response = None
+            self.baccarat_result = None
+
+            command = {
+                "command": "detect",
+                "arg": {
+                    "round_id": round_id,
+                    "input": "rtmp://192.168.20.10:1935/live/r111_baccarat",
+                },
+            }
+
+            # Set timeout limit
+            timeout = 5  # for demo
+            start_time = asyncio.get_event_loop().time()
+            retry_interval = 5
+            attempt = 1
+
+            while (asyncio.get_event_loop().time() - start_time) < timeout:
+                # Send detection command
+                self.logger.info(f"Sending detect command (attempt {attempt})")
+                self.mqtt_client.publish(
+                    "ikg/idp/BAC-001/command", json.dumps(command)
+                )
+
+                # Wait for response in small loop
+                wait_end = min(
+                    start_time + timeout,  # Don't exceed total timeout
+                    asyncio.get_event_loop().time()
+                    + retry_interval,  # Wait time before next retry
+                )
+
+                while asyncio.get_event_loop().time() < wait_end:
+                    if self.baccarat_result is not None:
+                        self.logger.info(
+                            f"Received baccarat result on attempt {attempt}: "
+                            f"{self.baccarat_result}"
+                        )
+                        return True, self.baccarat_result
+                    # Use asyncio.sleep instead of time.sleep to avoid blocking event loop
+                    await asyncio.sleep(0.5)
+
+                attempt += 1
+
+            # Timeout handling
+            elapsed = asyncio.get_event_loop().time() - start_time
+            self.logger.warning(
+                f"No valid response received within {elapsed:.2f}s "
+                f"after {attempt-1} attempts"
+            )
+            command = {"command": "timeout", "arg": {}}
+            self.mqtt_client.publish(
+                "ikg/idp/BAC-001/command", json.dumps(command)
+            )
+            if self.last_response:
+                self.logger.warning(f"Last response was: {self.last_response}")
+            return True, [""] * 6  # Return default values on timeout
+
+        except Exception as e:
+            self.logger.error(f"Error in detect: {e}")
+            return False, None
+
+    async def cleanup(self):
+        """Cleanup Baccarat IDP controller resources"""
+        self.mqtt_client.stop_loop()
+        self.mqtt_client.disconnect()
