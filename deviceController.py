@@ -796,6 +796,17 @@ class BaccaratIDPController(Controller):
                             self.logger.info(
                                 f"Got valid baccarat result: {self.baccarat_result}"
                             )
+
+                            # Send timeout command after receiving valid result
+                            timeout_command = {"command": "timeout", "arg": {}}
+                            self.mqtt_client.publish(
+                                "ikg/idp/BAC-001/command",
+                                json.dumps(timeout_command),
+                            )
+                            self.logger.info(
+                                "Sent timeout command after receiving valid result"
+                            )
+
                             return  # Return immediately, don't wait for more results
                         else:
                             self.logger.info(
