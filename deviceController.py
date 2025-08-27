@@ -33,7 +33,7 @@ class IDPController(Controller):
             raise Exception("Failed to connect to MQTT broker")
         self.mqtt_client.start_loop()
 
-        # 設置訊息處理回調
+        # set message processing callback
         self.mqtt_client.client.on_message = self._on_message
         self.mqtt_client.subscribe("ikg/idp/dice/response")
 
@@ -43,7 +43,7 @@ class IDPController(Controller):
             payload = message.payload.decode()
             self.logger.info(f"Received message on {message.topic}: {payload}")
 
-            # 處理訊息
+            # process message
             self._process_message(message.topic, payload)
 
         except Exception as e:
@@ -65,7 +65,7 @@ class IDPController(Controller):
                         and "res" in response_data["arg"]
                     ):
                         dice_result = response_data["arg"]["res"]
-                        # 檢查是否為有效的骰子結果 (三個數字)
+                        # check if the dice result is valid (three numbers)
                         if (
                             isinstance(dice_result, list)
                             and len(dice_result) == 3
@@ -77,7 +77,7 @@ class IDPController(Controller):
                             self.logger.info(
                                 f"Got valid dice result: {self.dice_result}"
                             )
-                            return  # 立即返回，不再等待更多結果
+                            return  # return immediately, don't wait for more results
                         else:
                             self.logger.info(
                                 f"Received invalid result: {dice_result}, continuing to wait..."
@@ -91,7 +91,7 @@ class IDPController(Controller):
     async def detect(self, round_id: str) -> Tuple[bool, Optional[list]]:
         """Send detect command and wait for response"""
         try:
-            # 重置狀態
+            # reset state
             self.response_received = False
             self.last_response = None
             self.dice_result = None
@@ -105,24 +105,24 @@ class IDPController(Controller):
                 },
             }
 
-            # 設定超時時限
+            # set timeout limit
             timeout = 5  # for demo
             start_time = asyncio.get_event_loop().time()
             retry_interval = 5
             attempt = 1
 
             while (asyncio.get_event_loop().time() - start_time) < timeout:
-                # 發送檢測命令
+                # send detect command
                 self.logger.info(f"Sending detect command (attempt {attempt})")
                 self.mqtt_client.publish(
                     "ikg/idp/dice/command", json.dumps(command)
                 )
 
-                # 等待回應的小循環
+                # wait for response in small loop
                 wait_end = min(
-                    start_time + timeout,  # 不超過總超時時間
+                    start_time + timeout,  # don't exceed total timeout
                     asyncio.get_event_loop().time()
-                    + retry_interval,  # 下次重試前的等待時間
+                    + retry_interval,  # wait time before next retry
                 )
 
                 while asyncio.get_event_loop().time() < wait_end:
@@ -131,12 +131,12 @@ class IDPController(Controller):
                             f"Received dice result on attempt {attempt}: {self.dice_result}"
                         )
                         return True, self.dice_result
-                    # 使用 asyncio.sleep 替代 time.sleep，避免阻塞事件循環
+                    # use asyncio.sleep instead of time.sleep to avoid blocking event loop
                     await asyncio.sleep(0.5)
 
                 attempt += 1
 
-            # 超時處理
+            # timeout handling
             elapsed = asyncio.get_event_loop().time() - start_time
             self.logger.warning(
                 f"No valid response received within {elapsed:.2f}s after {attempt-1} attempts"
@@ -147,7 +147,7 @@ class IDPController(Controller):
             )
             if self.last_response:
                 self.logger.warning(f"Last response was: {self.last_response}")
-            return True, [""]  # 超時時返回預設值
+            return True, [""]  # return default values on timeout
 
         except Exception as e:
             self.logger.error(f"Error in detect: {e}")
@@ -178,10 +178,10 @@ class ShakerController(Controller):
             "PFC", "wago"
         )  # Specific credentials for shaker
 
-        # 搖骰器狀態追蹤
-        self.shaker_state = None  # 當前搖骰器狀態 (S0, S1, S2, S90)
-        self.state_received = False  # 是否收到狀態回應
-        self.all_messages = []  # 儲存所有收到的訊息
+        # shaker state tracking
+        self.shaker_state = None  # current shaker state (S0, S1, S2, S90)
+        self.state_received = False  # whether received state response
+        self.all_messages = []  # store all received messages
 
     def _on_message(self, client, userdata, message):
         """Handle received messages from shaker"""
@@ -190,7 +190,7 @@ class ShakerController(Controller):
             self.logger.info(f"[MQTT] Topic: {message.topic}")
             self.logger.info(f"[MQTT] Payload: {payload}")
 
-            # 儲存訊息
+            # store message
             self.all_messages.append(
                 {
                     "topic": message.topic,
@@ -199,12 +199,14 @@ class ShakerController(Controller):
                 }
             )
 
-            # 檢查搖骰器狀態回應
+            # check shaker state response
             if message.topic == "ikg/sicbo/Billy-III/listens":
                 if payload == "/state":
                     self.logger.info("[STATUS] State request sent")
             elif message.topic == "ikg/sicbo/Billy-III/says":
-                if payload.startswith("S"):  # 檢查狀態回應 (S0, S1, S2, S90)
+                if payload.startswith(
+                    "S"
+                ):  # check state response (S0, S1, S2, S90)
                     self.shaker_state = payload
                     self.state_received = True
                     if payload == "S0":
@@ -235,16 +237,16 @@ class ShakerController(Controller):
             raise Exception("Failed to connect to MQTT broker")
         self.mqtt_client.start_loop()
 
-        # 設置訊息處理回調
+        # set message processing callback
         self.mqtt_client.client.on_message = self._on_message
 
-        # 訂閱搖骰器相關主題
+        # subscribe to shaker related topics
         topics_to_subscribe = [
             "ikg/sicbo/Billy-III/listens",
             "ikg/sicbo/Billy-III/says",
             "ikg/sicbo/Billy-III/status",
             "ikg/sicbo/Billy-III/response",
-            "ikg/sicbo/Billy-III/#",  # Billy-III 的所有子主題
+            "ikg/sicbo/Billy-III/#",  # all subtopics of Billy-III
         ]
 
         for topic in topics_to_subscribe:
@@ -253,7 +255,7 @@ class ShakerController(Controller):
 
     async def shake(self, round_id: str):
         """Shake the dice using Billy-III settings and monitor state changes"""
-        # 重置狀態追蹤
+        # reset state tracking
         self.all_messages = []
         self.state_received = False
         self.shaker_state = None
@@ -263,12 +265,12 @@ class ShakerController(Controller):
         topic = "ikg/sicbo/Billy-III/listens"
         # topic = "ikg/sicbo/Billy-I/listens" # temporary
 
-        # 先檢查當前狀態
+        # check current state
         self.logger.info("Checking current shaker state...")
         self.mqtt_client.publish(topic, "/state")
 
-        # 等待狀態回應
-        timeout = 10  # 10 秒超時
+        # wait for state response
+        timeout = 10  # 10 seconds timeout
         start_time = time.time()
         while not self.state_received and (time.time() - start_time) < timeout:
             await asyncio.sleep(0.1)
