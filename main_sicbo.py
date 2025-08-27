@@ -734,9 +734,44 @@ class SDPGame:
                         # Log deal results
                         for i, result in enumerate(deal_results):
                             if isinstance(result, Exception):
+                                table_name = round_ids[i][0]["name"]
+                                error_msg = str(result)
+
                                 self.logger.error(
-                                    f"Error dealing round for table {round_ids[i][0]['name']}: {result}"
+                                    f"Error dealing round for table {table_name}: {error_msg}"
                                 )
+
+                                # Check if this is a JSON parsing error for PRD or STG
+                                if (
+                                    "Expecting value: line 1 column 1 (char 0)"
+                                    in error_msg
+                                    and table_name in ["PRD", "STG"]
+                                ):
+
+                                    # Send Slack notification only if cooldown period has passed
+                                    if should_send_error_notification(
+                                        table_name, cooldown_minutes=15
+                                    ):
+                                        slack_message = (
+                                            f"Description: JSON parsing error in deal_post\n"
+                                            f"Details: {error_msg}\n"
+                                        )
+
+                                        try:
+                                            send_error_to_slack(
+                                                error_message=slack_message,
+                                                environment=table_name,
+                                                table_name="SBO-001",
+                                                error_code="JSON_PARSE_ERROR",
+                                            )
+                                            self.logger.info(
+                                                f"Slack notification sent for {table_name} JSON parsing error"
+                                            )
+                                        except Exception as slack_error:
+                                            self.logger.error(
+                                                f"Failed to send Slack notification: {slack_error}"
+                                            )
+
                             elif (
                                 result and result[1]
                             ):  # Check if deal was successful
@@ -767,9 +802,48 @@ class SDPGame:
                         # Log finish results
                         for i, result in enumerate(finish_results):
                             if isinstance(result, Exception):
+                                table_name = round_ids[i][0]["name"]
+                                error_msg = str(result)
+
                                 self.logger.error(
-                                    f"Error finishing round for table {round_ids[i][0]['name']}: {result}"
+                                    f"Error finishing round for table {table_name}: {error_msg}"
                                 )
+
+                                # Check if this is a JSON parsing error for PRD or STG
+                                if (
+                                    "Expecting value: line 1 column 1 (char 0)"
+                                    in error_msg
+                                    and table_name in ["PRD", "STG"]
+                                ):
+
+                                    # Send Slack notification only if cooldown period has passed
+                                    if should_send_error_notification(
+                                        table_name, cooldown_minutes=15
+                                    ):
+                                        slack_message = (
+                                            f"🚨 *SDP Error Alert*\n"
+                                            f"*Environment:* {table_name}\n"
+                                            f"*Error:* JSON parsing error in finish_round\n"
+                                            f"*Details:* {error_msg}\n"
+                                            f"*Time:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                                            f"*Table:* {table_name}"
+                                        )
+
+                                        try:
+                                            send_error_to_slack(
+                                                error_message=slack_message,
+                                                environment=table_name,
+                                                table_name=table_name,
+                                                error_code="JSON_PARSE_ERROR",
+                                            )
+                                            self.logger.info(
+                                                f"Slack notification sent for {table_name} finish round JSON parsing error"
+                                            )
+                                        except Exception as slack_error:
+                                            self.logger.error(
+                                                f"Failed to send Slack notification: {slack_error}"
+                                            )
+
                             elif (
                                 result and result[1]
                             ):  # Check if finish was successful
