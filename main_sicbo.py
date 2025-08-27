@@ -325,7 +325,39 @@ async def deal_round_for_table(table, token, round_id, dice_result):
         return table["name"], True
 
     except Exception as e:
-        logger.error(f"Error dealing round for table {table['name']}: {e}")
+        error_msg = str(e)
+        logger.error(
+            f"Error dealing round for table {table['name']}: {error_msg}"
+        )
+
+        # Check if this is a JSON parsing error for PRD or STG
+        if "Expecting value: line 1 column 1 (char 0)" in error_msg and table[
+            "name"
+        ] in ["PRD", "STG"]:
+            # Log detailed information for debugging
+            logger.error(f"JSON parsing error detected for {table['name']}")
+            logger.error(f"Table: {table['name']}")
+            logger.error(f"Round ID: {round_id}")
+            logger.error(f"Dice Result: {dice_result}")
+            logger.error(f"Post URL: {post_url}")
+            logger.error(f"Token: ***")
+            logger.error(f"Timestamp: {int(time.time())}")
+
+            # Log the expected curl command
+            timecode = str(int(time.time() * 1000))
+            curl_command = (
+                f"curl -X POST '{post_url}/deal' "
+                f"-H 'accept: application/json' "
+                f"-H 'Bearer: ***' "
+                f"-H 'x-signature: los-local-signature' "
+                f"-H 'Content-Type: application/json' "
+                f"-H 'timecode: {timecode}' "
+                f"-H 'Cookie: accessToken=***' "
+                f"-H 'Connection: close' "
+                f'-d \'{{"roundId": "{round_id}", "sicBo": {dice_result}}}\''
+            )
+            logger.error(f"Expected CURL command: {curl_command}")
+
         return table["name"], False
 
 
@@ -348,7 +380,36 @@ async def finish_round_for_table(table, token):
         return table["name"], True
 
     except Exception as e:
-        logger.error(f"Error finishing round for table {table['name']}: {e}")
+        error_msg = str(e)
+        logger.error(
+            f"Error finishing round for table {table['name']}: {error_msg}"
+        )
+
+        # Check if this is a JSON parsing error for PRD or STG
+        if "Expecting value: line 1 column 1 (char 0)" in error_msg and table[
+            "name"
+        ] in ["PRD", "STG"]:
+            # Log detailed information for debugging
+            logger.error(
+                f"JSON parsing error detected for {table['name']} finish"
+            )
+            logger.error(f"Table: {table['name']}")
+            logger.error(f"Post URL: {post_url}")
+            logger.error(f"Token: ***")
+            logger.error(f"Timestamp: {int(time.time())}")
+
+            # Log the expected curl command
+            curl_command = (
+                f"curl -X POST '{post_url}/finish' "
+                f"-H 'accept: application/json' "
+                f"-H 'Bearer: ***' "
+                f"-H 'x-signature: los-local-signature' "
+                f"-H 'Content-Type: application/json' "
+                f"-H 'Cookie: accessToken=***' "
+                f"-H 'Connection: close'"
+            )
+            logger.error(f"Expected CURL command: {curl_command}")
+
         return table["name"], False
 
 
@@ -747,6 +808,40 @@ class SDPGame:
                                     in error_msg
                                     and table_name in ["PRD", "STG"]
                                 ):
+                                    # Log detailed information for debugging
+                                    table = round_ids[i][0]
+                                    post_url = f"{table['post_url']}{table['game_code']}"
+                                    timecode = str(int(time.time() * 1000))
+
+                                    self.logger.error(
+                                        f"JSON parsing error detected for {table_name}"
+                                    )
+                                    self.logger.error(f"Table: {table_name}")
+                                    self.logger.error(f"Round ID: {round_id}")
+                                    self.logger.error(
+                                        f"Dice Result: {dice_result}"
+                                    )
+                                    self.logger.error(f"Post URL: {post_url}")
+                                    self.logger.error(f"Token: ***")
+                                    self.logger.error(
+                                        f"Timestamp: {int(time.time())}"
+                                    )
+
+                                    # Log the expected curl command
+                                    curl_command = (
+                                        f"curl -X POST '{post_url}/deal' "
+                                        f"-H 'accept: application/json' "
+                                        f"-H 'Bearer: ***' "
+                                        f"-H 'x-signature: los-local-signature' "
+                                        f"-H 'Content-Type: application/json' "
+                                        f"-H 'timecode: {timecode}' "
+                                        f"-H 'Cookie: accessToken=***' "
+                                        f"-H 'Connection: close' "
+                                        f'-d \'{{"roundId": "{round_id}", "sicBo": {dice_result}}}\''
+                                    )
+                                    self.logger.error(
+                                        f"Expected CURL command: {curl_command}"
+                                    )
 
                                     # Send Slack notification only if cooldown period has passed
                                     if should_send_error_notification(

@@ -64,6 +64,8 @@ def start_post_v2_prd(url, token):
 
 def deal_post_v2_prd(url, token, round_id, result):
     timecode = str(int(time.time() * 1000))
+    timestamp = int(time.time())
+
     headers = {
         "accept": "application/json",
         "Bearer": token,
@@ -80,16 +82,51 @@ def deal_post_v2_prd(url, token, round_id, result):
         "sicBo": result,
     }
 
+    # Log the curl command for debugging
+    curl_command = (
+        f"curl -X POST '{url}/deal' "
+        f"-H 'accept: application/json' "
+        f"-H 'Bearer: ***' "
+        f"-H 'x-signature: los-local-signature' "
+        f"-H 'Content-Type: application/json' "
+        f"-H 'timecode: {timecode}' "
+        f"-H 'Cookie: accessToken=***' "
+        f"-H 'Connection: close' "
+        f'-d \'{{"roundId": "{round_id}", "sicBo": {result}}}\''
+    )
+
+    print(f"[DEBUG] PRD Deal POST curl command:")
+    print(f"[TIMESTAMP]: {timestamp}")
+    print(f"[ROUND_ID]: {round_id}")
+    print(f"[RESULT]: {result}")
+    print(f"[CURL]: {curl_command}")
+
     response = requests.post(
         f"{url}/deal", headers=headers, json=data, verify=False
     )
 
     if response.status_code != 200:
         print("====================")
-        print("[DEBUG] deal_post_v2")
+        print("[DEBUG] deal_post_v2_prd")
         print("====================")
         print(f"Error: {response.status_code} - {response.text}")
         print("====================")
+
+    # Log response data
+    try:
+        response_json = response.json()
+        print(
+            f"[DEBUG] PRD Deal POST response (status: {response.status_code}):"
+        )
+        print(
+            f"[RESPONSE_JSON]: {json.dumps(response_json, indent=2, ensure_ascii=False)}"
+        )
+    except json.JSONDecodeError as e:
+        print(
+            f"[DEBUG] PRD Deal POST response (status: {response.status_code}):"
+        )
+        print(f"[RESPONSE_TEXT]: {response.text}")
+        print(f"[JSON_PARSE_ERROR]: {e}")
 
     json_str = json.dumps(response.json(), indent=2)
 
@@ -98,6 +135,8 @@ def deal_post_v2_prd(url, token, round_id, result):
 
 
 def finish_post_v2_prd(url, token):
+    timestamp = int(time.time())
+
     headers = {
         "accept": "application/json",
         "Bearer": token,
@@ -106,10 +145,43 @@ def finish_post_v2_prd(url, token):
         "Cookie": f"accessToken={accessToken}",
         "Connection": "close",
     }
+
+    # Log the curl command for debugging
+    curl_command = (
+        f"curl -X POST '{url}/finish' "
+        f"-H 'accept: application/json' "
+        f"-H 'Bearer: ***' "
+        f"-H 'x-signature: los-local-signature' "
+        f"-H 'Content-Type: application/json' "
+        f"-H 'Cookie: accessToken=***' "
+        f"-H 'Connection: close'"
+    )
+
+    print(f"[DEBUG] PRD Finish POST curl command:")
+    print(f"[TIMESTAMP]: {timestamp}")
+    print(f"[CURL]: {curl_command}")
+
     data = {}
     response = requests.post(
         f"{url}/finish", headers=headers, json=data, verify=False
     )
+
+    # Log response data
+    try:
+        response_json = response.json()
+        print(
+            f"[DEBUG] PRD Finish POST response (status: {response.status_code}):"
+        )
+        print(
+            f"[RESPONSE_JSON]: {json.dumps(response_json, indent=2, ensure_ascii=False)}"
+        )
+    except json.JSONDecodeError as e:
+        print(
+            f"[DEBUG] PRD Finish POST response (status: {response.status_code}):"
+        )
+        print(f"[RESPONSE_TEXT]: {response.text}")
+        print(f"[JSON_PARSE_ERROR]: {e}")
+
     json_str = json.dumps(response.json(), indent=2)
 
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
