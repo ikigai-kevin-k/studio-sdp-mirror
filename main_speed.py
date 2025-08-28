@@ -3,7 +3,6 @@ import threading
 import time
 from datetime import datetime
 import sys
-import random
 import json
 import asyncio
 import websockets
@@ -40,6 +39,17 @@ from los_api.sr.api_v2_qat_sr import (
     broadcast_post_v2_qat,
 )
 from concurrent.futures import ThreadPoolExecutor
+
+# Import Slack notifier for notifications
+try:
+    from slack.slack_notifier import send_error_to_slack
+
+    SLACK_AVAILABLE = True
+except ImportError:
+    SLACK_AVAILABLE = False
+    print(
+        "Warning: slack_notifier not available. Slack notifications disabled."
+    )
 
 # import sentry_sdk
 
@@ -714,13 +724,72 @@ def execute_broadcast_post(table, token):
             result = broadcast_post_v2(
                 post_url, token, "roulette.relaunch", "players", 20
             )  # , None)
-        print(
-            f"Successfully sent broadcast_post (relaunch) for {table['name']}"
-        )
-        log_to_file(
-            f"Successfully sent broadcast_post (relaunch) for {table['name']}",
-            "Broadcast >>>",
-        )
+
+        if result:
+            print(
+                f"Successfully sent broadcast_post (relaunch) for {table['name']}"
+            )
+            log_to_file(
+                f"Successfully sent broadcast_post (relaunch) for {table['name']}",
+                "Broadcast >>>",
+            )
+
+            # Send Slack notification for successful relaunch
+            if SLACK_AVAILABLE:
+                try:
+                    send_error_to_slack(
+                        error_message="Roulette relaunch notification sent successfully",
+                        environment=table["name"],
+                        table_name=table.get("game_code", "Unknown"),
+                        error_code="ROULETTE_RELAUNCH",
+                    )
+                    print(
+                        f"Slack notification sent for {table['name']} relaunch"
+                    )
+                except Exception as slack_error:
+                    print(f"Failed to send Slack notification: {slack_error}")
+                    log_to_file(
+                        f"Failed to send Slack notification: {slack_error}",
+                        "Slack >>>",
+                    )
+            else:
+                print(
+                    f"Slack notifications disabled for {table['name']} relaunch"
+                )
+        else:
+            print(
+                f"Failed to send broadcast_post (relaunch) for {table['name']}"
+            )
+            log_to_file(
+                f"Failed to send broadcast_post (relaunch) for {table['name']}",
+                "Broadcast >>>",
+            )
+
+            # Send Slack notification for failed relaunch
+            if SLACK_AVAILABLE:
+                try:
+                    send_error_to_slack(
+                        error_message="Failed to send roulette relaunch notification",
+                        environment=table["name"],
+                        table_name=table.get("game_code", "Unknown"),
+                        error_code="ROULETTE_RELAUNCH_FAILED",
+                    )
+                    print(
+                        f"Slack error notification sent for {table['name']} relaunch failure"
+                    )
+                except Exception as slack_error:
+                    print(
+                        f"Failed to send Slack error notification: {slack_error}"
+                    )
+                    log_to_file(
+                        f"Failed to send Slack error notification: {slack_error}",
+                        "Slack >>>",
+                    )
+            else:
+                print(
+                    f"Slack notifications disabled for {table['name']} relaunch failure"
+                )
+
         return result
     except Exception as e:
         print(f"Error executing broadcast_post for {table['name']}: {e}")
@@ -728,6 +797,30 @@ def execute_broadcast_post(table, token):
             f"Error executing broadcast_post for {table['name']}: {e}",
             "Error >>>",
         )
+
+        # Send Slack notification for exception
+        if SLACK_AVAILABLE:
+            try:
+                send_error_to_slack(
+                    error_message=f"Exception during broadcast_post: {str(e)}",
+                    environment=table["name"],
+                    table_name=table.get("game_code", "Unknown"),
+                    error_code="BROADCAST_POST_EXCEPTION",
+                )
+                print(f"Slack exception notification sent for {table['name']}")
+            except Exception as slack_error:
+                print(
+                    f"Failed to send Slack exception notification: {slack_error}"
+                )
+                log_to_file(
+                    f"Failed to send Slack exception notification: {slack_error}",
+                    "Slack >>>",
+                )
+        else:
+            print(
+                f"Slack notifications disabled for {table['name']} exception"
+            )
+
         return None
 
 
