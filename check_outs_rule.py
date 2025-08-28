@@ -1,5 +1,3 @@
-
-
 # Card value mapping
 CARD_VALUES = {
     "A": 1,
@@ -35,7 +33,7 @@ def hand_point(cards):
         if not valid_cards:
             print(f"[WARNING] No valid cards found in: {cards}")
             return 0
-        
+
         return sum(CARD_VALUES[extract_rank(c)] for c in valid_cards) % 10
     except KeyError as e:
         print(f"[ERROR] Invalid card value: {e} in cards: {cards}")

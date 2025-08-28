@@ -5,7 +5,7 @@ import time
 def convert_barcodes_to_result(barcodes):
     """
     Convert scanned barcodes to game result format
-    This function can be customized based on your barcode format 
+    This function can be customized based on your barcode format
     and game requirements
     """
     try:
@@ -41,14 +41,24 @@ def convert_barcodes_to_result(barcodes):
 
 
 async def on_barcode_scanned(
-    barcode, barcode_count, game_started, 
-    scanned_barcodes, waiting_for_bet_period,
-    scan_start_time, barcode_controller,
-    current_round_id, broadcast_barcode_func,
-    check_dealing_order, mock_data_non_outs,
-    mock_data_outs, check_outs_rule,
-    deal_post_v2, finish_post_v2,
-    CIT_BASE_URL, CIT_TOKEN, start_new_game_func
+    barcode,
+    barcode_count,
+    game_started,
+    scanned_barcodes,
+    waiting_for_bet_period,
+    scan_start_time,
+    barcode_controller,
+    current_round_id,
+    broadcast_barcode_func,
+    check_dealing_order,
+    mock_data_non_outs,
+    mock_data_outs,
+    check_outs_rule,
+    deal_post_v2,
+    finish_post_v2,
+    CIT_BASE_URL,
+    CIT_TOKEN,
+    start_new_game_func,
 ):
     """Handle barcode scanning events"""
     current_time = time.time()
@@ -221,5 +231,5 @@ async def on_barcode_scanned(
                     # Reset game state to allow manual restart
                     return 0, []  # Reset barcode count and scanned barcodes
         return barcode_count, scanned_barcodes
-    
+
     return barcode_count, scanned_barcodes

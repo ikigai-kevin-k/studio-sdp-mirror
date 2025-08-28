@@ -51,16 +51,20 @@ async def baccarat_detect():
         if success:
             if result:
                 # Check if we have at least 4 non-empty strings (minimum cards needed)
-                non_empty_cards = [card for card in result if card and card.strip()]
+                non_empty_cards = [
+                    card for card in result if card and card.strip()
+                ]
                 print(f"Detection result: {result}")
                 print(f"Non-empty cards found: {len(non_empty_cards)}")
-                
+
                 if len(non_empty_cards) >= 4:
                     # Parse the result
                     if len(result) == 6:
                         player_cards = result[:2]  # First 2 cards for player
                         banker_cards = result[2:4]  # Next 2 cards for banker
-                        additional_cards = result[4:]  # Additional cards if needed
+                        additional_cards = result[
+                            4:
+                        ]  # Additional cards if needed
 
                         # Basic validation
                         valid_cards = [card for card in result if card]
@@ -70,7 +74,9 @@ async def baccarat_detect():
                         print("Result length is not 6")
                 else:
                     valid_cards = []
-                    print(f"Detection incomplete: need at least 4 cards, got {len(non_empty_cards)}")
+                    print(
+                        f"Detection incomplete: need at least 4 cards, got {len(non_empty_cards)}"
+                    )
             else:
                 valid_cards = []
                 print("No result received")
@@ -121,8 +127,10 @@ async def multiple_detections():
 
             if success and result:
                 # Check if we have at least 4 non-empty strings
-                non_empty_cards = [card for card in result if card and card.strip()]
-                
+                non_empty_cards = [
+                    card for card in result if card and card.strip()
+                ]
+
                 if len(non_empty_cards) >= 4:
                     results.append((f"Test {i+1}", result, "Success"))
                 else:

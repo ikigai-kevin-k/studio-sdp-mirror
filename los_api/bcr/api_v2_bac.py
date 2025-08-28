@@ -42,7 +42,7 @@ if not accessToken:
     print("Failed to get access token. Exiting.")
     exit(1)
 
-print(f"Successfully obtained access token: " f"{accessToken}")  
+print(f"Successfully obtained access token: " f"{accessToken}")
 
 
 def start_post_v2(url, token):
@@ -131,7 +131,7 @@ def deal_post_v2(url, token, round_id, result):
 
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
-    
+
     print(f"Deal result sent successfully: {result}")
     return True
 
@@ -149,16 +149,18 @@ def finish_post_v2(url, token):
     response = requests.post(
         f"{url}/finish", headers=headers, json=data, verify=False
     )
-    
+
     if response.status_code != 200:
-        print(f"Error finishing game: {response.status_code} - {response.text}")
+        print(
+            f"Error finishing game: {response.status_code} - {response.text}"
+        )
         return False
-        
+
     json_str = json.dumps(response.json(), indent=2)
 
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
-    
+
     print("Game finished successfully.")
     return True
 
@@ -512,22 +514,22 @@ def swap_card_format(cards_list):
     """
     Swap the order of numbers and suits in card strings
     Example: ["2D", "QS", "10S", "6H"] -> ["D2", "SQ", "S10", "H6"]
-    
+
     Args:
         cards_list (list): List of card strings
-        
+
     Returns:
         list: List with swapped number and suit order
     """
     swapped_cards = []
-    
+
     for card in cards_list:
         if not card or not card.strip():
             swapped_cards.append(card)
             continue
-            
+
         card = card.strip()
-        
+
         # Handle 10 (two digits)
         if card.startswith("10"):
             suit = card[2:]  # Get suit after "10"
@@ -540,7 +542,7 @@ def swap_card_format(cards_list):
         else:
             # Keep original if format is unexpected
             swapped_cards.append(card)
-    
+
     return swapped_cards
 
 
@@ -552,7 +554,7 @@ if __name__ == "__main__":
         # results = [1,2,3] #str(random.randint(0, 36))
         # ABO-001
         # results = ["","", "", "", "",""]
-        results = ["", "D2", "SQ","S10","H6",""]
+        results = ["", "D2", "SQ", "S10", "H6", ""]
 
         # get_url = 'https://crystal-los.iki-cit.cc/v2/service/tables/'
         get_url = "https://crystal-table.iki-cit.cc/v2/service/tables/"
