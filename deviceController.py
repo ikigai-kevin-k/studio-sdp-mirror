@@ -35,7 +35,7 @@ class IDPController(Controller):
 
         # set message processing callback
         self.mqtt_client.client.on_message = self._on_message
-        self.mqtt_client.subscribe("ikg/idp/dice/response")
+        self.mqtt_client.subscribe("ikg/idp/SBO-001/response")
 
     def _on_message(self, client, userdata, message):
         """Handle received messages"""
@@ -54,7 +54,7 @@ class IDPController(Controller):
         try:
             self.logger.info(f"Processing message from {topic}: {payload}")
 
-            if topic == "ikg/idp/dice/response":
+            if topic == "ikg/idp/SBO-001/response":
                 response_data = json.loads(payload)
                 if (
                     "response" in response_data
@@ -100,7 +100,7 @@ class IDPController(Controller):
                 "command": "detect",
                 "arg": {
                     "round_id": round_id,
-                    "input": "rtmp://192.168.88.50:1935/live/r217_sb",
+                    "input": "rtmp://192.168.88.50:1935/live/r212_sb",
                     "output": "https://pull-tc.stream.iki-utl.cc/live/r456_dice.flv",
                 },
             }
@@ -115,7 +115,7 @@ class IDPController(Controller):
                 # send detect command
                 self.logger.info(f"Sending detect command (attempt {attempt})")
                 self.mqtt_client.publish(
-                    "ikg/idp/dice/command", json.dumps(command)
+                    "ikg/idp/SBO-001/command", json.dumps(command)
                 )
 
                 # wait for response in small loop
@@ -143,7 +143,7 @@ class IDPController(Controller):
             )
             command = {"command": "timeout", "arg": {}}
             self.mqtt_client.publish(
-                "ikg/idp/dice/command", json.dumps(command)
+                "ikg/idp/SBO-001/command", json.dumps(command)
             )
             if self.last_response:
                 self.logger.warning(f"Last response was: {self.last_response}")

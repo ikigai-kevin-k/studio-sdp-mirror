@@ -99,7 +99,7 @@ class MQTTConnector:
             raise Exception("Failed to connect to MQTT broker")
 
         self.mqtt_logger.start_loop()
-        self.mqtt_logger.subscribe("ikg/idp/dice/response")
+        self.mqtt_logger.subscribe("ikg/idp/SBO-001/response")
         self.mqtt_logger.subscribe("ikg/shaker/response")
 
     async def send_detect_command(
@@ -116,7 +116,9 @@ class MQTTConnector:
         }
 
         self.response_received = False
-        self.mqtt_logger.publish("ikg/idp/dice/command", json.dumps(command))
+        self.mqtt_logger.publish(
+            "ikg/idp/SBO-001/command", json.dumps(command)
+        )
 
         # Wait for response
         timeout = 10  # 10 seconds timeout
