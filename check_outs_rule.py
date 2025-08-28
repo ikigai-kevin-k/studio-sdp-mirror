@@ -1,4 +1,4 @@
-import itertools
+
 
 # Card value mapping
 CARD_VALUES = {
@@ -30,7 +30,13 @@ def extract_rank(card_str):
 # Calculate the baccarat hand point (only the unit digit)
 def hand_point(cards):
     try:
-        return sum(CARD_VALUES[extract_rank(c)] for c in cards) % 10
+        # Filter out empty or invalid cards before processing
+        valid_cards = [c for c in cards if c and c.strip()]
+        if not valid_cards:
+            print(f"[WARNING] No valid cards found in: {cards}")
+            return 0
+        
+        return sum(CARD_VALUES[extract_rank(c)] for c in valid_cards) % 10
     except KeyError as e:
         print(f"[ERROR] Invalid card value: {e} in cards: {cards}")
         return 0
@@ -52,7 +58,6 @@ def player_draw_rule(player_cards):
 # Banker drawing rule
 def banker_draw_rule(banker_cards, player_cards, player_third_card=None):
     banker_pt = hand_point(banker_cards[:2])
-    player_pt = hand_point(player_cards[:2])
     # Check for Natural
     if is_natural(player_cards[:2]) or is_natural(banker_cards[:2]):
         return False  # No one draws
@@ -127,7 +132,8 @@ def test_banker_dealing():
             banker_cards, player_cards, player_third_card
         )
         print(
-            f"Test {idx+1}: Player {player_cards}, Banker {banker_cards} => Banker Draw? {result} (Expected: {expected})",
+            f"Test {idx+1}: Player {player_cards}, Banker {banker_cards} => "
+            f"Banker Draw? {result} (Expected: {expected})",
             end=" ",
         )
         if result == expected:
