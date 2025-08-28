@@ -3,8 +3,8 @@
         "name": "CIT_BCR",
         "get_url": "https://crystal-table.iki-cit.cc/v2/service/tables/",
         "post_url": "https://crystal-table.iki-cit.cc/v2/service/tables/",
-        "game_code": "BCR-001",
-        "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI2N2MyYjk5Mi1lOGEyLTQ4NWQtODA5Ni05ZTIxY2VjMjBmMTciLCJnYW1lQ29kZSI6WyJCQ1ItMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NTMzMjY2NDYyOTIsImlhdCI6MTc1MzMyNjY0Nn0.TwSFQybSKOqOwsBrHBRZYST3CGxwEUpJJA9a8-h_jXw",
+        "game_code": "BAC-005",
+        "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiIxZGI1N2Y1OC1mODcwLTQ3OGYtOTA0NS0zMWZmZTRiNmVmNDIiLCJnYW1lQ29kZSI6WyJCQUMtMDA1Il0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NTYzNjUzMjYzNTYsImlhdCI6MTc1NjM2NTMyNn0.sC32XTX5Tuh3WcEXouog8wOg8qgx7cv_1a0WSoBhiKQ",
         "table_token": "E5LN4END9Q"
     }
 ]
