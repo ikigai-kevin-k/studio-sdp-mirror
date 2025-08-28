@@ -41,6 +41,20 @@ from los_api.vr.api_v2_qat_vr import (
     broadcast_post_v2_qat,
 )
 
+# Import Slack notification module
+sys.path.append("slack")  # ensure slack module can be imported
+from slack_notifier import SlackNotifier, send_error_to_slack
+
+# Try to load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    print("Loaded environment variables from .env file")
+except ImportError:
+    print("python-dotenv not installed, using system environment variables")
+    print("Install with: pip install python-dotenv")
+
 ser = create_serial_connection(
     port="/dev/ttyUSB0",
     baudrate=9600,
@@ -80,6 +94,10 @@ finish_post_time = 0
 token = "E5LN4END9Q"
 ws_client = None
 ws_connected = False
+
+# Add Slack notification variables
+slack_notifier = None
+sensor_error_sent = False  # Flag to ensure sensor error is only sent once
 
 
 # WebSocket connection function
@@ -152,6 +170,83 @@ websocket_thread.daemon = True
 websocket_thread.start()
 
 
+# Initialize Slack notifier
+def init_slack_notifier():
+    """Initialize Slack notifier with environment variables or default settings"""
+    global slack_notifier
+    try:
+        # Try to initialize with environment variables first
+        slack_notifier = SlackNotifier(
+            default_channel="#sdp-alerts"  # Default channel for error notifications
+        )
+        print(f"[{get_timestamp()}] Slack notifier initialized successfully")
+        log_to_file("Slack notifier initialized successfully", "Slack >>>")
+        return True
+    except Exception as e:
+        print(f"[{get_timestamp()}] Failed to initialize Slack notifier: {e}")
+        log_to_file(f"Failed to initialize Slack notifier: {e}", "Slack >>>")
+        slack_notifier = None
+        return False
+
+
+# Function to send sensor error notification to Slack
+def send_sensor_error_to_slack():
+    """Send sensor error notification to Slack for ARO-002 table"""
+    global sensor_error_sent
+
+    if sensor_error_sent:
+        print(
+            f"[{get_timestamp()}] Sensor error already sent to Slack, skipping..."
+        )
+        return False
+
+    if not slack_notifier:
+        print(
+            f"[{get_timestamp()}] Slack notifier not available, attempting to initialize..."
+        )
+        if not init_slack_notifier():
+            print(f"[{get_timestamp()}] Failed to initialize Slack notifier")
+            return False
+
+    try:
+        # Send error notification using the convenience function
+        success = send_error_to_slack(
+            error_message="SENSOR ERROR - Detected warning_flag=4 in *X;6 message",
+            error_code="SENSOR_STUCK",
+            table_name="ARO-002",
+            environment="VIP_ROULETTE",
+        )
+
+        if success:
+            sensor_error_sent = True
+            print(
+                f"[{get_timestamp()}] Sensor error notification sent to Slack successfully"
+            )
+            log_to_file(
+                "Sensor error notification sent to Slack successfully",
+                "Slack >>>",
+            )
+            return True
+        else:
+            print(
+                f"[{get_timestamp()}] Failed to send sensor error notification to Slack"
+            )
+            log_to_file(
+                "Failed to send sensor error notification to Slack",
+                "Slack >>>",
+            )
+            return False
+
+    except Exception as e:
+        print(
+            f"[{get_timestamp()}] Error sending sensor error notification: {e}"
+        )
+        log_to_file(
+            f"Error sending sensor error notification: {e}", "Slack >>>"
+        )
+        return False
+
+
 # Function to send start recording message
 def send_start_recording(round_id):
     """Send start recording message"""
@@ -174,6 +269,42 @@ def read_from_serial():
             data = ser.readline().decode("utf-8").strip()
             print("Receive >>>", data)
             log_to_file(data, "Receive >>>")
+
+            # Handle *X;6 sensor error messages
+            if "*X;6" in data:
+                try:
+                    parts = data.split(";")
+                    if (
+                        len(parts) >= 5
+                    ):  # Ensure there are enough parts to get warning_flag
+                        warning_flag = parts[4]
+                        print(
+                            f"[{get_timestamp()}] Detected *X;6 message with warning_flag: {warning_flag}"
+                        )
+                        log_to_file(
+                            f"Detected *X;6 message with warning_flag: {warning_flag}",
+                            "Receive >>>",
+                        )
+
+                        # Check if warning_flag is 4 (sensor error)
+                        if warning_flag == "4":
+                            print(
+                                f"[{get_timestamp()}] SENSOR ERROR detected! Sending notification to Slack..."
+                            )
+                            log_to_file(
+                                "SENSOR ERROR detected! Sending notification to Slack...",
+                                "Receive >>>",
+                            )
+
+                            # Send sensor error notification to Slack
+                            send_sensor_error_to_slack()
+                except Exception as e:
+                    print(
+                        f"[{get_timestamp()}] Error parsing *X;6 message: {e}"
+                    )
+                    log_to_file(
+                        f"Error parsing *X;6 message: {e}", "Error >>>"
+                    )
 
             # Handle *X;2 count
             if "*X;2" in data:
@@ -715,6 +846,10 @@ def execute_broadcast_post(table, token):
 
 def main():
     """Main function for VIP Roulette Controller"""
+    # Initialize Slack notifier
+    print(f"[{get_timestamp()}] Initializing Slack notifier...")
+    init_slack_notifier()
+
     # Create and start read thread
     read_thread = threading.Thread(target=read_from_serial)
     read_thread.daemon = True
