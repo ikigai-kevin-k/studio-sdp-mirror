@@ -131,8 +131,10 @@ async def start_new_game():
             )  # Set scan start time to 0.5 seconds from now
 
             if idp_mode:
-                # In IDP mode, start card detection immediately
-                print("IDP mode: Starting card detection...")
+                # In IDP mode, wait for bet period to end before starting card detection
+                print(f"IDP mode: Waiting for bet period ({bet_period} seconds) to end...")
+                await asyncio.sleep(bet_period)
+                print("Bet period ended, starting card detection...")
                 await detect_cards_with_idp()
             else:
                 # Resume barcode scanning for new game
@@ -158,26 +160,74 @@ async def detect_cards_with_idp():
         print("IDP controller not initialized")
         return
     
-    try:
-        print("Detecting cards with IDP...")
-        success, result = await idp_controller.detect(current_round_id)
+    attempt_count = 0
+    max_wait_time = 60  # Maximum wait time in seconds (1 minute)
+    start_time = time.time()
+    
+    while True:
+        attempt_count += 1
+        current_wait_time = time.time() - start_time
         
-        if success and result and result != [""] * 6:
-            # Convert IDP result to barcode format for compatibility
-            scanned_barcodes = [str(i) for i in range(len(result)) if result[i]]
-            barcode_count = len(scanned_barcodes)
+        # Check if we've exceeded maximum wait time
+        if current_wait_time > max_wait_time:
+            print(f"Maximum wait time ({max_wait_time} seconds) exceeded.")
+            print("IDP detection could not complete successfully.")
+            print("Consider checking camera setup and card positioning.")
+            break
+        
+        try:
+            print(f"Detecting cards with IDP (attempt {attempt_count}, elapsed: {current_wait_time:.1f}s)...")
+            success, result = await idp_controller.detect(current_round_id)
             
-            print(f"IDP detection successful: {result}")
-            print(f"Converted to barcodes: {scanned_barcodes}")
-            print(f"Barcode count: {barcode_count}")
+            if success and result:
+                # Check if we have at least 4 non-empty strings (minimum cards needed)
+                non_empty_cards = [card for card in result if card and card.strip()]
+                print(f"IDP detection result: {result}")
+                print(f"Non-empty cards found: {len(non_empty_cards)}")
+                
+                if len(non_empty_cards) >= 4:
+                    # Convert IDP result to barcode format for compatibility
+                    scanned_barcodes = [str(i) for i in range(len(result)) if result[i]]
+                    barcode_count = len(scanned_barcodes)
+                    
+                    print(f"🎉 IDP detection successful after {attempt_count} attempts!")
+                    print(f"Final result: {result}")
+                    print(f"Converted to barcodes: {scanned_barcodes}")
+                    print(f"Barcode count: {barcode_count}")
+                    
+                    # Process the result using existing logic
+                    await process_idp_result(result)
+                    return  # Success, exit retry loop
+                else:
+                    print(f"IDP detection incomplete: need at least 4 cards, got {len(non_empty_cards)}")
+                    
+                    if len(non_empty_cards) > 0:
+                        print(f"Progress: {len(non_empty_cards)} cards detected so far...")
+                    
+                    # Fixed wait time: 1 second between attempts
+                    wait_time = 1
+                    print(f"Waiting {wait_time} second before next attempt...")
+                    await asyncio.sleep(wait_time)
+                    
+            else:
+                print("IDP detection failed or returned empty result")
+                
+                # Fixed wait time: 1 second between attempts
+                wait_time = 1
+                print(f"Waiting {wait_time} second before retry...")
+                await asyncio.sleep(wait_time)
+                    
+        except Exception as e:
+            print(f"Error during IDP detection (attempt {attempt_count}): {e}")
             
-            # Process the result using existing logic
-            await process_idp_result(result)
-        else:
-            print("IDP detection failed or returned empty result")
-            
-    except Exception as e:
-        print(f"Error during IDP detection: {e}")
+            # Fixed wait time: 1 second between attempts
+            wait_time = 1
+            print(f"Waiting {wait_time} second before retry...")
+            await asyncio.sleep(wait_time)
+    
+    # If we reach here, maximum wait time was exceeded
+    print("IDP detection could not complete successfully within time limit.")
+    print("Consider checking camera setup and card positioning.")
 
 
 async def process_idp_result(idp_result):
@@ -193,18 +243,25 @@ async def process_idp_result(idp_result):
         print("[CHECK] First 4 cards dealing order correct.")
         
         # Determine if 5th/6th card should be dealt
-        player_cards = [idp_result[0], idp_result[2]]
-        banker_cards = [idp_result[1], idp_result[3]]
+        # Filter out empty strings before passing to check_outs_rule
+        player_cards = [card for card in [idp_result[0], idp_result[2]] if card and card.strip()]
+        banker_cards = [card for card in [idp_result[1], idp_result[3]] if card and card.strip()]
         
-        player_draw = check_outs_rule.player_draw_rule(player_cards)
-        player_third_card = None
-        if player_draw and len(idp_result) > 4:
-            player_third_card = idp_result[4]
-            player_cards.append(idp_result[4])
-            
-        banker_draw = check_outs_rule.banker_draw_rule(
-            banker_cards, player_cards, player_third_card
-        )
+        # Only proceed if we have valid cards
+        if len(player_cards) >= 2 and len(banker_cards) >= 2:
+            player_draw = check_outs_rule.player_draw_rule(player_cards)
+            player_third_card = None
+            if player_draw and len(idp_result) > 4 and idp_result[4] and idp_result[4].strip():
+                player_third_card = idp_result[4]
+                player_cards.append(idp_result[4])
+                
+            banker_draw = check_outs_rule.banker_draw_rule(
+                banker_cards, player_cards, player_third_card
+            )
+        else:
+            print(f"[WARNING] Insufficient valid cards for outs check: player={len(player_cards)}, banker={len(banker_cards)}")
+            player_draw = False
+            banker_draw = False
         need_outs = player_draw or banker_draw
         
         if not need_outs:
