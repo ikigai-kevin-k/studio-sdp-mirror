@@ -487,8 +487,13 @@ class SDPGame:
     async def initialize(self):
         """Initialize all controllers"""
         try:
+            self.logger.info("Initializing MQTT controller...")
             await self.mqtt_controller.initialize()
+
+            self.logger.info("Initializing IDP controller...")
             await self.idp_controller.initialize()
+
+            self.logger.info("Initializing shaker controller...")
             await self.shaker_controller.initialize()
 
             # set up MQTT controller for SicBo game
@@ -501,6 +506,11 @@ class SDPGame:
             return True
         except Exception as e:
             self.logger.error(f"Initialization failed: {e}")
+            # Try to cleanup any partially initialized controllers
+            try:
+                await self.cleanup()
+            except Exception as cleanup_error:
+                self.logger.error(f"Cleanup error: {cleanup_error}")
             return False
 
     async def connect_to_recorder(self, uri="ws://localhost:8765"):
@@ -535,15 +545,92 @@ class SDPGame:
                 return False
         return False
 
+    async def check_mqtt_connections(self):
+        """Check MQTT connection status for all controllers"""
+        try:
+            # Check shaker controller MQTT connection
+            if hasattr(self.shaker_controller, "mqtt_client"):
+                shaker_info = (
+                    self.shaker_controller.mqtt_client.get_connection_info()
+                )
+                if not shaker_info["connected"]:
+                    self.logger.warning(
+                        f"Shaker MQTT disconnected. "
+                        f"Reconnect attempts: {shaker_info['reconnect_attempts']}"
+                    )
+                else:
+                    self.logger.info("Shaker MQTT connection is healthy")
+
+            # Check IDP controller MQTT connection
+            if hasattr(self.idp_controller, "mqtt_client"):
+                idp_info = (
+                    self.idp_controller.mqtt_client.get_connection_info()
+                )
+                if not idp_info["connected"]:
+                    self.logger.warning(
+                        f"IDP MQTT disconnected. "
+                        f"Reconnect attempts: {idp_info['reconnect_attempts']}"
+                    )
+                else:
+                    self.logger.info("IDP MQTT connection is healthy")
+
+            # Check main MQTT controller connection
+            if hasattr(self.mqtt_controller, "mqtt_logger"):
+                mqtt_info = (
+                    self.mqtt_controller.mqtt_logger.get_connection_info()
+                )
+                if not mqtt_info["connected"]:
+                    self.logger.warning(
+                        f"Main MQTT disconnected. "
+                        f"Reconnect attempts: {mqtt_info['reconnect_attempts']}"
+                    )
+                else:
+                    self.logger.info("Main MQTT connection is healthy")
+
+        except Exception as e:
+            self.logger.error(f"Error checking MQTT connections: {e}")
+
+    async def ensure_mqtt_connections(self):
+        """Ensure all MQTT connections are active, reconnect if necessary"""
+        try:
+            # Check and reconnect shaker controller if needed
+            if (
+                hasattr(self.shaker_controller, "mqtt_client")
+                and not self.shaker_controller.mqtt_client.is_connected()
+            ):
+                self.logger.info("Reconnecting shaker MQTT...")
+                await self.shaker_controller.initialize()
+
+            # Check and reconnect IDP controller if needed
+            if (
+                hasattr(self.idp_controller, "mqtt_client")
+                and not self.idp_controller.mqtt_client.is_connected()
+            ):
+                self.logger.info("Reconnecting IDP MQTT...")
+                await self.idp_controller.initialize()
+
+            # Check and reconnect main MQTT controller if needed
+            if (
+                hasattr(self.mqtt_controller, "mqtt_logger")
+                and not self.mqtt_controller.mqtt_logger.is_connected()
+            ):
+                self.logger.info("Reconnecting main MQTT...")
+                await self.mqtt_controller.initialize()
+
+        except Exception as e:
+            self.logger.error(f"Error ensuring MQTT connections: {e}")
+
     async def run_sicbo_game(self):
         """Run self test for all components"""
         self.logger.info("Starting self test...")
 
         # initialize all controllers (only once)
         try:
-            await self.mqtt_controller.initialize()
-            await self.shaker_controller.initialize()
-            await self.idp_controller.initialize()
+            # Use the unified initialize method
+            if not await self.initialize():
+                self.logger.error("Failed to initialize controllers")
+                return False
+
             # connect to recorder
             await self.connect_to_recorder()
             self.logger.info("All controllers initialized successfully")
@@ -553,6 +640,9 @@ class SDPGame:
 
         while True:  # infinite loop for game round
             try:
+                # Check MQTT connections periodically
+                await self.check_mqtt_connections()
+
                 # check previous round status
                 self.logger.info("Checking previous round status...")
                 try:

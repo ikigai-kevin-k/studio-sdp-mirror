@@ -29,13 +29,26 @@ class IDPController(Controller):
 
     async def initialize(self):
         """Initialize IDP controller"""
-        if not self.mqtt_client.connect():
-            raise Exception("Failed to connect to MQTT broker")
-        self.mqtt_client.start_loop()
+        try:
+            # Connect to MQTT broker
+            if not self.mqtt_client.connect():
+                raise Exception("Failed to connect to MQTT broker")
 
-        # set message processing callback
-        self.mqtt_client.client.on_message = self._on_message
-        self.mqtt_client.subscribe("ikg/idp/SBO-001/response")
+            # Start MQTT loop
+            self.mqtt_client.start_loop()
+
+            # Wait a moment for connection to stabilize
+            await asyncio.sleep(1)
+
+            # set message processing callback
+            self.mqtt_client.client.on_message = self._on_message
+            self.mqtt_client.subscribe("ikg/idp/SBO-001/response")
+
+            self.logger.info("IDP controller initialized successfully")
+
+        except Exception as e:
+            self.logger.error(f"Failed to initialize IDP controller: {e}")
+            raise
 
     def _on_message(self, client, userdata, message):
         """Handle received messages"""
@@ -233,25 +246,38 @@ class ShakerController(Controller):
 
     async def initialize(self):
         """Initialize shaker controller"""
-        if not self.mqtt_client.connect():
-            raise Exception("Failed to connect to MQTT broker")
-        self.mqtt_client.start_loop()
+        try:
+            # Connect to MQTT broker
+            if not self.mqtt_client.connect():
+                raise Exception("Failed to connect to MQTT broker")
 
-        # set message processing callback
-        self.mqtt_client.client.on_message = self._on_message
+            # Start MQTT loop
+            self.mqtt_client.start_loop()
 
-        # subscribe to shaker related topics
-        topics_to_subscribe = [
-            "ikg/sicbo/Billy-III/listens",
-            "ikg/sicbo/Billy-III/says",
-            "ikg/sicbo/Billy-III/status",
-            "ikg/sicbo/Billy-III/response",
-            "ikg/sicbo/Billy-III/#",  # all subtopics of Billy-III
-        ]
+            # Wait a moment for connection to stabilize
+            await asyncio.sleep(1)
 
-        for topic in topics_to_subscribe:
-            self.mqtt_client.subscribe(topic)
-            self.logger.info(f"Subscribed to: {topic}")
+            # set message processing callback
+            self.mqtt_client.client.on_message = self._on_message
+
+            # subscribe to shaker related topics
+            topics_to_subscribe = [
+                "ikg/sicbo/Billy-III/listens",
+                "ikg/sicbo/Billy-III/says",
+                "ikg/sicbo/Billy-III/status",
+                "ikg/sicbo/Billy-III/response",
+                "ikg/sicbo/Billy-III/#",  # all subtopics of Billy-III
+            ]
+
+            for topic in topics_to_subscribe:
+                self.mqtt_client.subscribe(topic)
+                self.logger.info(f"Subscribed to: {topic}")
+
+            self.logger.info("Shaker controller initialized successfully")
+
+        except Exception as e:
+            self.logger.error(f"Failed to initialize shaker controller: {e}")
+            raise
 
     async def shake(self, round_id: str):
         """Shake the dice using Billy-III settings and monitor state changes"""
@@ -280,7 +306,7 @@ class ShakerController(Controller):
         else:
             self.logger.info(f"Initial shaker state: {self.shaker_state}")
 
-        # 發送搖動命令
+        # send shake command
         self.logger.info(f"Sending shake command for round {round_id}")
         self.mqtt_client.publish(topic, cmd)
 

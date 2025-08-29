@@ -97,12 +97,23 @@ class MQTTController:
 
     async def initialize(self):
         """Initialize MQTT controller"""
-        if not self.mqtt_logger.connect():
-            raise Exception("Failed to connect to MQTT broker")
+        try:
+            if not self.mqtt_logger.connect():
+                raise Exception("Failed to connect to MQTT broker")
 
-        self.mqtt_logger.start_loop()
-        self.mqtt_logger.subscribe("ikg/idp/SBO-001/response")
-        self.mqtt_logger.subscribe("ikg/shaker/response")
+            self.mqtt_logger.start_loop()
+
+            # Wait a moment for connection to stabilize
+            await asyncio.sleep(1)
+
+            self.mqtt_logger.subscribe("ikg/idp/SBO-001/response")
+            self.mqtt_logger.subscribe("ikg/shaker/response")
+
+            self.logger.info("MQTT controller initialized successfully")
+
+        except Exception as e:
+            self.logger.error(f"Failed to initialize MQTT controller: {e}")
+            raise
 
     async def send_detect_command(
         self, round_id: str, input_stream: str, output_stream: str
