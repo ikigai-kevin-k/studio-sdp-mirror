@@ -64,7 +64,7 @@ except ImportError:
 from utils import create_serial_connection
 
 ser = create_serial_connection(
-    port="/dev/ttyUSB0",
+    port="/dev/ttyUSB1",
     baudrate=9600,
     parity=serial.PARITY_NONE,
     stopbits=serial.STOPBITS_ONE,
@@ -185,6 +185,14 @@ def send_stop_recording():
 def read_from_serial():
     global x2_count, x5_count, last_x2_time, last_x5_time, start_post_sent, deal_post_sent, start_time, deal_post_time, finish_post_time, isLaunch
     while True:
+        # Check if serial connection is available
+        if ser is None:
+            print(
+                "Warning: Serial connection not available, skipping serial read"
+            )
+            time.sleep(5)  # Wait 5 seconds before checking again
+            continue
+
         if ser.in_waiting > 0:
             data = ser.readline().decode("utf-8").strip()
             print("Receive >>>", data)
@@ -302,9 +310,15 @@ def read_from_serial():
                         deal_post_sent = False
 
                         print("\nSending *u 1 command...")
-                        ser.write(("*u 1\r\n").encode())
-                        log_to_file("*u 1", "Send <<<")
-                        print("*u 1 command sent\n")
+                        # Check if serial connection is available
+                        if ser is not None:
+                            ser.write(("*u 1\r\n").encode())
+                            log_to_file("*u 1", "Send <<<")
+                            print("*u 1 command sent\n")
+                        else:
+                            print(
+                                "Warning: Serial connection not available, cannot send *u 1 command"
+                            )
 
                         # Start recording two seconds after sending *u 1 command
                         if (
@@ -484,6 +498,11 @@ def read_from_serial():
 
 def send_command_and_wait(command, timeout=2):
     """Send a command and wait for the expected response"""
+    # Check if serial connection is available
+    if ser is None:
+        print("Warning: Serial connection not available, cannot send command")
+        return None
+
     ser.write((command + "\r\n").encode())
     log_to_file(command, "Send <<<")
 
@@ -493,7 +512,7 @@ def send_command_and_wait(command, timeout=2):
     # Wait for response
     start_time = time.time()
     while (time.time() - start_time) < timeout:
-        if ser.in_waiting > 0:
+        if ser is not None and ser.in_waiting > 0:
             response = ser.readline().decode("utf-8").strip()
             print("Receive >>>", response)
             log_to_file(response, "Receive >>>")
@@ -558,6 +577,12 @@ def write_to_serial():
             ]:  # Added "gc" as abbreviation
                 get_config()
             else:
+                # Check if serial connection is available
+                if ser is None:
+                    print(
+                        "Warning: Serial connection not available, cannot send command"
+                    )
+                    continue
                 ser.write((text + "\r\n").encode())
                 log_to_file(text, "Send <<<")
         except KeyboardInterrupt:
@@ -837,7 +862,8 @@ def main():
     except KeyboardInterrupt:
         print("\nProgram ended")
     finally:
-        ser.close()
+        if ser is not None:
+            ser.close()
 
 
 if __name__ == "__main__":
