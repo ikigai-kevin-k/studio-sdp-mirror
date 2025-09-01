@@ -40,16 +40,9 @@ from los_api.sr.api_v2_qat_sr import (
 )
 from concurrent.futures import ThreadPoolExecutor
 
-# Import Slack notifier for notifications
-try:
-    from slack.slack_notifier import send_error_to_slack
-
-    SLACK_AVAILABLE = True
-except ImportError:
-    SLACK_AVAILABLE = False
-    print(
-        "Warning: slack_notifier not available. Slack notifications disabled."
-    )
+# Import Slack notification module
+sys.path.append("slack")  # ensure slack module can be imported
+from slack import send_error_to_slack
 
 # import sentry_sdk
 
@@ -102,6 +95,9 @@ finish_post_time = 0
 token = "E5LN4END9Q"
 ws_client = None
 ws_connected = False
+
+# Add Slack notification variables
+sensor_error_sent = False  # Flag to ensure sensor error is only sent once
 
 
 # WebSocket connection function
@@ -167,6 +163,57 @@ websocket_thread.daemon = True
 websocket_thread.start()
 
 
+# Function to send sensor error notification to Slack
+def send_sensor_error_to_slack():
+    """Send sensor error notification to Slack for Speed Roulette table"""
+    global sensor_error_sent
+
+    if sensor_error_sent:
+        print(
+            f"[{get_timestamp()}] Sensor error already sent to Slack, skipping..."
+        )
+        return False
+
+    try:
+        # Send error notification using the convenience function
+        # This function will create its own SlackNotifier instance
+        success = send_error_to_slack(
+            error_message="SENSOR ERROR - Detected warning_flag=4 in *X;6 message",
+            error_code="SENSOR_STUCK",
+            table_name="Speed Roulette",
+            environment="SPEED_ROULETTE",
+        )
+
+        if success:
+            sensor_error_sent = True
+            print(
+                f"[{get_timestamp()}] Sensor error notification sent to Slack successfully"
+            )
+            log_to_file(
+                "Sensor error notification sent to Slack successfully",
+                "Slack >>>",
+            )
+            return True
+        else:
+            print(
+                f"[{get_timestamp()}] Failed to send sensor error notification to Slack"
+            )
+            log_to_file(
+                "Failed to send sensor error notification to Slack",
+                "Slack >>>",
+            )
+            return False
+
+    except Exception as e:
+        print(
+            f"[{get_timestamp()}] Error sending sensor error notification: {e}"
+        )
+        log_to_file(
+            f"Error sending sensor error notification: {e}", "Slack >>>"
+        )
+        return False
+
+
 # Function to send start recording message
 def send_start_recording(round_id):
     """Send start recording message"""
@@ -183,7 +230,7 @@ def send_stop_recording():
 
 
 def read_from_serial():
-    global x2_count, x5_count, last_x2_time, last_x5_time, start_post_sent, deal_post_sent, start_time, deal_post_time, finish_post_time, isLaunch
+    global x2_count, x5_count, last_x2_time, last_x5_time, start_post_sent, deal_post_sent, start_time, deal_post_time, finish_post_time, isLaunch, sensor_error_sent
     while True:
         # Check if serial connection is available
         if ser is None:
@@ -197,6 +244,42 @@ def read_from_serial():
             data = ser.readline().decode("utf-8").strip()
             print("Receive >>>", data)
             log_to_file(data, "Receive >>>")
+
+            # Handle *X;6 sensor error messages
+            if "*X;6" in data:
+                try:
+                    parts = data.split(";")
+                    if (
+                        len(parts) >= 5
+                    ):  # Ensure there are enough parts to get warning_flag
+                        warning_flag = parts[4]
+                        print(
+                            f"[{get_timestamp()}] Detected *X;6 message with warning_flag: {warning_flag}"
+                        )
+                        log_to_file(
+                            f"Detected *X;6 message with warning_flag: {warning_flag}",
+                            "Receive >>>",
+                        )
+
+                        # Check if warning_flag is 4 (sensor error)
+                        if warning_flag == "4":
+                            print(
+                                f"[{get_timestamp()}] SENSOR ERROR detected! Sending notification to Slack..."
+                            )
+                            log_to_file(
+                                "SENSOR ERROR detected! Sending notification to Slack...",
+                                "Receive >>>",
+                            )
+
+                            # Send sensor error notification to Slack
+                            send_sensor_error_to_slack()
+                except Exception as e:
+                    print(
+                        f"[{get_timestamp()}] Error parsing *X;6 message: {e}"
+                    )
+                    log_to_file(
+                        f"Error parsing *X;6 message: {e}", "Error >>>"
+                    )
 
             # Handle *X;2 count
             if "*X;2" in data:
@@ -760,26 +843,19 @@ def execute_broadcast_post(table, token):
             )
 
             # Send Slack notification for successful relaunch
-            if SLACK_AVAILABLE:
-                try:
-                    send_error_to_slack(
-                        error_message="Roulette relaunch notification sent successfully",
-                        environment=table["name"],
-                        table_name=table.get("game_code", "Unknown"),
-                        error_code="ROULETTE_RELAUNCH",
-                    )
-                    print(
-                        f"Slack notification sent for {table['name']} relaunch"
-                    )
-                except Exception as slack_error:
-                    print(f"Failed to send Slack notification: {slack_error}")
-                    log_to_file(
-                        f"Failed to send Slack notification: {slack_error}",
-                        "Slack >>>",
-                    )
-            else:
-                print(
-                    f"Slack notifications disabled for {table['name']} relaunch"
+            try:
+                send_error_to_slack(
+                    error_message="Roulette relaunch notification sent successfully",
+                    environment=table["name"],
+                    table_name=table.get("game_code", "Unknown"),
+                    error_code="ROULETTE_RELAUNCH",
+                )
+                print(f"Slack notification sent for {table['name']} relaunch")
+            except Exception as slack_error:
+                print(f"Failed to send Slack notification: {slack_error}")
+                log_to_file(
+                    f"Failed to send Slack notification: {slack_error}",
+                    "Slack >>>",
                 )
         else:
             print(
@@ -791,28 +867,23 @@ def execute_broadcast_post(table, token):
             )
 
             # Send Slack notification for failed relaunch
-            if SLACK_AVAILABLE:
-                try:
-                    send_error_to_slack(
-                        error_message="Failed to send roulette relaunch notification",
-                        environment=table["name"],
-                        table_name=table.get("game_code", "Unknown"),
-                        error_code="ROULETTE_RELAUNCH_FAILED",
-                    )
-                    print(
-                        f"Slack error notification sent for {table['name']} relaunch failure"
-                    )
-                except Exception as slack_error:
-                    print(
-                        f"Failed to send Slack error notification: {slack_error}"
-                    )
-                    log_to_file(
-                        f"Failed to send Slack error notification: {slack_error}",
-                        "Slack >>>",
-                    )
-            else:
+            try:
+                send_error_to_slack(
+                    error_message="Failed to send roulette relaunch notification",
+                    environment=table["name"],
+                    table_name=table.get("game_code", "Unknown"),
+                    error_code="ROULETTE_RELAUNCH_FAILED",
+                )
                 print(
-                    f"Slack notifications disabled for {table['name']} relaunch failure"
+                    f"Slack error notification sent for {table['name']} relaunch failure"
+                )
+            except Exception as slack_error:
+                print(
+                    f"Failed to send Slack error notification: {slack_error}"
+                )
+                log_to_file(
+                    f"Failed to send Slack error notification: {slack_error}",
+                    "Slack >>>",
                 )
 
         return result
@@ -824,26 +895,21 @@ def execute_broadcast_post(table, token):
         )
 
         # Send Slack notification for exception
-        if SLACK_AVAILABLE:
-            try:
-                send_error_to_slack(
-                    error_message=f"Exception during broadcast_post: {str(e)}",
-                    environment=table["name"],
-                    table_name=table.get("game_code", "Unknown"),
-                    error_code="BROADCAST_POST_EXCEPTION",
-                )
-                print(f"Slack exception notification sent for {table['name']}")
-            except Exception as slack_error:
-                print(
-                    f"Failed to send Slack exception notification: {slack_error}"
-                )
-                log_to_file(
-                    f"Failed to send Slack exception notification: {slack_error}",
-                    "Slack >>>",
-                )
-        else:
+        try:
+            send_error_to_slack(
+                error_message=f"Exception during broadcast_post: {str(e)}",
+                environment=table["name"],
+                table_name=table.get("game_code", "Unknown"),
+                error_code="BROADCAST_POST_EXCEPTION",
+            )
+            print(f"Slack exception notification sent for {table['name']}")
+        except Exception as slack_error:
             print(
-                f"Slack notifications disabled for {table['name']} exception"
+                f"Failed to send Slack exception notification: {slack_error}"
+            )
+            log_to_file(
+                f"Failed to send Slack exception notification: {slack_error}",
+                "Slack >>>",
             )
 
         return None
