@@ -43,7 +43,7 @@ from los_api.vr.api_v2_qat_vr import (
 
 # Import Slack notification module
 sys.path.append("slack")  # ensure slack module can be imported
-from slack_notifier import SlackNotifier, send_error_to_slack
+from slack import send_error_to_slack
 
 # Try to load environment variables from .env file
 try:
@@ -96,7 +96,6 @@ ws_client = None
 ws_connected = False
 
 # Add Slack notification variables
-slack_notifier = None
 sensor_error_sent = False  # Flag to ensure sensor error is only sent once
 
 
@@ -170,25 +169,6 @@ websocket_thread.daemon = True
 websocket_thread.start()
 
 
-# Initialize Slack notifier
-def init_slack_notifier():
-    """Initialize Slack notifier with environment variables or default settings"""
-    global slack_notifier
-    try:
-        # Try to initialize with environment variables first
-        slack_notifier = SlackNotifier(
-            default_channel="#sdp-alerts"  # Default channel for error notifications
-        )
-        print(f"[{get_timestamp()}] Slack notifier initialized successfully")
-        log_to_file("Slack notifier initialized successfully", "Slack >>>")
-        return True
-    except Exception as e:
-        print(f"[{get_timestamp()}] Failed to initialize Slack notifier: {e}")
-        log_to_file(f"Failed to initialize Slack notifier: {e}", "Slack >>>")
-        slack_notifier = None
-        return False
-
-
 # Function to send sensor error notification to Slack
 def send_sensor_error_to_slack():
     """Send sensor error notification to Slack for ARO-002 table"""
@@ -200,16 +180,9 @@ def send_sensor_error_to_slack():
         )
         return False
 
-    if not slack_notifier:
-        print(
-            f"[{get_timestamp()}] Slack notifier not available, attempting to initialize..."
-        )
-        if not init_slack_notifier():
-            print(f"[{get_timestamp()}] Failed to initialize Slack notifier")
-            return False
-
     try:
         # Send error notification using the convenience function
+        # This function will create its own SlackNotifier instance
         success = send_error_to_slack(
             error_message="SENSOR ERROR - Detected warning_flag=4 in *X;6 message",
             error_code="SENSOR_STUCK",
@@ -846,10 +819,6 @@ def execute_broadcast_post(table, token):
 
 def main():
     """Main function for VIP Roulette Controller"""
-    # Initialize Slack notifier
-    print(f"[{get_timestamp()}] Initializing Slack notifier...")
-    init_slack_notifier()
-
     # Create and start read thread
     read_thread = threading.Thread(target=read_from_serial)
     read_thread.daemon = True
