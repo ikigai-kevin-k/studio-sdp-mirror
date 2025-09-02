@@ -1,0 +1,24 @@
+{
+    "brokers": [
+        {
+            "broker": "192.168.20.9",
+            "port": 1883,
+            "username": "PFC",
+            "password": "wago",
+            "priority": 1
+        },
+        {
+            "broker": "192.168.20.10",
+            "port": 1883,
+            "username": "PFC",
+            "password": "wago",
+            "priority": 2
+        }
+    ],
+    "game_config": {
+        "game_type": "sicbo",
+        "game_code": "SBO-001",
+        "command_topic": "ikg/idp/SBO-001/command",
+        "response_topic": "ikg/idp/SBO-001/response"
+    }
+}
