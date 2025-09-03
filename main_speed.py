@@ -54,7 +54,8 @@ from slack import send_error_to_slack
 # )
 
 # Initialize serial connection only if hardware is available
-from utils import create_serial_connection
+from serialUtils import create_serial_connection
+from serialIO import read_from_serial
 
 ser = create_serial_connection(
     port="/dev/ttyUSB1",
@@ -91,6 +92,8 @@ last_x2_time = 0
 last_x5_time = 0
 start_post_sent = False
 deal_post_sent = False
+start_time = 0
+deal_post_time = 0
 finish_post_time = 0
 token = "E5LN4END9Q"
 ws_client = None
@@ -227,408 +230,6 @@ def send_stop_recording():
     threading.Thread(
         target=lambda: asyncio.run(send_to_recorder("stop_recording"))
     ).start()
-
-
-def read_from_serial():
-    global x2_count, x5_count, last_x2_time, last_x5_time, start_post_sent, deal_post_sent, start_time, deal_post_time, finish_post_time, isLaunch, sensor_error_sent
-    while True:
-        # Check if serial connection is available
-        if ser is None:
-            print(
-                "Warning: Serial connection not available, skipping serial read"
-            )
-            time.sleep(5)  # Wait 5 seconds before checking again
-            continue
-
-        if ser.in_waiting > 0:
-            # # Blocking read approach
-            # data = ser.readline().decode("utf-8").strip()
-            # print("Receive >>>", data)
-            # log_to_file(data, "Receive >>>")
-
-            # Non-blocking read approach
-            raw_data = ser.read(ser.in_waiting)
-            data_str = raw_data.decode("utf-8", errors="ignore")
-
-            # Add to buffer and process complete lines
-            if not hasattr(read_from_serial, "buffer"):
-                read_from_serial.buffer = ""
-            read_from_serial.buffer += data_str
-
-            # Process complete lines from buffer
-            while "\n" in read_from_serial.buffer:
-                line, read_from_serial.buffer = read_from_serial.buffer.split(
-                    "\n", 1
-                )
-                line = line.strip()
-                if line:
-                    print("Receive >>>", line)
-                    log_to_file(line, "Receive >>>")
-                    data = line  # Use the current line for processing
-
-                    # Handle *X;6 sensor error messages
-                    if "*X;6" in data:
-                        try:
-                            parts = data.split(";")
-                            if (
-                                len(parts) >= 5
-                            ):  # Ensure there are enough parts to get warning_flag
-                                warning_flag = parts[4]
-                                print(
-                                    f"[{get_timestamp()}] Detected *X;6 message with warning_flag: {warning_flag}"
-                                )
-                                log_to_file(
-                                    f"Detected *X;6 message with warning_flag: {warning_flag}",
-                                    "Receive >>>",
-                                )
-
-                                # Check if warning_flag is 4 (sensor error)
-                                if warning_flag == "4":
-                                    print(
-                                        f"[{get_timestamp()}] SENSOR ERROR detected! Sending notification to Slack..."
-                                    )
-                                    log_to_file(
-                                        "SENSOR ERROR detected! Sending notification to Slack...",
-                                        "Receive >>>",
-                                    )
-
-                                    # Send sensor error notification to Slack
-                                    send_sensor_error_to_slack()
-                        except Exception as e:
-                            print(
-                                f"[{get_timestamp()}] Error parsing *X;6 message: {e}"
-                            )
-                            log_to_file(
-                                f"Error parsing *X;6 message: {e}", "Error >>>"
-                            )
-
-                    # Handle *X;2 count
-                    if "*X;2" in data:
-                        current_time = time.time()
-                        if current_time - last_x2_time > 5:
-                            x2_count = 1
-                        else:
-                            x2_count += 1
-                        last_x2_time = current_time
-
-                        # Check if warning_flag is 8, if so send broadcast_post
-                        try:
-                            parts = data.split(";")
-                            if (
-                                len(parts) >= 5
-                            ):  # Ensure there are enough parts to get warning_flag
-                                warning_flag = parts[4]
-                                current_time = time.time()
-
-                                # Check if warning_flag requires broadcast
-                                if (
-                                    int(warning_flag) == 8
-                                    or int(warning_flag) == 2
-                                    or warning_flag == "A"
-                                ):
-                                    # Check if 10 seconds have passed or it's the first broadcast
-                                    if (
-                                        not hasattr(
-                                            execute_broadcast_post,
-                                            "last_broadcast_time",
-                                        )
-                                        or (
-                                            current_time
-                                            - execute_broadcast_post.last_broadcast_time
-                                        )
-                                        >= 10
-                                    ):
-
-                                        print(
-                                            f"\nDetected warning_flag not equal to 0, sending broadcast_post to notify relaunch..."
-                                        )
-                                        log_to_file(
-                                            "Detected warning_flag not equal to 0, sending broadcast_post to notify relaunch",
-                                            "Broadcast >>>",
-                                        )
-
-                                        # Send broadcast_post to each table
-                                        with ThreadPoolExecutor(
-                                            max_workers=len(tables)
-                                        ) as executor:
-                                            futures = [
-                                                executor.submit(
-                                                    execute_broadcast_post,
-                                                    table,
-                                                    token,
-                                                )
-                                                for table in tables
-                                            ]
-                                            for future in futures:
-                                                future.result()  # Wait for all requests to complete
-
-                                        # Update last send time
-                                        execute_broadcast_post.last_broadcast_time = (
-                                            current_time
-                                        )
-                                    else:
-                                        print(
-                                            f"Already sent broadcast {current_time - execute_broadcast_post.last_broadcast_time:.1f} seconds ago, waiting for time interval..."
-                                        )
-                        except Exception as e:
-                            print(
-                                f"Error parsing warning_flag or sending broadcast_post: {e}"
-                            )
-                            log_to_file(
-                                f"Error parsing warning_flag or sending broadcast_post: {e}",
-                                "Error >>>",
-                            )
-
-                        if x2_count >= 1 and not start_post_sent:
-                            time.sleep(2)  # for the show result animation time
-                            print("\n================Start================")
-
-                            try:
-                                start_time = time.time()
-                                print(f"start_time: {start_time}")
-                                log_to_file(
-                                    f"start_time: {start_time}", "Receive >>>"
-                                )
-
-                                if finish_post_time == 0:
-                                    finish_post_time = start_time
-                                finish_to_start_time = (
-                                    start_time - finish_post_time
-                                )
-                                print(
-                                    f"finish_to_start_time: {finish_to_start_time}"
-                                )
-                                log_to_file(
-                                    f"finish_to_start_time: {finish_to_start_time}",
-                                    "Receive >>>",
-                                )
-
-                                # Asynchronously process start_post for all tables
-                                with ThreadPoolExecutor(
-                                    max_workers=len(tables)
-                                ) as executor:
-                                    futures = [
-                                        executor.submit(
-                                            execute_start_post, table, token
-                                        )
-                                        for table in tables
-                                    ]
-                                    for future in futures:
-                                        future.result()  # Wait for all requests to complete
-
-                                start_post_sent = True
-                                deal_post_sent = False
-
-                                print("\nSending *u 1 command...")
-                                # Check if serial connection is available
-                                if ser is not None:
-                                    ser.write(("*u 1\r\n").encode())
-                                    log_to_file("*u 1", "Send <<<")
-                                    print("*u 1 command sent\n")
-                                else:
-                                    print(
-                                        "Warning: Serial connection not available, cannot send *u 1 command"
-                                    )
-
-                                # Start recording two seconds after sending *u 1 command
-                                if (
-                                    tables
-                                    and len(tables) > 0
-                                    and "round_id" in tables[0]
-                                ):
-                                    round_id = tables[0]["round_id"]
-                                    print(
-                                        f"[{get_timestamp()}] Preparing to start recording round_id: {round_id}, will start in two seconds"
-                                    )
-                                    log_to_file(
-                                        f"Preparing to start recording round_id: {round_id}, will start in two seconds",
-                                        "WebSocket >>>",
-                                    )
-                                    # Use thread to delay recording execution, avoid blocking main process
-                                    threading.Timer(
-                                        2.0,
-                                        lambda: send_start_recording(round_id),
-                                    ).start()
-                            except Exception as e:
-                                print(f"start_post error: {e}")
-                            print("======================================\n")
-
-                    elif "*X;3" in data and not isLaunch:
-                        ball_launch_time = time.time()
-                        print(f"ball_launch_time: {ball_launch_time}")
-                        log_to_file(
-                            f"ball_launch_time: {ball_launch_time}",
-                            "Receive >>>",
-                        )
-                        isLaunch = 1
-
-                        start_to_launch_time = ball_launch_time - start_time
-                        print(f"start_to_launch_time: {start_to_launch_time}")
-                        log_to_file(
-                            f"start_to_launch_time: {start_to_launch_time}",
-                            "Receive >>>",
-                        )
-
-                        # Removed code that starts recording when ball launches, as it now starts two seconds after *u 1 command
-
-                    # Handle *X;5 count
-                    elif "*X;5" in data and not deal_post_sent:
-                        current_time = time.time()
-                        if current_time - last_x5_time > 5:
-                            x5_count = 1
-                        else:
-                            x5_count += 1
-                        last_x5_time = current_time
-
-                        if x5_count == 1:
-                            try:
-                                parts = data.split(";")
-                                if len(parts) >= 4:
-                                    win_num = int(parts[3])
-                                    print(
-                                        f"Winning number for this round: {win_num}"
-                                    )
-
-                                    print(
-                                        "\n================Deal================"
-                                    )
-
-                                    try:
-                                        deal_post_time = time.time()
-                                        print(
-                                            f"deal_post_time: {deal_post_time}"
-                                        )
-                                        log_to_file(
-                                            f"deal_post_time: {deal_post_time}",
-                                            "Receive >>>",
-                                        )
-
-                                        launch_to_deal_time = (
-                                            deal_post_time - ball_launch_time
-                                        )
-                                        print(
-                                            f"launch_to_deal_time: {launch_to_deal_time}"
-                                        )
-                                        log_to_file(
-                                            f"launch_to_deal_time: {launch_to_deal_time}",
-                                            "Receive >>>",
-                                        )
-
-                                        # Stop recording - changed to non-blocking execution
-                                        print(
-                                            f"[{get_timestamp()}] Stop recording"
-                                        )
-                                        log_to_file(
-                                            "Stop recording", "WebSocket >>>"
-                                        )
-                                        send_stop_recording()  # This function now doesn't block the main thread
-
-                                        # Asynchronously process deal_post for all tables
-                                        time.sleep(0.5)
-                                        with ThreadPoolExecutor(
-                                            max_workers=len(tables)
-                                        ) as executor:
-                                            futures = [
-                                                executor.submit(
-                                                    execute_deal_post,
-                                                    table,
-                                                    token,
-                                                    win_num,
-                                                )
-                                                for table in tables
-                                            ]
-                                            for future in futures:
-                                                future.result()  # Wait for all requests to complete
-
-                                        deal_post_sent = True
-                                    except Exception as e:
-                                        print(f"deal_post error: {e}")
-
-                                    print(
-                                        "======================================\n"
-                                    )
-
-                                    # time.sleep(1)
-                                    print(
-                                        "\n================Finish================"
-                                    )
-
-                                    try:
-                                        finish_post_time = time.time()
-                                        print(
-                                            f"finish_post_time: {finish_post_time}"
-                                        )
-                                        log_to_file(
-                                            f"finish_post_time: {finish_post_time}",
-                                            "Receive >>>",
-                                        )
-
-                                        deal_to_finish_time = (
-                                            finish_post_time - deal_post_time
-                                        )
-                                        print(
-                                            f"deal_to_finish_time: {deal_to_finish_time}"
-                                        )
-                                        log_to_file(
-                                            f"deal_to_finish_time: {deal_to_finish_time}",
-                                            "Receive >>>",
-                                        )
-
-                                        log_to_file("Summary:", "Receive >>>")
-                                        log_to_file(
-                                            f"start_to_launch_time: {start_to_launch_time}",
-                                            "Receive >>>",
-                                        )
-                                        log_to_file(
-                                            f"launch_to_deal_time: {launch_to_deal_time}",
-                                            "Receive >>>",
-                                        )
-                                        log_to_file(
-                                            f"deal_to_finish_time: {deal_to_finish_time}",
-                                            "Receive >>>",
-                                        )
-                                        log_to_file(
-                                            f"finish_to_start_time: {finish_to_start_time}",
-                                            "Receive >>>",
-                                        )
-
-                                        log_time_intervals(
-                                            finish_to_start_time,
-                                            start_to_launch_time,
-                                            launch_to_deal_time,
-                                            deal_to_finish_time,
-                                        )
-
-                                        # Asynchronously process finish_post for all tables
-                                        with ThreadPoolExecutor(
-                                            max_workers=len(tables)
-                                        ) as executor:
-                                            futures = [
-                                                executor.submit(
-                                                    execute_finish_post,
-                                                    table,
-                                                    token,
-                                                )
-                                                for table in tables
-                                            ]
-                                            for future in futures:
-                                                future.result()  # Wait for all requests to complete
-
-                                        # Reset all flags and counters
-                                        start_post_sent = False
-                                        x2_count = 0
-                                        x5_count = 0
-                                        isLaunch = 0
-                                    except Exception as e:
-                                        print(f"finish_post error: {e}")
-                                    print(
-                                        "======================================\n"
-                                    )
-                            except Exception as e:
-                                print(f"Error parsing winning number: {e}")
-        else:
-            # No data available, sleep briefly to prevent busy waiting
-            time.sleep(0.001)  # 1ms sleep
 
 
 def send_command_and_wait(command, timeout=2):
@@ -969,8 +570,44 @@ def execute_broadcast_post(table, token):
 
 def main():
     """Main function for Speed Roulette Controller"""
+
+    # Create a wrapper function for read_from_serial with all required parameters
+    def read_from_serial_wrapper():
+        # Create a dictionary containing all global state variables
+        global_vars = {
+            "x2_count": x2_count,
+            "x5_count": x5_count,
+            "last_x2_time": last_x2_time,
+            "last_x5_time": last_x5_time,
+            "start_post_sent": start_post_sent,
+            "deal_post_sent": deal_post_sent,
+            "start_time": start_time,
+            "deal_post_time": deal_post_time,
+            "finish_post_time": finish_post_time,
+            "isLaunch": isLaunch,
+            "sensor_error_sent": sensor_error_sent,
+        }
+
+        read_from_serial(
+            ser=ser,
+            tables=tables,
+            token=token,
+            global_vars=global_vars,
+            # Callback functions
+            get_timestamp=get_timestamp,
+            log_to_file=log_to_file,
+            send_sensor_error_to_slack=send_sensor_error_to_slack,
+            execute_broadcast_post=execute_broadcast_post,
+            execute_start_post=execute_start_post,
+            execute_deal_post=execute_deal_post,
+            execute_finish_post=execute_finish_post,
+            send_start_recording=send_start_recording,
+            send_stop_recording=send_stop_recording,
+            log_time_intervals=log_time_intervals,
+        )
+
     # Create and start read thread
-    read_thread = threading.Thread(target=read_from_serial)
+    read_thread = threading.Thread(target=read_from_serial_wrapper)
     read_thread.daemon = True
     read_thread.start()
 
