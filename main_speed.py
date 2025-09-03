@@ -241,9 +241,30 @@ def read_from_serial():
             continue
 
         if ser.in_waiting > 0:
-            data = ser.readline().decode("utf-8").strip()
-            print("Receive >>>", data)
-            log_to_file(data, "Receive >>>")
+            # # Blocking read approach
+            # data = ser.readline().decode("utf-8").strip()
+            # print("Receive >>>", data)
+            # log_to_file(data, "Receive >>>")
+
+            # Non-blocking read approach
+            raw_data = ser.read(ser.in_waiting)
+            data_str = raw_data.decode("utf-8", errors="ignore")
+
+            # Add to buffer and process complete lines
+            if not hasattr(read_from_serial, "buffer"):
+                read_from_serial.buffer = ""
+            read_from_serial.buffer += data_str
+
+            # Process complete lines from buffer
+            while "\n" in read_from_serial.buffer:
+                line, read_from_serial.buffer = read_from_serial.buffer.split(
+                    "\n", 1
+                )
+                line = line.strip()
+                if line:
+                    print("Receive >>>", line)
+                    log_to_file(line, "Receive >>>")
+                    data = line  # Use the current line for processing
 
             # Handle *X;6 sensor error messages
             if "*X;6" in data:
