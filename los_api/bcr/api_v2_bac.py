@@ -417,6 +417,63 @@ def update_sdp_config_from_file(url, token, config_file="sdp.config"):
         return False
 
 
+def bet_stop_post(url: str, token: str) -> None:
+    """
+    Stop betting for the current round
+    """
+    try:
+        headers = {
+            "accept": "application/json",
+            "Bearer": token,
+            "x-signature": "los-local-signature",
+            "Content-Type": "application/json",
+            "Cookie": f"accessToken={accessToken}",
+            "Connection": "close",
+        }
+        data = {}
+        response = requests.post(
+            f"{url}/bet-stop", headers=headers, json=data, verify=False
+        )
+        response_data = response.json() if response.text else None
+
+        # 改進錯誤處理
+        if response.status_code != 200:
+            if response_data:
+                error_msg = response_data.get("error", {}).get(
+                    "message", "Unknown error"
+                )
+            else:
+                error_msg = f"HTTP {response.status_code}"
+            print(f"Error in bet_stop_post: {error_msg}")
+            return
+
+        if response_data is None:
+            print("Warning: Empty response from server")
+            return
+
+        if (
+            response_data
+            and "error" in response_data
+            and response_data["error"]
+        ):
+            error_msg = response_data["error"].get("message", "Unknown error")
+            print(f"Error in bet_stop_post: {error_msg}")
+            return
+
+        # Format and display the response
+        json_str = json.dumps(response_data, indent=2)
+        colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
+        print(colored_json)
+        print("Successfully stopped betting for the round")
+
+    except requests.exceptions.RequestException as e:
+        print(f"Network error in bet_stop_post: {e}")
+    except ValueError as e:
+        print(f"JSON decode error in bet_stop_post: {e}")
+    except Exception as e:
+        print(f"Unexpected error in bet_stop_post: {e}")
+
+
 def cancel_post(url: str, token: str) -> None:
     """
     取消當前局次
@@ -438,11 +495,12 @@ def cancel_post(url: str, token: str) -> None:
 
         # 改進錯誤處理
         if response.status_code != 200:
-            error_msg = (
-                response_data.get("error", {}).get("message", "Unknown error")
-                if response_data
-                else f"HTTP {response.status_code}"
-            )
+            if response_data:
+                error_msg = response_data.get("error", {}).get(
+                    "message", "Unknown error"
+                )
+            else:
+                error_msg = f"HTTP {response.status_code}"
             print(f"Error in cancel_post: {error_msg}")
             return
 
@@ -450,7 +508,11 @@ def cancel_post(url: str, token: str) -> None:
             print("Warning: Empty response from server")
             return
 
-        if "error" in response_data:
+        if (
+            response_data
+            and "error" in response_data
+            and response_data["error"]
+        ):
             error_msg = response_data["error"].get("message", "Unknown error")
             print(f"Error in cancel_post: {error_msg}")
             return
@@ -576,8 +638,8 @@ if __name__ == "__main__":
 
         # broadcast_post(post_url, token, "roulette.relaunch", "players", 20)
         # broadcast_post(post_url, token, "dice.reshake", "sdp", 20)
-        # print("================Start================\n")
-        # round_id, betPeriod = start_post_v2(post_url, token)
+        print("================Start================\n")
+        round_id, betPeriod = start_post_v2(post_url, token)
         round_id, status, betPeriod = get_roundID_v2(get_url, token)
         print(round_id, status, betPeriod)
 
@@ -607,9 +669,11 @@ if __name__ == "__main__":
         # visibility_post(post_url, token, True)
         # time.sleep(1)
 
-        print("================Deal================\n")
+        print("================Bet Stop================\n")
         # time.sleep(13)
-        # time.sleep(11)
+        time.sleep(11)
+        bet_stop_post(post_url, token)
+        print("================Deal================\n")
         deal_post_v2(post_url, token, round_id, results)
         print("================Finish================\n")
         finish_post_v2(post_url, token)
