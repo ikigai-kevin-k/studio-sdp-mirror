@@ -4,9 +4,39 @@ from pygments.formatters import TerminalFormatter
 from pygments.lexers import JsonLexer
 import json
 import time
+import os
 
-# UAT ARO-001
-accessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiJmYjYyOWIxYy1hZWQyLTRlOWQtYjE4OC03M2VmMTBhMTI0YjciLCJnYW1lQ29kZSI6WyJBUk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NDk3OTI0NTU0MDIsImlhdCI6MTc0OTc5MjQ1NX0.VCQgerfIziHFa55U3M1k4zQTOvSeCqmekPh69pMNaM4"
+# Load configuration from JSON file
+def load_config():
+    """Load configuration from table-config-speed-roulette-v2.json"""
+    config_path = os.path.join(os.path.dirname(__file__), "..", "..", "conf", "table-config-speed-roulette-v2.json")
+    try:
+        with open(config_path, "r") as f:
+            configs = json.load(f)
+            # Find UAT configuration
+            for config in configs:
+                if config["name"] == "UAT":
+                    return config
+        raise Exception("UAT configuration not found in config file")
+    except Exception as e:
+        print(f"Error loading config: {e}")
+        return None
+
+# Load UAT configuration
+config = load_config()
+if config:
+    accessToken = config["access_token"]
+    gameCode = config["game_code"]
+    get_url = config["get_url"] + gameCode
+    post_url = config["post_url"] + gameCode
+    token = config["table_token"]
+else:
+    # Fallback to hardcoded values if config loading fails
+    accessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiJmYjYyOWIxYy1hZWQyLTRlOWQtYjE4OC03M2VmMTBhMTI0YjciLCJnYW1lQ29kZSI6WyJBUk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NDk3OTI0NTU0MDIsImlhdCI6MTc0OTc5MjQ1NX0.VCQgerfIziHFa55U3M1k4zQTOvSeCqmekPh69pMNaM4"
+    gameCode = "ARO-001"
+    get_url = "https://crystal-table.iki-uat.cc/v2/service/tables/" + gameCode
+    post_url = "https://crystal-table.iki-uat.cc/v2/service/tables/" + gameCode
+    token = "E5LN4END9Q"
 
 
 def start_post_v2_uat(url, token):
@@ -435,12 +465,7 @@ if __name__ == "__main__":
     cnt = 0
     while cnt < 1:
         results = "0"  # str(random.randint(0, 36))
-        get_url = "https://crystal-table.iki-uat.cc/v2/service/tables/"
-        post_url = "https://crystal-table.iki-uat.cc/v2/service/tables/"
-        gameCode = "ARO-001"
-        get_url = get_url + gameCode
-        post_url = post_url + gameCode
-        token = "E5LN4END9Q"
+        # URLs and tokens are now loaded from config file at module level
 
         # broadcast_post(post_url, token, "roulette.relaunch", "players", 20)
         # print("================Start================\n")
