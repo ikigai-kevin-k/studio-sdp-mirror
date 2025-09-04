@@ -5,10 +5,50 @@ from pygments.lexers import JsonLexer
 import json
 import time
 
+
 # CIT SBO-001 - SicBo Game API Module for CIT Environment
-accessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI2YjY3ZjFiZi03NGI1LTQ0NGQtOWRjOS1hMGViMTI1MjU3NDEiLCJnYW1lQ29kZSI6WyJTQk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NDg0MDAxMjQ4MDEsImlhdCI6MTc0ODQwMDEyNH0.wgCKas02lserT3DTA19e4Rv2nyYhj-XRVyZEm_rEiqQ"
-# CITSBO-004
-# accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI2YmFhNWQyMi1lMmZhLTRkMjItOTQwYy0wMDI2ZTk3YTA2NDEiLCJnYW1lQ29kZSI6WyJTQk8tMDA0Il0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NTI3NDQ3NDE3NTEsImlhdCI6MTc1Mjc0NDc0MX0.SJ64iWb4OP-RM1QISTbshTlLr8Abu-UKjMJOfAdOeqE'
+# Remove hardcoded accessToken and create a function to get fresh token
+def get_access_token():
+    """Get a fresh access token from the API for CIT environment"""
+    url = "https://crystal-table.iki-cit.cc/v2/service/sessions"
+    headers = {
+        "accept": "application/json",
+        "x-signature": "los-local-signature",
+        "Content-Type": "application/json",
+    }
+    data = {"gameCode": "SBO-001", "role": "sdp"}
+
+    try:
+        response = requests.post(url, headers=headers, json=data, verify=False)
+        if response.status_code == 200:
+            response_data = response.json()
+            return response_data.get("data", {}).get("token")
+        else:
+            print(
+                f"Error getting token: {response.status_code} - "
+                f"{response.text}"
+            )
+            return None
+    except Exception as e:
+        print(f"Exception getting token: {e}")
+        return None
+
+
+# Get fresh token
+# accessToken = get_access_token()
+accessToken = (
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+    "eyJzZXNzaW9uSWQiOiI2YjY3ZjFiZi03NGI1LTQ0NGQtOWRjOS1hMGViMTI1MjU3NDEiLCJ"
+    "nYW1lQ29kZSI6WyJTQk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NDg0"
+    "MDAxMjQ4MDEsImlhdCI6MTc0ODQwMDEyNH0.wgCKas02lserT3DTA19e4Rv2nyYhj-XRVyZEm"
+    "_rEiqQ"
+)
+
+if not accessToken:
+    print("Failed to get access token. Exiting.")
+    exit(1)
+
+print(f"Successfully obtained access token: {accessToken}")
 
 
 def start_post_v2(url, token):
@@ -250,6 +290,155 @@ def resume_post(url, token):
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
+
+def bet_stop_post(url: str, token: str) -> None:
+    """
+    Stop betting for the current round - SicBo game
+    """
+    try:
+        headers = {
+            "accept": "application/json",
+            "Bearer": token,
+            "x-signature": "los-local-signature",
+            "Content-Type": "application/json",
+            "Cookie": f"accessToken={accessToken}",
+            "Connection": "close",
+        }
+        data = {}
+        response = requests.post(
+            f"{url}/bet-stop", headers=headers, json=data, verify=False
+        )
+        response_data = response.json() if response.text else None
+
+        # Improve error handling
+        if response.status_code != 200:
+            if response_data:
+                error_msg = response_data.get("error", {}).get(
+                    "message", "Unknown error"
+                )
+            else:
+                error_msg = f"HTTP {response.status_code}"
+            print(f"Error in bet_stop_post: {error_msg}")
+            return
+
+        if response_data is None:
+            print("Warning: Empty response from server")
+            return
+
+        if (
+            response_data
+            and "error" in response_data
+            and response_data["error"]
+        ):
+            error_msg = response_data["error"].get("message", "Unknown error")
+            print(f"Error in bet_stop_post: {error_msg}")
+            return
+
+        # Format and display the response
+        json_str = json.dumps(response_data, indent=2)
+        colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
+        print(colored_json)
+        print("Successfully stopped betting for the round")
+
+    except requests.exceptions.RequestException as e:
+        print(f"Network error in bet_stop_post: {e}")
+    except ValueError as e:
+        print(f"JSON decode error in bet_stop_post: {e}")
+    except Exception as e:
+        print(f"Unexpected error in bet_stop_post: {e}")
+
+
+def cancel_post(url: str, token: str) -> None:
+    """
+    Cancel the current round - SicBo game
+    """
+    try:
+        headers = {
+            "accept": "application/json",
+            "Bearer": token,
+            "x-signature": "los-local-signature",
+            "Content-Type": "application/json",
+            "Cookie": f"accessToken={accessToken}",
+            "Connection": "close",
+        }
+        data = {}
+        response = requests.post(
+            f"{url}/cancel", headers=headers, json=data, verify=False
+        )
+        response_data = response.json() if response.text else None
+
+        # 改進錯誤處理
+        if response.status_code != 200:
+            if response_data:
+                error_msg = response_data.get("error", {}).get(
+                    "message", "Unknown error"
+                )
+            else:
+                error_msg = f"HTTP {response.status_code}"
+            print(f"Error in cancel_post: {error_msg}")
+            return
+
+        if response_data is None:
+            print("Warning: Empty response from server")
+            return
+
+        if (
+            response_data
+            and "error" in response_data
+            and response_data["error"]
+        ):
+            error_msg = response_data["error"].get("message", "Unknown error")
+            print(f"Error in cancel_post: {error_msg}")
+            return
+
+        print("Successfully cancelled the round")
+
+    except requests.exceptions.RequestException as e:
+        print(f"Network error in cancel_post: {e}")
+    except ValueError as e:
+        print(f"JSON decode error in cancel_post: {e}")
+    except Exception as e:
+        print(f"Unexpected error in cancel_post: {e}")
+
+
+def broadcast_post_v2(
+    url, token, broadcast_type, audience="players", afterSeconds=20
+):
+    """
+    Send a broadcast message to the SicBo table
+
+    Args:
+        url (str): API endpoint URL
+        token (str): Authentication token
+        broadcast_type (str): Type of broadcast message (e.g., "dice.reshake")
+        audience (str): Target audience for the broadcast (default: "players")
+        afterSeconds (int): Delay before broadcast (default: 20)
+    """
+    headers = {
+        "accept": "application/json",
+        "Bearer": token,
+        "x-signature": "los-local-signature",
+        "Content-Type": "application/json",
+        "Cookie": f"accessToken={accessToken}",
+        "Connection": "close",
+    }
+
+    # Generate a unique message ID using timestamp
+    msg_id = f"msg_{int(time.time() * 1000)}"
+
+    data = {
+        "msgId": msg_id,
+        "metadata": {
+            "type": broadcast_type,
+            "audience": audience,
+            "afterSeconds": afterSeconds,
+        },
+    }
+
+    response = requests.post(
+        f"{url}/broadcast", headers=headers, json=data, verify=False
+    )
+    json_str = json.dumps(response.json(), indent=2)
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
@@ -373,7 +562,7 @@ def update_sdp_config_from_file(url, token, config_file="sdp.config"):
 
 def cancel_post(url: str, token: str) -> None:
     """
-    取消當前局次
+    cancel the current round - SicBo game
     """
     try:
         headers = {
@@ -390,7 +579,7 @@ def cancel_post(url: str, token: str) -> None:
         )
         response_data = response.json() if response.text else None
 
-        # 改進錯誤處理
+        # improve error handling
         if response.status_code != 200:
             error_msg = (
                 response_data.get("error", {}).get("message", "Unknown error")
@@ -503,7 +692,9 @@ if __name__ == "__main__":
 
         # print("================Visibility================\n")
         # visibility_post(post_url, token, True)
-
+        print("================Bet Stop================\n")
+        time.sleep(11)  # Wait for betting period
+        bet_stop_post(post_url, token)
         print("================Deal================\n")
         # time.sleep(10)
         deal_post_v2(post_url, token, round_id, results)
