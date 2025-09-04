@@ -26,6 +26,7 @@ from los_api.sb.api_v2_sb import (
     pause_post_v2,
     get_roundID_v2,
     broadcast_post_v2,
+    bet_stop_post,
 )
 from los_api.sb.api_v2_uat_sb import (
     start_post_v2_uat,
@@ -413,6 +414,44 @@ async def finish_round_for_table(table, token):
         return table["name"], False
 
 
+async def betStop_round_for_table(table, token):
+    """Stop betting for a single table - helper function for thread pool execution"""
+    try:
+        post_url = f"{table['post_url']}{table['game_code']}"
+
+        if table["name"] == "CIT":
+            await retry_with_network_check(bet_stop_post, post_url, token)
+        elif table["name"] == "UAT":
+            # TODO: Implement UAT bet_stop_post
+            logger.warning(
+                f"UAT bet_stop_post not implemented for table {table['name']}"
+            )
+        elif table["name"] == "PRD":
+            # TODO: Implement PRD bet_stop_post
+            logger.warning(
+                f"PRD bet_stop_post not implemented for table {table['name']}"
+            )
+        elif table["name"] == "STG":
+            # TODO: Implement STG bet_stop_post
+            logger.warning(
+                f"STG bet_stop_post not implemented for table {table['name']}"
+            )
+        elif table["name"] == "QAT":
+            # TODO: Implement QAT bet_stop_post
+            logger.warning(
+                f"QAT bet_stop_post not implemented for table {table['name']}"
+            )
+
+        return table["name"], True
+
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(
+            f"Error stopping betting for table {table['name']}: {error_msg}"
+        )
+        return table["name"], False
+
+
 async def retry_with_network_check(func, *args, max_retries=5, retry_delay=5):
     # async def retry_with_network_check(func, *args, max_retries=5, retry_delay=5):
     """
@@ -620,6 +659,32 @@ class SDPGame:
         except Exception as e:
             self.logger.error(f"Error ensuring MQTT connections: {e}")
 
+    async def _bet_stop_countdown(self, table, round_id, bet_period):
+        """Countdown and call bet stop for a table (non-blocking)"""
+        try:
+            # Wait for the bet period duration
+            await asyncio.sleep(bet_period)
+
+            # Call bet stop for the table
+            self.logger.info(
+                f"Calling bet stop for {table['name']} (round {round_id})"
+            )
+            result = await betStop_round_for_table(table, self.token)
+
+            if result[1]:  # Check if successful
+                self.logger.info(
+                    f"Successfully stopped betting for {table['name']}"
+                )
+            else:
+                self.logger.error(
+                    f"Failed to stop betting for {table['name']}"
+                )
+
+        except Exception as e:
+            self.logger.error(
+                f"Error in bet stop countdown for {table['name']}: {e}"
+            )
+
     async def run_sicbo_game(self):
         """Run self test for all components"""
         self.logger.info("Starting self test...")
@@ -751,6 +816,22 @@ class SDPGame:
                     self.logger.error("Failed to start round on any table")
                     await asyncio.sleep(5)
                     continue
+
+                # Start bet stop countdown for each table (non-blocking)
+                bet_stop_tasks = []
+                for table, round_id, bet_period in round_ids:
+                    if bet_period and bet_period > 0:
+                        # Create async task for bet stop countdown
+                        task = asyncio.create_task(
+                            self._bet_stop_countdown(
+                                table, round_id, bet_period
+                            )
+                        )
+                        bet_stop_tasks.append(task)
+                        self.logger.info(
+                            f"Started bet stop countdown for {table['name']} "
+                            f"(round {round_id}, {bet_period}s)"
+                        )
 
                 # notify recorder to start recording
                 if round_ids:
