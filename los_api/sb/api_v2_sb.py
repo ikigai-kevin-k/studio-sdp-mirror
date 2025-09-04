@@ -5,13 +5,14 @@ from pygments.lexers import JsonLexer
 import json
 import time
 
-# CIT SBO-001
+# CIT SBO-001 - SicBo Game API Module for CIT Environment
 accessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI2YjY3ZjFiZi03NGI1LTQ0NGQtOWRjOS1hMGViMTI1MjU3NDEiLCJnYW1lQ29kZSI6WyJTQk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NDg0MDAxMjQ4MDEsImlhdCI6MTc0ODQwMDEyNH0.wgCKas02lserT3DTA19e4Rv2nyYhj-XRVyZEm_rEiqQ"
 # CITSBO-004
 # accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI2YmFhNWQyMi1lMmZhLTRkMjItOTQwYy0wMDI2ZTk3YTA2NDEiLCJnYW1lQ29kZSI6WyJTQk8tMDA0Il0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NTI3NDQ3NDE3NTEsImlhdCI6MTc1Mjc0NDc0MX0.SJ64iWb4OP-RM1QISTbshTlLr8Abu-UKjMJOfAdOeqE'
 
 
 def start_post_v2(url, token):
+    """Start a new round for SicBo game"""
     # Set up HTTP headers
     headers = {
         "accept": "application/json",
@@ -32,7 +33,7 @@ def start_post_v2(url, token):
     # Check if the response status code indicates success
     if response.status_code != 200:
         print(f"Error: {response.status_code} - {response.text}")
-        return -1, -1
+        return None, None
 
     try:
         # Parse the response JSON
@@ -40,7 +41,7 @@ def start_post_v2(url, token):
 
     except json.JSONDecodeError:
         print("Error: Unable to decode JSON response.")
-        return -1, -1
+        return None, None
 
     # Extract roundId from the nested JSON structure
     round_id = (
@@ -54,7 +55,7 @@ def start_post_v2(url, token):
     # Handle cases where roundId is not found
     if not round_id:
         print("Error: roundId not found in response.")
-        return -1, -1
+        return None, None
 
     # Format the JSON for pretty printing and apply syntax highlighting
     json_str = json.dumps(response_data, indent=2)
@@ -65,6 +66,7 @@ def start_post_v2(url, token):
 
 
 def deal_post_v2(url, token, round_id, result):
+    """Deal the result for SicBo game"""
     timecode = str(int(time.time() * 1000))
     headers = {
         "accept": "application/json",
@@ -78,7 +80,6 @@ def deal_post_v2(url, token, round_id, result):
 
     data = {
         "roundId": f"{round_id}",
-        # "roulette": result  # 修改: 使用 "roulette" 而不是 "sicBo"，直接傳入數字的string
         "sicBo": result,
     }
 
@@ -92,14 +93,18 @@ def deal_post_v2(url, token, round_id, result):
         print("====================")
         print(f"Error: {response.status_code} - {response.text}")
         print("====================")
+        return False
 
     json_str = json.dumps(response.json(), indent=2)
-
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
+    print(f"Deal result sent successfully: {result}")
+    return True
+
 
 def finish_post_v2(url, token):
+    """Finish the current round for SicBo game"""
     headers = {
         "accept": "application/json",
         "Bearer": token,
@@ -112,13 +117,22 @@ def finish_post_v2(url, token):
     response = requests.post(
         f"{url}/finish", headers=headers, json=data, verify=False
     )
-    json_str = json.dumps(response.json(), indent=2)
 
+    if response.status_code != 200:
+        print(
+            f"Error finishing game: {response.status_code} - {response.text}"
+        )
+        return False
+    json_str = json.dumps(response.json(), indent=2)
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
+    print("Game finished successfully.")
+    return True
+
 
 def visibility_post(url, token, enable):
+    """Set table visibility for SicBo game"""
     headers = {
         "accept": "application/json",
         "Bearer": token,
@@ -130,23 +144,18 @@ def visibility_post(url, token, enable):
     print("enable: ", enable)
 
     visibility = "disabled" if enable is False else "visible"
-    # print("vis: ", visibility)
     data = {"visibility": visibility}
 
     response = requests.post(
         f"{url}/visibility", headers=headers, json=data, verify=False
     )
     json_str = json.dumps(response.json(), indent=2)
-
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
 
 def get_roundID_v2(url, token):
-    # Set up HTTP headers
-
-    # print("URL:", url)
-
+    """Get current round information for SicBo game"""
     headers = {
         "accept": "application/json",
         "Bearer": f"Bearer {token}",
@@ -156,21 +165,27 @@ def get_roundID_v2(url, token):
         "Connection": "close",
     }
 
-    # Define payload for the POST request
-    data = {}
     response = requests.get(f"{url}", headers=headers, verify=False)
 
+    # Pretty print API response
+    try:
+        response_data = response.json()
+        print("=== SICBO API Response ===")
+        print(json.dumps(response_data, indent=2, ensure_ascii=False))
+    except json.JSONDecodeError:
+        print("=== Raw Response (Not JSON) ===")
+        print(response.text)
     # Check if the response status code indicates success
     if response.status_code != 200:
-        # print(f"Error: {response.status_code} - {response.text}")
-        return -1, -1, -1
+        print(f"Error: {response.status_code} - {response.text}")
+        raise Exception(f"Error: {response.status_code} - {response.text}")
 
     try:
         # Parse the response JSON
         response_data = response.json()
     except json.JSONDecodeError:
         print("Error: Unable to decode JSON response.")
-        return -1, -1, -1
+        raise Exception("Error: Unable to decode JSON response.")
 
     # Extract roundId from the nested JSON structure
     round_id = (
@@ -190,17 +205,13 @@ def get_roundID_v2(url, token):
     # Handle cases where roundId is not found
     if not round_id:
         print("Error: roundId not found in response.")
-        return -1, -1, -1
-
-    # Format the JSON for pretty printing and apply syntax highlighting
-    json_str = json.dumps(response_data, indent=2)
-    # colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
-    # print(colored_json)
+        raise Exception("Error: roundId not found in response.")
 
     return round_id, status, betPeriod
 
 
 def pause_post_v2(url, token, reason):
+    """Pause the current round for SicBo game"""
     headers = {
         "accept": "application/json",
         "Bearer": token,
@@ -216,12 +227,12 @@ def pause_post_v2(url, token, reason):
         f"{url}/pause", headers=headers, json=data, verify=False
     )
     json_str = json.dumps(response.json(), indent=2)
-
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
 
 def resume_post(url, token):
+    """Resume the paused round for SicBo game"""
     headers = {
         "accept": "application/json",
         "Bearer": token,
@@ -236,6 +247,8 @@ def resume_post(url, token):
         f"{url}/resume", headers=headers, json=data, verify=False
     )
     json_str = json.dumps(response.json(), indent=2)
+    colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
+    print(colored_json)
 
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
@@ -243,7 +256,7 @@ def resume_post(url, token):
 
 def sdp_config_post(url, token, config_data):
     """
-    Update SDP configuration for a specific table
+    Update SDP configuration for a specific SicBo table
 
     Args:
         url (str): API endpoint URL
@@ -278,7 +291,7 @@ def sdp_config_post(url, token, config_data):
 
 def get_sdp_config(url, token):
     """
-    Get SDP configuration from the table status
+    Get SDP configuration from the SicBo table status
 
     Args:
         url (str): API endpoint URL
@@ -452,68 +465,47 @@ def broadcast_post_v2(
 
 
 if __name__ == "__main__":
-    import random
-
     cnt = 0
     while cnt < 1:
-        # results = [1,2,3] #str(random.randint(0, 36))
-        # ABO-001
-        results = [1, 2, 3]
-
-        # get_url = 'https://crystal-los.iki-cit.cc/v2/service/tables/'
+        # SicBo game results - three dice values
+        results = [1, 2, 3]  # Example dice results
+        # CIT environment URLs
         get_url = "https://crystal-table.iki-cit.cc/v2/service/tables/"
-        # post_url = 'https://crystal-los.iki-cit.cc/v2/service/tables/'
         post_url = "https://crystal-table.iki-cit.cc/v2/service/tables/"
 
-        # get_url =  "https://crystal-los.iki-uat.cc/v1/service/table/"
-        # post_url = "https://crystal-los.iki-uat.cc/v1/service/sdp/table/"
-
-        # gameCode = 'SDP-003'
-        # gameCode = 'SDP-001'
-        # gameCode = 'SDP-003'
+        # SicBo game code for CIT environment
         gameCode = "SBO-001"
-        # gameCode = 'ABO-001'
-        # gameCode = 'SBO-004'
         get_url = get_url + gameCode
         post_url = post_url + gameCode
         token = "E5LN4END9Q"
 
         # broadcast_post(post_url, token, "roulette.relaunch", "players", 20)
         # broadcast_post(post_url, token, "dice.reshake", "sdp", 20)
-        # print("================Start================\n")
-        # round_id, betPeriod = start_post_v2(post_url, token)
+        print("================Start================\n")
+        round_id, betPeriod = start_post_v2(post_url, token)
         round_id, status, betPeriod = get_roundID_v2(get_url, token)
         print(round_id, status, betPeriod)
-
-        # betPeriod = 10
 
         # print(round_id, status, betPeriod)
         # while betPeriod >= 0: #or status !='bet-stopped':
         # print("Bet Period count down:", betPeriod)
-        # time.sleep(1)
         # betPeriod = betPeriod - 1
         # _, status, _ =  get_roundID(get_url, token)
-        # print(status)
 
         # print("================Pause================\n")
         # pause_post(post_url, token, "test")
-        # time.sleep(1)
 
         # print("================Resume================\n")
         # resume_post(post_url, token)
-        # time.sleep(1)
 
         # print("================Invisibility================\n")
         # visibility_post(post_url, token, False)
-        # time.sleep(1)
 
         # print("================Visibility================\n")
         # visibility_post(post_url, token, True)
-        # time.sleep(1)
 
         print("================Deal================\n")
-        # time.sleep(13)
-        # time.sleep(5)
+        # time.sleep(10)
         deal_post_v2(post_url, token, round_id, results)
         print("================Finish================\n")
         finish_post_v2(post_url, token)
