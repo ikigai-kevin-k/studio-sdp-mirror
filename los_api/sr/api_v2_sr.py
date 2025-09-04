@@ -6,10 +6,17 @@ import json
 import time
 import os
 
+
 # Load configuration from JSON file
 def load_config():
     """Load configuration from table-config-speed-roulette-v2.json"""
-    config_path = os.path.join(os.path.dirname(__file__), "..", "..", "conf", "table-config-speed-roulette-v2.json")
+    config_path = os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "..",
+        "conf",
+        "table-config-speed-roulette-v2.json",
+    )
     try:
         with open(config_path, "r") as f:
             configs = json.load(f)
@@ -21,6 +28,7 @@ def load_config():
     except Exception as e:
         print(f"Error loading config: {e}")
         return None
+
 
 # Load CIT configuration
 config = load_config()
@@ -40,6 +48,7 @@ else:
 
 
 def start_post_v2(url, token):
+    """Start a new round for SicBo game"""
     # Set up HTTP headers
     headers = {
         "accept": "application/json",
@@ -47,6 +56,7 @@ def start_post_v2(url, token):
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
+        "Connection": "close",
         # 'timecode': '26000' # 8 + 15 + 3 = 26
     }
 
@@ -59,7 +69,7 @@ def start_post_v2(url, token):
     # Check if the response status code indicates success
     if response.status_code != 200:
         print(f"Error: {response.status_code} - {response.text}")
-        return -1, -1
+        return None, None
 
     try:
         # Parse the response JSON
@@ -67,7 +77,7 @@ def start_post_v2(url, token):
 
     except json.JSONDecodeError:
         print("Error: Unable to decode JSON response.")
-        return -1, -1
+        return None, None
 
     # Extract roundId from the nested JSON structure
     round_id = (
@@ -81,7 +91,7 @@ def start_post_v2(url, token):
     # Handle cases where roundId is not found
     if not round_id:
         print("Error: roundId not found in response.")
-        return -1, -1
+        return None, None
 
     # Format the JSON for pretty printing and apply syntax highlighting
     json_str = json.dumps(response_data, indent=2)
@@ -92,7 +102,8 @@ def start_post_v2(url, token):
 
 
 def deal_post_v2(url, token, round_id, result):
-    timecode = str(int(time.time() * 1000) + 5000)
+    """Deal the result for SicBo game"""
+    timecode = str(int(time.time() * 1000))
     headers = {
         "accept": "application/json",
         "Bearer": token,
@@ -100,68 +111,86 @@ def deal_post_v2(url, token, round_id, result):
         "Content-Type": "application/json",
         "timecode": timecode,
         "Cookie": f"accessToken={accessToken}",
+        "Connection": "close",
     }
 
     data = {
         "roundId": f"{round_id}",
-        "roulette": result,  # 修改: 使用 "roulette" 而不是 "sicBo"，直接傳入數字的string
+        "roulette": result,
     }
 
     response = requests.post(
         f"{url}/deal", headers=headers, json=data, verify=False
     )
-    json_str = json.dumps(response.json(), indent=2)
+    if response.status_code != 200:
+        print("====================")
+        print("[DEBUG] deal_post_v2")
+        print("====================")
+        print(f"Error: {response.status_code} - {response.text}")
+        print("====================")
+        return False
 
+    json_str = json.dumps(response.json(), indent=2)
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
+    print(f"Deal result sent successfully: {result}")
+    return True
+
 
 def finish_post_v2(url, token):
+    """Finish the current round for SicBo game"""
     headers = {
         "accept": "application/json",
         "Bearer": token,
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
+        "Connection": "close",
     }
     data = {}
     response = requests.post(
         f"{url}/finish", headers=headers, json=data, verify=False
     )
-    json_str = json.dumps(response.json(), indent=2)
 
+    if response.status_code != 200:
+        print(
+            f"Error finishing game: {response.status_code} - {response.text}"
+        )
+        return False
+    json_str = json.dumps(response.json(), indent=2)
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
+    print("Game finished successfully.")
+    return True
+
 
 def visibility_post(url, token, enable):
+    """Set table visibility for SicBo game"""
     headers = {
         "accept": "application/json",
         "Bearer": token,
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
+        "Connection": "close",
     }
     print("enable: ", enable)
 
     visibility = "disabled" if enable is False else "visible"
-    # print("vis: ", visibility)
     data = {"visibility": visibility}
 
     response = requests.post(
         f"{url}/visibility", headers=headers, json=data, verify=False
     )
     json_str = json.dumps(response.json(), indent=2)
-
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
 
 def get_roundID(url, token):
-    # Set up HTTP headers
-
-    # print("URL:", url)
-
+    """Get current round information for SicBo game"""
     headers = {
         "accept": "application/json",
         "Bearer": f"Bearer {token}",
@@ -170,21 +199,27 @@ def get_roundID(url, token):
         "Cookie": f"accessToken={accessToken}",
     }
 
-    # Define payload for the POST request
-    data = {}
     response = requests.get(f"{url}", headers=headers, verify=False)
 
+    # Pretty print API response
+    try:
+        response_data = response.json()
+        print("=== SICBO API Response ===")
+        print(json.dumps(response_data, indent=2, ensure_ascii=False))
+    except json.JSONDecodeError:
+        print("=== Raw Response (Not JSON) ===")
+        print(response.text)
     # Check if the response status code indicates success
     if response.status_code != 200:
-        # print(f"Error: {response.status_code} - {response.text}")
-        return -1, -1, -1
+        print(f"Error: {response.status_code} - {response.text}")
+        raise Exception(f"Error: {response.status_code} - {response.text}")
 
     try:
         # Parse the response JSON
         response_data = response.json()
     except json.JSONDecodeError:
         print("Error: Unable to decode JSON response.")
-        return -1, -1, -1
+        raise Exception("Error: Unable to decode JSON response.")
 
     # Extract roundId from the nested JSON structure
     round_id = (
@@ -204,23 +239,20 @@ def get_roundID(url, token):
     # Handle cases where roundId is not found
     if not round_id:
         print("Error: roundId not found in response.")
-        return -1, -1, -1
-
-    # Format the JSON for pretty printing and apply syntax highlighting
-    json_str = json.dumps(response_data, indent=2)
-    # colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
-    # print(colored_json)
+        raise Exception("Error: roundId not found in response.")
 
     return round_id, status, betPeriod
 
 
 def pause_post(url, token, reason):
+    """Pause the current round for SicBo game"""
     headers = {
         "accept": "application/json",
         "Bearer": token,
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
+        "Connection": "close",
     }
 
     data = {"reason": reason}  # for example: "cannot drive the dice shaker"
@@ -229,18 +261,19 @@ def pause_post(url, token, reason):
         f"{url}/pause", headers=headers, json=data, verify=False
     )
     json_str = json.dumps(response.json(), indent=2)
-
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
 
 def resume_post(url, token):
+    """Resume the paused round for SicBo game"""
     headers = {
         "accept": "application/json",
         "Bearer": token,
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
+        "Connection": "close",
     }
 
     data = {}  # Empty payload as per API specification
@@ -248,6 +281,8 @@ def resume_post(url, token):
         f"{url}/resume", headers=headers, json=data, verify=False
     )
     json_str = json.dumps(response.json(), indent=2)
+    colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
+    print(colored_json)
 
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
@@ -255,7 +290,7 @@ def resume_post(url, token):
 
 def sdp_config_post(url, token, config_data):
     """
-    Update SDP configuration for a specific table
+    Update SDP configuration for a specific SicBo table
 
     Args:
         url (str): API endpoint URL
@@ -272,6 +307,7 @@ def sdp_config_post(url, token, config_data):
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
+        "Connection": "close",
     }
 
     response = requests.post(
@@ -289,7 +325,7 @@ def sdp_config_post(url, token, config_data):
 
 def get_sdp_config(url, token):
     """
-    Get SDP configuration from the table status
+    Get SDP configuration from the SicBo table status
 
     Args:
         url (str): API endpoint URL
@@ -304,6 +340,7 @@ def get_sdp_config(url, token):
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
+        "Connection": "close",
     }
 
     response = requests.get(f"{url}", headers=headers, verify=False)
@@ -370,7 +407,7 @@ def update_sdp_config_from_file(url, token, config_file="sdp.config"):
 
 def cancel_post(url: str, token: str) -> None:
     """
-    取消當前局次
+    cancel the current round - SicBo game
     """
     try:
         headers = {
@@ -379,6 +416,7 @@ def cancel_post(url: str, token: str) -> None:
             "x-signature": "los-local-signature",
             "Content-Type": "application/json",
             "Cookie": f"accessToken={accessToken}",
+            "Connection": "close",
         }
         data = {}
         response = requests.post(
@@ -386,7 +424,7 @@ def cancel_post(url: str, token: str) -> None:
         )
         response_data = response.json() if response.text else None
 
-        # 改進錯誤處理
+        # improve error handling
         if response.status_code != 200:
             error_msg = (
                 response_data.get("error", {}).get("message", "Unknown error")
@@ -434,6 +472,7 @@ def broadcast_post_v2(
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
+        "Connection": "close",
     }
 
     # Generate a unique message ID using timestamp
@@ -460,8 +499,6 @@ def broadcast_post_v2(
 
 
 if __name__ == "__main__":
-    import random
-
     cnt = 0
     while cnt < 1:
         results = "0"  # str(random.randint(0, 36))
