@@ -96,7 +96,7 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-.env
+# .env  # Commented out to allow .env file to be tracked
 .venv
 env/
 venv/

@@ -7,69 +7,88 @@ import time
 import os
 
 # Load configuration from JSON file
-def load_config():
-    """Load configuration from table-config-speed-roulette-v2.json"""
+def load_config(env_name):
+    """
+    Load configuration from table-config-speed-roulette-v2.json
+    
+    Args:
+        env_name (str): Environment name (PRD, UAT, CIT, STG, QAT)
+    
+    Returns:
+        dict: Configuration dictionary for the specified environment
+    """
     config_path = os.path.join(os.path.dirname(__file__), "..", "..", "conf", "table-config-speed-roulette-v2.json")
     try:
         with open(config_path, "r") as f:
             configs = json.load(f)
-            # Find CIT configuration
+            # Find specified environment configuration
             for config in configs:
-                if config["name"] == "CIT":
+                if config["name"] == env_name:
                     return config
-        raise Exception("CIT configuration not found in config file")
+        raise Exception(f"{env_name} configuration not found in config file")
     except Exception as e:
-        print(f"Error loading config: {e}")
+        print(f"Error loading config for {env_name}: {e}")
         return None
 
-# Load CIT configuration
-config = load_config()
-if config:
-    accessToken = config["access_token"]
-    gameCode = config["game_code"]
-    get_url = config["get_url"] + gameCode
-    post_url = config["post_url"] + gameCode
-    token = config["table_token"]
-else:
-    # Fallback to hardcoded values if config loading fails
-    accessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiIyMmMwMDYyMi1jMGUzLTQ4ZTItODJmYS0xMDBjZDc4N2NjZDAiLCJnYW1lQ29kZSI6WyJBUk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NDg0MDA5OTExMDEsImlhdCI6MTc0ODQwMDk5MX0.THfLy_JXiTmkYA_MYKX0L1m3LhhrUT31z-Wm7yCtYxw"
-    gameCode = "ARO-001"
-    get_url = "https://crystal-table.iki-cit.cc/v2/service/tables/" + gameCode
-    post_url = "https://crystal-table.iki-cit.cc/v2/service/tables/" + gameCode
-    token = "E5LN4END9Q"
+# Initialize configuration for specified environment
+def init_config(env_name):
+    """
+    Initialize configuration variables for the specified environment
+    
+    Args:
+        env_name (str): Environment name (PRD, UAT, CIT, STG, QAT)
+    
+    Returns:
+        tuple: (accessToken, gameCode, get_url, post_url, token) or None if failed
+    """
+    config = load_config(env_name)
+    if config:
+        accessToken = config["access_token"]
+        gameCode = config["game_code"]
+        get_url = config["get_url"] + gameCode
+        post_url = config["post_url"] + gameCode
+        token = config["table_token"]
+        return accessToken, gameCode, get_url, post_url, token
+    else:
+        print(f"Failed to load configuration for {env_name}")
+        return None
 
-
-def start_post_v2(url, token):
-    # Set up HTTP headers
+def start_post(url, token, accessToken):
+    """
+    Start a new round
+    
+    Args:
+        url (str): API endpoint URL
+        token (str): Table token
+        accessToken (str): Access token
+    
+    Returns:
+        tuple: (round_id, betPeriod) or (-1, -1) if failed
+    """
     headers = {
         "accept": "application/json",
         "Bearer": f"Bearer {token}",
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
-        # 'timecode': '26000' # 8 + 15 + 3 = 26
+        "Connection": "close",
     }
 
-    # Define payload for the POST request
     data = {}
     response = requests.post(
         f"{url}/start", headers=headers, json=data, verify=False
     )
 
-    # Check if the response status code indicates success
     if response.status_code != 200:
         print(f"Error: {response.status_code} - {response.text}")
         return -1, -1
 
     try:
-        # Parse the response JSON
         response_data = response.json()
-
     except json.JSONDecodeError:
         print("Error: Unable to decode JSON response.")
         return -1, -1
 
-    # Extract roundId from the nested JSON structure
     round_id = (
         response_data.get("data", {})
         .get("table", {})
@@ -78,20 +97,28 @@ def start_post_v2(url, token):
     )
     betPeriod = response_data.get("data", {}).get("table", {}).get("betPeriod")
 
-    # Handle cases where roundId is not found
     if not round_id:
         print("Error: roundId not found in response.")
         return -1, -1
 
-    # Format the JSON for pretty printing and apply syntax highlighting
+    # Format and display the response
     json_str = json.dumps(response_data, indent=2)
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
     return round_id, betPeriod
 
-
-def deal_post_v2(url, token, round_id, result):
+def deal_post(url, token, accessToken, round_id, result):
+    """
+    Send deal result
+    
+    Args:
+        url (str): API endpoint URL
+        token (str): Table token
+        accessToken (str): Access token
+        round_id (str): Round ID
+        result (str): Deal result
+    """
     timecode = str(int(time.time() * 1000) + 5000)
     headers = {
         "accept": "application/json",
@@ -100,93 +127,117 @@ def deal_post_v2(url, token, round_id, result):
         "Content-Type": "application/json",
         "timecode": timecode,
         "Cookie": f"accessToken={accessToken}",
+        "Connection": "close",
     }
 
     data = {
         "roundId": f"{round_id}",
-        "roulette": result,  # 修改: 使用 "roulette" 而不是 "sicBo"，直接傳入數字的string
+        "roulette": result,
     }
 
     response = requests.post(
         f"{url}/deal", headers=headers, json=data, verify=False
     )
-    json_str = json.dumps(response.json(), indent=2)
 
+    if response.status_code != 200:
+        print("====================")
+        print("[DEBUG] deal_post")
+        print("====================")
+        print(f"Error: {response.status_code} - {response.text}")
+        print("====================")
+
+    json_str = json.dumps(response.json(), indent=2)
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
-
-def finish_post_v2(url, token):
+def finish_post(url, token, accessToken):
+    """
+    Finish the current round
+    
+    Args:
+        url (str): API endpoint URL
+        token (str): Table token
+        accessToken (str): Access token
+    """
     headers = {
         "accept": "application/json",
         "Bearer": token,
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
+        "Connection": "close",
     }
     data = {}
     response = requests.post(
         f"{url}/finish", headers=headers, json=data, verify=False
     )
     json_str = json.dumps(response.json(), indent=2)
-
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
-
-def visibility_post(url, token, enable):
+def visibility_post(url, token, accessToken, enable):
+    """
+    Set table visibility
+    
+    Args:
+        url (str): API endpoint URL
+        token (str): Table token
+        accessToken (str): Access token
+        enable (bool): True for visible, False for disabled
+    """
     headers = {
         "accept": "application/json",
         "Bearer": token,
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
+        "Connection": "close",
     }
     print("enable: ", enable)
 
     visibility = "disabled" if enable is False else "visible"
-    # print("vis: ", visibility)
     data = {"visibility": visibility}
 
     response = requests.post(
         f"{url}/visibility", headers=headers, json=data, verify=False
     )
     json_str = json.dumps(response.json(), indent=2)
-
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
-
-def get_roundID(url, token):
-    # Set up HTTP headers
-
-    # print("URL:", url)
-
+def get_roundID(url, token, accessToken):
+    """
+    Get current round information
+    
+    Args:
+        url (str): API endpoint URL
+        token (str): Table token
+        accessToken (str): Access token
+    
+    Returns:
+        tuple: (round_id, status, betPeriod) or (-1, -1, -1) if failed
+    """
     headers = {
         "accept": "application/json",
         "Bearer": f"Bearer {token}",
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
+        "Connection": "close",
     }
 
-    # Define payload for the POST request
     data = {}
     response = requests.get(f"{url}", headers=headers, verify=False)
 
-    # Check if the response status code indicates success
     if response.status_code != 200:
-        # print(f"Error: {response.status_code} - {response.text}")
         return -1, -1, -1
 
     try:
-        # Parse the response JSON
         response_data = response.json()
     except json.JSONDecodeError:
         print("Error: Unable to decode JSON response.")
         return -1, -1, -1
 
-    # Extract roundId from the nested JSON structure
     round_id = (
         response_data.get("data", {})
         .get("table", {})
@@ -201,69 +252,76 @@ def get_roundID(url, token):
     )
     betPeriod = response_data.get("data", {}).get("table", {}).get("betPeriod")
 
-    # Handle cases where roundId is not found
     if not round_id:
         print("Error: roundId not found in response.")
         return -1, -1, -1
 
-    # Format the JSON for pretty printing and apply syntax highlighting
-    json_str = json.dumps(response_data, indent=2)
-    # colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
-    # print(colored_json)
-
     return round_id, status, betPeriod
 
-
-def pause_post(url, token, reason):
+def pause_post(url, token, accessToken, reason):
+    """
+    Pause the current round
+    
+    Args:
+        url (str): API endpoint URL
+        token (str): Table token
+        accessToken (str): Access token
+        reason (str): Reason for pausing
+    """
     headers = {
         "accept": "application/json",
         "Bearer": token,
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
+        "Connection": "close",
     }
 
-    data = {"reason": reason}  # for example: "cannot drive the dice shaker"
+    data = {"reason": reason}
 
     response = requests.post(
         f"{url}/pause", headers=headers, json=data, verify=False
     )
     json_str = json.dumps(response.json(), indent=2)
-
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
-
-def resume_post(url, token):
+def resume_post(url, token, accessToken):
+    """
+    Resume the current round
+    
+    Args:
+        url (str): API endpoint URL
+        token (str): Table token
+        accessToken (str): Access token
+    """
     headers = {
         "accept": "application/json",
         "Bearer": token,
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
+        "Connection": "close",
     }
 
-    data = {}  # Empty payload as per API specification
+    data = {}
     response = requests.post(
         f"{url}/resume", headers=headers, json=data, verify=False
     )
     json_str = json.dumps(response.json(), indent=2)
-
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
-
-def sdp_config_post(url, token, config_data):
+def sdp_config_post(url, token, accessToken, config_data):
     """
     Update SDP configuration for a specific table
-
+    
     Args:
         url (str): API endpoint URL
-        token (str): Authentication token
+        token (str): Table token
+        accessToken (str): Access token
         config_data (dict): Configuration data containing strings and number
     """
-    # Modify the URL to use the correct endpoint
-    # Remove 'sdp/' from the URL path
     base_url = url.replace("/sdp/table/", "/table/")
 
     headers = {
@@ -272,6 +330,7 @@ def sdp_config_post(url, token, config_data):
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
+        "Connection": "close",
     }
 
     response = requests.post(
@@ -281,20 +340,19 @@ def sdp_config_post(url, token, config_data):
         verify=False,
     )
 
-    # Format and display the response
     json_str = json.dumps(response.json(), indent=2)
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
-
-def get_sdp_config(url, token):
+def get_sdp_config(url, token, accessToken):
     """
     Get SDP configuration from the table status
-
+    
     Args:
         url (str): API endpoint URL
-        token (str): Authentication token
-
+        token (str): Table token
+        accessToken (str): Access token
+    
     Returns:
         tuple: (strings, number) from sdpConfig, or (None, None) if not found
     """
@@ -304,6 +362,7 @@ def get_sdp_config(url, token):
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
+        "Connection": "close",
     }
 
     response = requests.get(f"{url}", headers=headers, verify=False)
@@ -326,16 +385,16 @@ def get_sdp_config(url, token):
         print("Error: Unable to decode JSON response.")
         return None, None
 
-
-def update_sdp_config_from_file(url, token, config_file="sdp.config"):
+def update_sdp_config_from_file(url, token, accessToken, config_file="sdp.config"):
     """
     Read configuration from sdp.config file and update SDP configuration
-
+    
     Args:
         url (str): API endpoint URL
-        token (str): Authentication token
+        token (str): Table token
+        accessToken (str): Access token
         config_file (str): Path to the config file
-
+    
     Returns:
         bool: True if update successful, False otherwise
     """
@@ -343,7 +402,6 @@ def update_sdp_config_from_file(url, token, config_file="sdp.config"):
         with open(config_file, "r") as f:
             config = json.load(f)
 
-        # Convert the config values to string format for SDP config
         config_data = {
             "strings": json.dumps(
                 {
@@ -351,10 +409,10 @@ def update_sdp_config_from_file(url, token, config_file="sdp.config"):
                     "result_duration": config.get("result_duration", 12),
                 }
             ),
-            "number": 0,  # Default value as it's not used for durations
+            "number": 0,
         }
 
-        sdp_config_post(url, token, config_data)
+        sdp_config_post(url, token, accessToken, config_data)
         return True
 
     except FileNotFoundError:
@@ -367,10 +425,14 @@ def update_sdp_config_from_file(url, token, config_file="sdp.config"):
         print(f"Error updating SDP config: {str(e)}")
         return False
 
-
-def cancel_post(url: str, token: str) -> None:
+def cancel_post(url, token, accessToken):
     """
-    取消當前局次
+    Cancel the current round
+    
+    Args:
+        url (str): API endpoint URL
+        token (str): Table token
+        accessToken (str): Access token
     """
     try:
         headers = {
@@ -379,6 +441,7 @@ def cancel_post(url: str, token: str) -> None:
             "x-signature": "los-local-signature",
             "Content-Type": "application/json",
             "Cookie": f"accessToken={accessToken}",
+            "Connection": "close",
         }
         data = {}
         response = requests.post(
@@ -386,13 +449,11 @@ def cancel_post(url: str, token: str) -> None:
         )
         response_data = response.json() if response.text else None
 
-        # 改進錯誤處理
         if response.status_code != 200:
-            error_msg = (
-                response_data.get("error", {}).get("message", "Unknown error")
-                if response_data
-                else f"HTTP {response.status_code}"
-            )
+            if response_data:
+                error_msg = response_data.get("error", {}).get("message", "Unknown error")
+            else:
+                error_msg = f"HTTP {response.status_code}"
             print(f"Error in cancel_post: {error_msg}")
             return
 
@@ -400,7 +461,7 @@ def cancel_post(url: str, token: str) -> None:
             print("Warning: Empty response from server")
             return
 
-        if "error" in response_data:
+        if response_data and "error" in response_data and response_data["error"]:
             error_msg = response_data["error"].get("message", "Unknown error")
             print(f"Error in cancel_post: {error_msg}")
             return
@@ -414,19 +475,17 @@ def cancel_post(url: str, token: str) -> None:
     except Exception as e:
         print(f"Unexpected error in cancel_post: {e}")
 
-
-def broadcast_post_v2(
-    url, token, broadcast_type, audience="players", afterSeconds=20
-):  # , metadata=None):
+def broadcast_post(url, token, accessToken, broadcast_type, audience="players", afterSeconds=20):
     """
     Send a broadcast message to the table
-
+    
     Args:
         url (str): API endpoint URL
-        token (str): Authentication token
+        token (str): Table token
+        accessToken (str): Access token
         broadcast_type (str): Type of broadcast message (e.g., "dice.reroll")
         audience (str): Target audience for the broadcast (default: "players")
-        metadata (dict): Additional metadata for the broadcast (default: None)
+        afterSeconds (int): Delay in seconds before broadcast (default: 20)
     """
     headers = {
         "accept": "application/json",
@@ -434,88 +493,86 @@ def broadcast_post_v2(
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
+        "Connection": "close",
     }
 
-    # Generate a unique message ID using timestamp
     msg_id = f"msg_{int(time.time() * 1000)}"
 
     data = {
         "msgId": msg_id,
-        # "type": broadcast_type,
-        # "audience": audience,
         "metadata": {
             "type": broadcast_type,
             "audience": audience,
             "afterSeconds": afterSeconds,
-        },  # metadata or {}
+        },
     }
 
     response = requests.post(
         f"{url}/broadcast", headers=headers, json=data, verify=False
     )
     json_str = json.dumps(response.json(), indent=2)
-
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
+# Convenience function to run a complete game cycle
+def run_game_cycle(env_name, result="0"):
+    """
+    Run a complete game cycle for the specified environment
+    
+    Args:
+        env_name (str): Environment name (PRD, UAT, CIT, STG, QAT)
+        result (str): Deal result (default: "0")
+    """
+    print(f"================Running Game Cycle for {env_name}================\n")
+    
+    # Initialize configuration
+    config_result = init_config(env_name)
+    if not config_result:
+        print(f"Failed to initialize configuration for {env_name}")
+        return
+    
+    accessToken, gameCode, get_url, post_url, token = config_result
+    
+    try:
+        # Get current round info
+        print("================Get Round Info================\n")
+        round_id, status, betPeriod = get_roundID(get_url, token, accessToken)
+        if round_id == -1:
+            print("Failed to get round information")
+            return
+        print(f"Round ID: {round_id}, Status: {status}, Bet Period: {betPeriod}")
+        
+        # Deal result
+        print("================Deal================\n")
+        deal_post(post_url, token, accessToken, round_id, result)
+        
+        # Finish round
+        print("================Finish================\n")
+        finish_post(post_url, token, accessToken)
+        
+        print(f"================Game Cycle Completed for {env_name}================\n")
+        
+    except Exception as e:
+        print(f"Error during game cycle: {e}")
 
 if __name__ == "__main__":
     import random
-
-    cnt = 0
-    while cnt < 1:
-        results = "0"  # str(random.randint(0, 36))
-        # URLs and tokens are now loaded from config file at module level
-
-        # broadcast_post(post_url, token, "roulette.relaunch", "players", 20)
-        # print("================Start================\n")
-        # round_id, betPeriod = start_post_v2(post_url, token)
-        round_id, status, betPeriod = get_roundID(get_url, token)
-        print(round_id, status, betPeriod)
-
-        # betPeriod = 19
-        # print(round_id, status, betPeriod)
-        # while betPeriod > 0: #or status !='bet-stopped':
-        #     print("Bet Period count down:", betPeriod)
-        #     time.sleep(1)
-        #     betPeriod = betPeriod - 1
-        #     _, status, _ =  get_roundID(get_url, token)
-        #     print(status)
-
-        # print("================Pause================\n")
-        # pause_post(post_url, token, "test")
-        # time.sleep(1)
-
-        # print("================Resume================\n")
-        # resume_post(post_url, token)
-        # time.sleep(1)
-
-        # print("================Invisibility================\n")
-        # visibility_post(post_url, token, False)
-        # time.sleep(1)
-
-        # print("================Visibility================\n")
-        # visibility_post(post_url, token, True)
-        # time.sleep(1)
-
-        print("================Deal================\n")
-        # time.sleep(13)
-        deal_post_v2(post_url, token, round_id, results)
-        print("================Finish================\n")
-        finish_post_v2(post_url, token)
-
-        # print("================Cancel================\n")
-        # cancel_post(post_url, token)
-
-        # Add example usage
-        # config_data = {
-        #     "shake_duration": 7,
-        #     "result_duration": 4
-        # }
-        # sdp_config_post(sdp_url, token, config_data)
-
-        # Example usage of get_sdp_config
-        # strings, number = get_sdp_config(get_url, token)
-        # print(f"SDP Config - strings: {strings}, number: {number}")
-
-        cnt += 1
+    
+    # Example usage - you can change the environment here
+    ENV = "CIT"  # Change to PRD, UAT, STG, QAT as needed
+    result = "0"  # str(random.randint(0, 36))
+    
+    # Run complete game cycle
+    run_game_cycle(ENV, result)
+    
+    # Or use individual functions
+    # config_result = init_config(ENV)
+    # if config_result:
+    #     accessToken, gameCode, get_url, post_url, token = config_result
+    #     
+    #     # Example: Get round info
+    #     round_id, status, betPeriod = get_roundID(get_url, token, accessToken)
+    #     print(f"Round ID: {round_id}, Status: {status}, Bet Period: {betPeriod}")
+    #     
+    #     # Example: Set visibility
+    #     visibility_post(post_url, token, accessToken, True)

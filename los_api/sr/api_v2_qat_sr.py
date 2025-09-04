@@ -4,9 +4,39 @@ from pygments.formatters import TerminalFormatter
 from pygments.lexers import JsonLexer
 import json
 import time
+import os
 
-# QAT ARO-001
-accessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiIyYWJkMDYzOC0xMDkxLTRkOTItYWRmMS1kYTk0M2I0YWE2ZTkiLCJnYW1lQ29kZSI6WyJBUk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NTE2MDcyMTA3NzcsImlhdCI6MTc1MTYwNzIxMH0.kMqwkaHEaSybNUBNGzYss_NJyhbvjhN48vXkUgsqinA"
+# Load configuration from JSON file
+def load_config():
+    """Load configuration from table-config-speed-roulette-v2.json"""
+    config_path = os.path.join(os.path.dirname(__file__), "..", "..", "conf", "table-config-speed-roulette-v2.json")
+    try:
+        with open(config_path, "r") as f:
+            configs = json.load(f)
+            # Find QAT configuration
+            for config in configs:
+                if config["name"] == "QAT":
+                    return config
+        raise Exception("QAT configuration not found in config file")
+    except Exception as e:
+        print(f"Error loading config: {e}")
+        return None
+
+# Load QAT configuration
+config = load_config()
+if config:
+    accessToken = config["access_token"]
+    gameCode = config["game_code"]
+    get_url = config["get_url"] + gameCode
+    post_url = config["post_url"] + gameCode
+    token = config["table_token"]
+else:
+    # Fallback to hardcoded values if config loading fails
+    accessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiIyYWJkMDYzOC0xMDkxLTRkOTItYWRmMS1kYTk0M2I0YWE2ZTkiLCJnYW1lQ29kZSI6WyJBUk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NTE2MDcyMTA3NzcsImlhdCI6MTc1MTYwNzIxMH0.kMqwkaHEaSybNUBNGzYss_NJyhbvjhN48vXkUgsqinA"
+    gameCode = "ARO-001"
+    get_url = "https://crystal-table.iki-qat.cc/v2/service/tables/" + gameCode
+    post_url = "https://crystal-table.iki-qat.cc/v2/service/tables/" + gameCode
+    token = "E5LN4END9Q"
 
 
 def start_post_v2_qat(url, token):
@@ -454,19 +484,7 @@ if __name__ == "__main__":
     cnt = 0
     while cnt < 1:
         results = "0"  # str(random.randint(0, 36))
-        get_url = "https://crystal-table.iki-qat.cc/v2/service/tables/"
-        post_url = "https://crystal-table.iki-qat.cc/v2/service/tables/"
-
-        # get_url =  "https://crystal-los.iki-uat.cc/v1/service/table/"
-        # post_url = "https://crystal-los.iki-uat.cc/v1/service/sdp/table/"
-
-        # gameCode = 'SDP-003'
-        # gameCode = 'SDP-001'
-        # gameCode = 'SDP-003'
-        gameCode = "ARO-001"
-        get_url = get_url + gameCode
-        post_url = post_url + gameCode
-        token = "E5LN4END9Q"
+        # URLs and tokens are now loaded from config file at module level
 
         # broadcast_post(post_url, token, "roulette.relaunch", "players", 20)
         # print("================Start================\n")
