@@ -44,6 +44,10 @@ from concurrent.futures import ThreadPoolExecutor
 sys.path.append("slack")  # ensure slack module can be imported
 from slack import send_error_to_slack
 
+# Import WebSocket error signal module
+sys.path.append("studio_api")  # ensure studio_api module can be imported
+from studio_api.ws_err_sig import send_roulette_sensor_stuck_error
+
 # import sentry_sdk
 
 # sentry_sdk.init(
@@ -54,8 +58,8 @@ from slack import send_error_to_slack
 # )
 
 # Initialize serial connection only if hardware is available
-from serialUtils import create_serial_connection
-from serialIO import read_from_serial
+from serial_comm.serialUtils import create_serial_connection
+from serial_comm.serialIO import read_from_serial
 
 ser = create_serial_connection(
     port="/dev/ttyUSB1",
@@ -213,6 +217,49 @@ def send_sensor_error_to_slack():
         )
         log_to_file(
             f"Error sending sensor error notification: {e}", "Slack >>>"
+        )
+        return False
+
+
+# Function to send WebSocket error signal
+def send_websocket_error_signal():
+    """Send WebSocket error signal for Speed Roulette table"""
+    try:
+        print(f"[{get_timestamp()}] Sending WebSocket error signal...")
+        log_to_file("Sending WebSocket error signal...", "WebSocket >>>")
+
+        # Run the async function in a new thread to avoid blocking
+        def send_ws_error():
+            try:
+                asyncio.run(send_roulette_sensor_stuck_error())
+                print(
+                    f"[{get_timestamp()}] WebSocket error signal sent successfully"
+                )
+                log_to_file(
+                    "WebSocket error signal sent successfully", "WebSocket >>>"
+                )
+                return True
+            except Exception as e:
+                print(
+                    f"[{get_timestamp()}] Failed to send WebSocket error signal: {e}"
+                )
+                log_to_file(
+                    f"Failed to send WebSocket error signal: {e}",
+                    "WebSocket >>>",
+                )
+                return False
+
+        # Start WebSocket error signal in a separate thread
+        ws_thread = threading.Thread(target=send_ws_error)
+        ws_thread.daemon = True
+        ws_thread.start()
+
+        return True
+
+    except Exception as e:
+        print(f"[{get_timestamp()}] Error sending WebSocket error signal: {e}")
+        log_to_file(
+            f"Error sending WebSocket error signal: {e}", "WebSocket >>>"
         )
         return False
 
