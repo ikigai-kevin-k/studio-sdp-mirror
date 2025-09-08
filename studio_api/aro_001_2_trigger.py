@@ -176,6 +176,32 @@ class ARO001_2MockClient:
             
             if result.returncode == 0:
                 logger.info("✅ main_vip.py command sent to tmux session 'sdp' successfully")
+                
+                # Wait a moment for main_vip.py to start up
+                import time
+                time.sleep(2)
+                
+                # Send "*P 1\n" command to tmux session
+                logger.info("🎯 Sending '*P 1' command to tmux session 'sdp'...")
+                send_p1_command = [
+                    "tmux", "send-keys", "-t", "sdp",
+                    "*P 1",
+                    "Enter"
+                ]
+                
+                # Execute the *P 1 command
+                p1_result = subprocess.run(
+                    send_p1_command,
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                
+                if p1_result.returncode == 0:
+                    logger.info("✅ '*P 1' command sent to tmux session 'sdp' successfully")
+                else:
+                    logger.error(f"❌ Failed to send '*P 1' command to tmux session: {p1_result.stderr}")
+                
                 return True
             else:
                 logger.error(f"❌ Failed to send command to tmux session: {result.stderr}")

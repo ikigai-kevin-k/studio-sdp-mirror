@@ -106,6 +106,9 @@ ws_connected = False
 # Add Slack notification variables
 sensor_error_sent = False  # Flag to ensure sensor error is only sent once
 
+# Add program termination flag
+terminate_program = False  # Flag to terminate program when *X;6 sensor error is detected
+
 
 # WebSocket connection function
 async def connect_to_recorder(uri="ws://localhost:8765"):
@@ -228,17 +231,25 @@ def send_websocket_error_signal():
         print(f"[{get_timestamp()}] Sending WebSocket error signal...")
         log_to_file("Sending WebSocket error signal...", "WebSocket >>>")
 
-        # Run the async function in a new thread to avoid blocking
+        # Run the async function and wait for completion
         def send_ws_error():
             try:
-                asyncio.run(send_roulette_sensor_stuck_error())
-                print(
-                    f"[{get_timestamp()}] WebSocket error signal sent successfully"
-                )
-                log_to_file(
-                    "WebSocket error signal sent successfully", "WebSocket >>>"
-                )
-                return True
+                result = asyncio.run(send_roulette_sensor_stuck_error())
+                if result:
+                    print(
+                        f"[{get_timestamp()}] WebSocket error signal sent successfully"
+                    )
+                    log_to_file(
+                        "WebSocket error signal sent successfully", "WebSocket >>>"
+                    )
+                else:
+                    print(
+                        f"[{get_timestamp()}] WebSocket error signal failed"
+                    )
+                    log_to_file(
+                        "WebSocket error signal failed", "WebSocket >>>"
+                    )
+                return result
             except Exception as e:
                 print(
                     f"[{get_timestamp()}] Failed to send WebSocket error signal: {e}"
@@ -249,10 +260,17 @@ def send_websocket_error_signal():
                 )
                 return False
 
-        # Start WebSocket error signal in a separate thread
+        # Start WebSocket error signal in a separate thread and wait for completion
         ws_thread = threading.Thread(target=send_ws_error)
         ws_thread.daemon = True
         ws_thread.start()
+        
+        # Wait for the WebSocket signal to complete (with timeout)
+        ws_thread.join(timeout=10)  # Wait up to 10 seconds
+        
+        if ws_thread.is_alive():
+            print(f"[{get_timestamp()}] WebSocket error signal timeout, proceeding with termination")
+            log_to_file("WebSocket error signal timeout, proceeding with termination", "WebSocket >>>")
 
         return True
 
@@ -351,6 +369,7 @@ def get_config():
 
 
 def write_to_serial():
+    """Legacy function - functionality moved to main() for better termination control"""
     while True:
         try:
             text = input("Send <<< ")
@@ -617,6 +636,7 @@ def execute_broadcast_post(table, token):
 
 def main():
     """Main function for Speed Roulette Controller"""
+    global terminate_program
 
     # Create a wrapper function for read_from_serial with all required parameters
     def read_from_serial_wrapper():
@@ -633,6 +653,7 @@ def main():
             "finish_post_time": finish_post_time,
             "isLaunch": isLaunch,
             "sensor_error_sent": sensor_error_sent,
+            "terminate_program": terminate_program,
         }
 
         read_from_serial(
@@ -658,14 +679,42 @@ def main():
     read_thread.daemon = True
     read_thread.start()
 
-    # Main thread handles writing
+    # Main thread handles writing and monitors termination flag
     try:
-        write_to_serial()
+        while not terminate_program:
+            try:
+                # Check for user input with timeout to allow checking termination flag
+                import select
+                import sys
+                
+                if sys.stdin in select.select([sys.stdin], [], [], 0.1)[0]:
+                    text = input("Send <<< ")
+                    if text.lower() in ["get_config", "gc"]:
+                        get_config()
+                    else:
+                        # Check if serial connection is available
+                        if ser is None:
+                            print("Warning: Serial connection not available, cannot send command")
+                            continue
+                        ser.write((text + "\r\n").encode())
+                        log_to_file(text, "Send <<<")
+            except KeyboardInterrupt:
+                break
+            except Exception as e:
+                print(f"Error in main loop: {e}")
+                time.sleep(0.1)
+        
+        # Check if program should terminate due to *X;6 sensor error
+        if terminate_program:
+            print(f"\n[{get_timestamp()}] Program terminating due to *X;6 message detection")
+            log_to_file("Program terminating due to *X;6 message detection", "Terminate >>>")
+            
     except KeyboardInterrupt:
-        print("\nProgram ended")
+        print("\nProgram ended by user")
     finally:
         if ser is not None:
             ser.close()
+        print(f"[{get_timestamp()}] Program terminated")
 
 
 if __name__ == "__main__":

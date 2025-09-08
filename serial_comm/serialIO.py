@@ -40,6 +40,11 @@ def read_from_serial(
     """
 
     while True:
+        # Check if program should terminate
+        if global_vars.get("terminate_program", False):
+            print(f"[{get_timestamp()}] Serial read thread terminating due to program termination flag")
+            break
+            
         # Check if serial connection is available
         if ser is None:
             print(
@@ -69,72 +74,82 @@ def read_from_serial(
                     log_to_file(line, "Receive >>>")
                     data = line  # Use the current line for processing
 
-                    # Handle *X;6 sensor error messages
+                    # Handle *X;6 sensor error messages - trigger on ANY *X;6 message
                     if "*X;6" in data:
                         try:
                             parts = data.split(";")
-                            if (
-                                len(parts) >= 5
-                            ):  # Ensure there are enough parts to get warning_flag
-                                warning_flag = parts[4]
+                            warning_flag = parts[4] if len(parts) >= 5 else "unknown"
+                            print(
+                                f"[{get_timestamp()}] Detected *X;6 message with warning_flag: {warning_flag}"
+                            )
+                            log_to_file(
+                                f"Detected *X;6 message with warning_flag: {warning_flag}",
+                                "Receive >>>",
+                            )
+
+                            # Trigger error signal and termination for ANY *X;6 message
+                            print(
+                                f"[{get_timestamp()}] *X;6 MESSAGE detected! Sending notifications and terminating program..."
+                            )
+                            log_to_file(
+                                "*X;6 MESSAGE detected! Sending notifications and terminating program...",
+                                "Receive >>>",
+                            )
+
+                            # Import and call functions directly
+                            try:
+                                import sys
+                                import os
+
+                                # Add parent directory to path to import main_speed
+                                sys.path.append(
+                                    os.path.dirname(
+                                        os.path.dirname(
+                                            os.path.abspath(__file__)
+                                        )
+                                    )
+                                )
+                                from main_speed import (
+                                    send_sensor_error_to_slack,
+                                    send_websocket_error_signal,
+                                )
+
+                                # Send sensor error notification to Slack
+                                send_sensor_error_to_slack()
+
+                                # Send WebSocket error signal
+                                send_websocket_error_signal()
+
+                                # Set global flag to terminate the program
+                                global_vars["terminate_program"] = True
                                 print(
-                                    f"[{get_timestamp()}] Detected *X;6 message with warning_flag: {warning_flag}"
+                                    f"[{get_timestamp()}] Program termination flag set due to *X;6 message"
                                 )
                                 log_to_file(
-                                    f"Detected *X;6 message with warning_flag: {warning_flag}",
+                                    "Program termination flag set due to *X;6 message",
                                     "Receive >>>",
                                 )
 
-                                # Check if warning_flag is 4 (sensor error)
-                                if warning_flag == "4":
-                                    print(
-                                        f"[{get_timestamp()}] SENSOR ERROR detected! Sending notifications..."
-                                    )
-                                    log_to_file(
-                                        "SENSOR ERROR detected! Sending notifications...",
-                                        "Receive >>>",
-                                    )
-
-                                    # Import and call functions directly
-                                    try:
-                                        import sys
-                                        import os
-
-                                        # Add parent directory to path to import main_speed
-                                        sys.path.append(
-                                            os.path.dirname(
-                                                os.path.dirname(
-                                                    os.path.abspath(__file__)
-                                                )
-                                            )
-                                        )
-                                        from main_speed import (
-                                            send_sensor_error_to_slack,
-                                            send_websocket_error_signal,
-                                        )
-
-                                        # Send sensor error notification to Slack
-                                        send_sensor_error_to_slack()
-
-                                        # Send WebSocket error signal
-                                        send_websocket_error_signal()
-
-                                    except ImportError as e:
-                                        print(
-                                            f"[{get_timestamp()}] Error importing functions: {e}"
-                                        )
-                                        log_to_file(
-                                            f"Error importing functions: {e}",
-                                            "Error >>>",
-                                        )
-                                    except Exception as e:
-                                        print(
-                                            f"[{get_timestamp()}] Error calling sensor error functions: {e}"
-                                        )
-                                        log_to_file(
-                                            f"Error calling sensor error functions: {e}",
-                                            "Error >>>",
-                                        )
+                            except ImportError as e:
+                                print(
+                                    f"[{get_timestamp()}] Error importing functions: {e}"
+                                )
+                                log_to_file(
+                                    f"Error importing functions: {e}",
+                                    "Error >>>",
+                                )
+                                # Still set termination flag even if import fails
+                                global_vars["terminate_program"] = True
+                            except Exception as e:
+                                print(
+                                    f"[{get_timestamp()}] Error calling sensor error functions: {e}"
+                                )
+                                log_to_file(
+                                    f"Error calling sensor error functions: {e}",
+                                    "Error >>>",
+                                )
+                                # Still set termination flag even if function call fails
+                                global_vars["terminate_program"] = True
                         except Exception as e:
                             print(
                                 f"[{get_timestamp()}] Error parsing *X;6 message: {e}"
@@ -142,6 +157,8 @@ def read_from_serial(
                             log_to_file(
                                 f"Error parsing *X;6 message: {e}", "Error >>>"
                             )
+                            # Still set termination flag even if parsing fails
+                            global_vars["terminate_program"] = True
 
                     # Handle *X;2 count
                     if "*X;2" in data:
