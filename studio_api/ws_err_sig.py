@@ -139,7 +139,7 @@ class ErrorSignalClient:
 
 
 async def send_roulette_sensor_stuck_error(
-    table_id: str = "ARO-001", device_id: str = "ARO-001-1"
+    table_id: str = "ARO-001-1", device_id: str = "ARO-001-1"
 ) -> bool:
     """
     Send roulette sensor stuck error signal for ARO-001 table.
