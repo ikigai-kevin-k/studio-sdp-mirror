@@ -169,7 +169,7 @@ def read_from_serial(
                             global_vars["x2_count"] += 1
                         global_vars["last_x2_time"] = current_time
 
-                        # Check if warning_flag is 8, if so send broadcast_post
+                        # Check if warning_flag is not 0, if so send broadcast_post and error signal
                         try:
                             parts = data.split(";")
                             if (
@@ -178,62 +178,130 @@ def read_from_serial(
                                 warning_flag = parts[4]
                                 current_time = time.time()
 
-                                # Check if warning_flag requires broadcast
-                                if (
-                                    int(warning_flag) == 8
-                                    or int(warning_flag) == 2
-                                    or warning_flag == "A"
-                                ):
-                                    # Check if 10 seconds have passed or it's the first broadcast
-                                    if (
-                                        not hasattr(
-                                            execute_broadcast_post,
-                                            "last_broadcast_time",
+                                # Check if warning_flag is not 0 (any warning condition)
+                                if warning_flag != "0":
+                                    print(
+                                        f"[{get_timestamp()}] Detected *X;2 message with warning_flag: {warning_flag}"
+                                    )
+                                    log_to_file(
+                                        f"Detected *X;2 message with warning_flag: {warning_flag}",
+                                        "Receive >>>",
+                                    )
+
+                                    # Send error signal for warning conditions
+                                    print(
+                                        f"[{get_timestamp()}] *X;2 WARNING detected! Sending error signal..."
+                                    )
+                                    log_to_file(
+                                        "*X;2 WARNING detected! Sending error signal...",
+                                        "Receive >>>",
+                                    )
+
+                                    # Import and call error signal functions
+                                    try:
+                                        import sys
+                                        import os
+
+                                        # Add parent directory to path to import main_speed
+                                        sys.path.append(
+                                            os.path.dirname(
+                                                os.path.dirname(
+                                                    os.path.abspath(__file__)
+                                                )
+                                            )
                                         )
-                                        or (
-                                            current_time
-                                            - execute_broadcast_post.last_broadcast_time
+                                        from main_speed import (
+                                            send_sensor_error_to_slack,
+                                            send_websocket_error_signal,
                                         )
-                                        >= 10
-                                    ):
+
+                                        # Send sensor error notification to Slack
+                                        send_sensor_error_to_slack()
+
+                                        # Send WebSocket error signal
+                                        send_websocket_error_signal()
 
                                         print(
-                                            f"\nDetected warning_flag not equal to 0, sending broadcast_post to notify relaunch..."
+                                            f"[{get_timestamp()}] Error signal sent for *X;2 warning_flag: {warning_flag}"
                                         )
                                         log_to_file(
-                                            "Detected warning_flag not equal to 0, sending broadcast_post to notify relaunch",
-                                            "Broadcast >>>",
+                                            f"Error signal sent for *X;2 warning_flag: {warning_flag}",
+                                            "Receive >>>",
                                         )
 
-                                        # Send broadcast_post to each table
-                                        with ThreadPoolExecutor(
-                                            max_workers=len(tables)
-                                        ) as executor:
-                                            futures = [
-                                                executor.submit(
-                                                    execute_broadcast_post,
-                                                    table,
-                                                    token,
-                                                )
-                                                for table in tables
-                                            ]
-                                            for future in futures:
-                                                future.result()  # Wait for all requests to complete
-
-                                        # Update last send time
-                                        execute_broadcast_post.last_broadcast_time = (
-                                            current_time
-                                        )
-                                    else:
+                                    except ImportError as e:
                                         print(
-                                            f"Already sent broadcast {current_time - execute_broadcast_post.last_broadcast_time:.1f} seconds ago, waiting for time interval..."
+                                            f"[{get_timestamp()}] Error importing functions for *X;2: {e}"
                                         )
+                                        log_to_file(
+                                            f"Error importing functions for *X;2: {e}",
+                                            "Error >>>",
+                                        )
+                                    except Exception as e:
+                                        print(
+                                            f"[{get_timestamp()}] Error calling error signal functions for *X;2: {e}"
+                                        )
+                                        log_to_file(
+                                            f"Error calling error signal functions for *X;2: {e}",
+                                            "Error >>>",
+                                        )
+
+                                    # Check if warning_flag requires broadcast (original logic)
+                                    if (
+                                        int(warning_flag) == 8
+                                        or int(warning_flag) == 2
+                                        or warning_flag == "A"
+                                    ):
+                                        # Check if 10 seconds have passed or it's the first broadcast
+                                        if (
+                                            not hasattr(
+                                                execute_broadcast_post,
+                                                "last_broadcast_time",
+                                            )
+                                            or (
+                                                current_time
+                                                - execute_broadcast_post.last_broadcast_time
+                                            )
+                                            >= 10
+                                        ):
+
+                                            print(
+                                                f"\nDetected warning_flag not equal to 0, sending broadcast_post to notify relaunch..."
+                                            )
+                                            log_to_file(
+                                                "Detected warning_flag not equal to 0, sending broadcast_post to notify relaunch",
+                                                "Broadcast >>>",
+                                            )
+
+                                            # Send broadcast_post to each table
+                                            with ThreadPoolExecutor(
+                                                max_workers=len(tables)
+                                            ) as executor:
+                                                futures = [
+                                                    executor.submit(
+                                                        execute_broadcast_post,
+                                                        table,
+                                                        token,
+                                                    )
+                                                    for table in tables
+                                                ]
+                                                for future in futures:
+                                                    future.result()  # Wait for all requests to complete
+
+                                            # Update last send time
+                                            execute_broadcast_post.last_broadcast_time = (
+                                                current_time
+                                            )
+                                        else:
+                                            print(
+                                                f"Already sent broadcast {current_time - execute_broadcast_post.last_broadcast_time:.1f} seconds ago, waiting for time interval..."
+                                            )
                         except Exception as e:
                             print(
-                                f"Error parsing warning_flag or sending broadcast_post: {e}"
+                                f"Error parsing warning_flag or sending error signal: {e}"
                             )
                             log_to_file(
-                                f"Error parsing warning_flag or sending broadcast_post: {e}",
+                                f"Error parsing warning_flag or sending error signal: {e}",
                                 "Error >>>",
                             )
 
