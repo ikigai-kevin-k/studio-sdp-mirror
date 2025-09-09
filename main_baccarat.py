@@ -17,7 +17,7 @@ from dealing_order_check import (
 import check_outs_rule
 
 # Import BCR API functions
-from los_api.bcr.api_v2_bcr import start_post_v2, deal_post_v2, finish_post_v2
+from table_api.bcr.api_v2_bcr import start_post_v2, deal_post_v2, finish_post_v2
 
 # Import WebSocket utilities
 from baccaratWsUtils import ws_handler, broadcast_barcode

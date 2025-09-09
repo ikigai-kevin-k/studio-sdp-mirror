@@ -19,7 +19,7 @@ from controller import GameType, GameConfig
 from gameStateController import create_game_state_controller
 from deviceController import IDPController, ShakerController
 from mqttController import MQTTController
-from los_api.sb.api_v2_sb import (
+from table_api.sb.api_v2_sb import (
     start_post_v2,
     deal_post_v2,
     finish_post_v2,
@@ -28,7 +28,7 @@ from los_api.sb.api_v2_sb import (
     broadcast_post_v2,
     bet_stop_post,
 )
-from los_api.sb.api_v2_uat_sb import (
+from table_api.sb.api_v2_uat_sb import (
     start_post_v2_uat,
     deal_post_v2_uat,
     finish_post_v2_uat,
@@ -37,7 +37,7 @@ from los_api.sb.api_v2_uat_sb import (
     broadcast_post_v2_uat,
     get_sdp_config_v2_uat,
 )
-from los_api.sb.api_v2_prd_sb import (
+from table_api.sb.api_v2_prd_sb import (
     start_post_v2_prd,
     deal_post_v2_prd,
     finish_post_v2_prd,
@@ -45,7 +45,7 @@ from los_api.sb.api_v2_prd_sb import (
     get_roundID_v2_prd,
     broadcast_post_v2_prd,
 )
-from los_api.sb.api_v2_stg_sb import (
+from table_api.sb.api_v2_stg_sb import (
     start_post_v2_stg,
     deal_post_v2_stg,
     finish_post_v2_stg,
@@ -53,7 +53,7 @@ from los_api.sb.api_v2_stg_sb import (
     get_roundID_v2_stg,
     broadcast_post_v2_stg,
 )
-from los_api.sb.api_v2_qat_sb import (
+from table_api.sb.api_v2_qat_sb import (
     start_post_v2_qat,
     deal_post_v2_qat,
     finish_post_v2_qat,
@@ -495,7 +495,7 @@ async def retry_with_network_check(func, *args, max_retries=5, retry_delay=5):
 class SDPGame:
     """Main game class for SDP"""
 
-    def __init__(self, config: GameConfig):
+    def __init__(self, config: GameConfig): 
         self.config = config
         self.logger = logging.getLogger("SDPGame")
 

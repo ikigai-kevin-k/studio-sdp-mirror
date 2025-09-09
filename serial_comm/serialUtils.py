@@ -4,7 +4,7 @@ import subprocess
 from typing import Tuple, Dict, Any
 import os
 from datetime import datetime
-from los_api.sb.api_v2_sb import get_roundID_v2
+from table_api.sb.api_v2_sb import get_roundID_v2
 
 
 def load_config(config_path: str) -> Dict[str, Any]:
