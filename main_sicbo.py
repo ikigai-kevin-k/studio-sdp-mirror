@@ -17,7 +17,7 @@ from requests.exceptions import ConnectionError
 
 from controller import GameType, GameConfig
 from gameStateController import create_game_state_controller
-from deviceController import IDPController, ShakerController
+from mqtt.deviceController import IDPController, ShakerController
 from mqttController import MQTTController
 from table_api.sb.api_v2_sb import (
     start_post_v2,

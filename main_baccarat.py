@@ -5,7 +5,7 @@ import time
 import sys
 import json
 import argparse
-from deviceController import BarcodeController, GameConfig
+from mqtt.deviceController import BarcodeController, GameConfig
 from controller import GameType
 
 sys.path.append("./studio-sdp-roulette")
@@ -451,7 +451,7 @@ async def main():
     if idp_mode:
         # Initialize IDP controller
         try:
-            from deviceController import BaccaratIDPController
+            from mqtt.deviceController import BaccaratIDPController
 
             idp_controller = BaccaratIDPController(config)
             await idp_controller.initialize()

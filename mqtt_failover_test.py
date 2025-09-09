@@ -10,7 +10,7 @@ import logging
 import sys
 import time
 import threading
-from mqtt_wrapper import MQTTLogger
+from mqtt.mqtt_wrapper import MQTTLogger
 from proto.mqtt import MQTTConnector, load_broker_config
 
 
