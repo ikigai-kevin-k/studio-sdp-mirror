@@ -15,30 +15,35 @@ from table_api.vr.api_v2_vr import (
     deal_post_v2,
     finish_post_v2,
     broadcast_post_v2,
+    bet_stop_post,
 )
 from table_api.vr.api_v2_uat_vr import (
     start_post_v2_uat,
     deal_post_v2_uat,
     finish_post_v2_uat,
     broadcast_post_v2_uat,
+    bet_stop_post_uat,
 )
 from table_api.vr.api_v2_prd_vr import (
     start_post_v2_prd,
     deal_post_v2_prd,
     finish_post_v2_prd,
     broadcast_post_v2_prd,
+    bet_stop_post_prd,
 )
 from table_api.vr.api_v2_stg_vr import (
     start_post_v2_stg,
     deal_post_v2_stg,
     finish_post_v2_stg,
     broadcast_post_v2_stg,
+    bet_stop_post_stg,
 )
 from table_api.vr.api_v2_qat_vr import (
     start_post_v2_qat,
     deal_post_v2_qat,
     finish_post_v2_qat,
     broadcast_post_v2_qat,
+    bet_stop_post_qat,
 )
 
 # Import Slack notification module
@@ -376,6 +381,7 @@ def read_from_serial():
                         )
 
                         # Asynchronously process start_post for all tables
+                        round_ids = []
                         with ThreadPoolExecutor(
                             max_workers=len(tables)
                         ) as executor:
@@ -385,11 +391,27 @@ def read_from_serial():
                                 )
                                 for table in tables
                             ]
-                            for future in futures:
-                                future.result()  # Wait for all requests to complete
+                            for i, future in enumerate(futures):
+                                result = future.result()  # Wait for all requests to complete
+                                if result and result[0] and result[1]:  # Check if we got valid table and round_id
+                                    table, round_id, bet_period = result
+                                    round_ids.append((table, round_id, bet_period))
 
                         start_post_sent = True
                         deal_post_sent = False
+
+                        # Start bet stop countdown for each table (non-blocking)
+                        for table, round_id, bet_period in round_ids:
+                            if bet_period and bet_period > 0:
+                                # Create thread for bet stop countdown
+                                threading.Timer(
+                                    bet_period,
+                                    lambda t=table, r=round_id, b=bet_period: _bet_stop_countdown(
+                                        t, r, b, token, betStop_round_for_table, get_timestamp, log_to_file
+                                    )
+                                ).start()
+                                print(f"[{get_timestamp()}] Started bet stop countdown for {table['name']} (round {round_id}, {bet_period}s)")
+                                log_to_file(f"Started bet stop countdown for {table['name']} (round {round_id}, {bet_period}s)", "Bet Stop >>>")
 
                         print("\nSending *u 1 command...")
                         ser.write(("*u 1\r\n").encode())
@@ -736,20 +758,23 @@ def execute_start_post(table, token):
             round_id, betPeriod = start_post_v2_prd(post_url, token)
         elif table["name"] == "STG":
             round_id, betPeriod = start_post_v2_stg(post_url, token)
+        elif table["name"] == "QAT":
+            round_id, betPeriod = start_post_v2_qat(post_url, token)
         else:
             round_id, betPeriod = start_post_v2(post_url, token)
+
         if round_id != -1:
             table["round_id"] = round_id
             print(
                 f"Successfully called start_post for {table['name']}, round_id: {round_id}, betPeriod: {betPeriod}"
             )
-            return round_id, betPeriod
+            return table, round_id, betPeriod
         else:
             print(f"Failed to call start_post for {table['name']}")
-            return -1, 0
+            return None, -1, 0
     except Exception as e:
         print(f"Error executing start_post for {table['name']}: {e}")
-        return -1, 0
+        return None, -1, 0
 
 
 def execute_deal_post(table, token, win_num):
@@ -778,6 +803,32 @@ def execute_deal_post(table, token, win_num):
     except Exception as e:
         print(f"Error executing deal_post for {table['name']}: {e}")
         return None
+
+
+def betStop_round_for_table(table, token):
+    """Stop betting for a single table - helper function for thread pool execution"""
+    try:
+        post_url = f"{table['post_url']}{table['game_code']}"
+
+        if table["name"] == "CIT":
+            result = bet_stop_post(post_url, token)
+        elif table["name"] == "UAT":
+            result = bet_stop_post_uat(post_url, token)
+        elif table["name"] == "PRD":
+            result = bet_stop_post_prd(post_url, token)
+        elif table["name"] == "STG":
+            result = bet_stop_post_stg(post_url, token)
+        elif table["name"] == "QAT":
+            result = bet_stop_post_qat(post_url, token)
+        else:
+            result = False
+
+        return table["name"], result
+
+    except Exception as e:
+        error_msg = str(e)
+        print(f"Error stopping betting for table {table['name']}: {error_msg}")
+        return table["name"], False
 
 
 def execute_broadcast_post(table, token):
@@ -815,6 +866,41 @@ def execute_broadcast_post(table, token):
             "Error >>>",
         )
         return None
+
+
+def _bet_stop_countdown(table, round_id, bet_period, token, betStop_round_for_table, get_timestamp, log_to_file):
+    """
+    Countdown and call bet stop for a table (non-blocking)
+    
+    Args:
+        table: Table configuration dictionary
+        round_id: Current round ID
+        bet_period: Betting period duration in seconds
+        token: Authentication token
+        betStop_round_for_table: Function to call bet stop
+        get_timestamp: Function to get current timestamp
+        log_to_file: Function to log messages to file
+    """
+    try:
+        # Wait for the bet period duration
+        time.sleep(bet_period)
+
+        # Call bet stop for the table
+        print(f"[{get_timestamp()}] Calling bet stop for {table['name']} (round {round_id})")
+        log_to_file(f"Calling bet stop for {table['name']} (round {round_id})", "Bet Stop >>>")
+        
+        result = betStop_round_for_table(table, token)
+
+        if result[1]:  # Check if successful
+            print(f"[{get_timestamp()}] Successfully stopped betting for {table['name']}")
+            log_to_file(f"Successfully stopped betting for {table['name']}", "Bet Stop >>>")
+        else:
+            print(f"[{get_timestamp()}] Bet stop completed for {table['name']} (may already be stopped)")
+            log_to_file(f"Bet stop completed for {table['name']} (may already be stopped)", "Bet Stop >>>")
+
+    except Exception as e:
+        print(f"[{get_timestamp()}] Error in bet stop countdown for {table['name']}: {e}")
+        log_to_file(f"Error in bet stop countdown for {table['name']}: {e}", "Error >>>")
 
 
 def main():
