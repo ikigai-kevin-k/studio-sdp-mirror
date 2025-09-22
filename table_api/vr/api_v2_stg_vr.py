@@ -405,6 +405,68 @@ def cancel_post_v2_stg(url: str, token: str) -> None:
         print(f"Unexpected error in cancel_post: {e}")
 
 
+def bet_stop_post_stg(url: str, token: str) -> bool:
+    """
+    Stop betting for the current round - Virtual Roulette game (STG environment)
+    Returns True if successful, False otherwise
+    """
+    try:
+        headers = {
+            "accept": "application/json",
+            "Bearer": token,
+            "x-signature": "los-local-signature",
+            "Content-Type": "application/json",
+            "Cookie": f"accessToken={accessToken}",
+            "Connection": "close",
+        }
+        data = {}
+        response = requests.post(
+            f"{url}/bet-stop", headers=headers, json=data, verify=False
+        )
+        response_data = response.json() if response.text else None
+
+        # Improve error handling
+        if response.status_code != 200:
+            if response_data:
+                error_msg = response_data.get("error", {}).get(
+                    "message", "Unknown error"
+                )
+            else:
+                error_msg = f"HTTP {response.status_code}"
+            print(f"Error in bet_stop_post_stg: {error_msg}")
+            return False
+
+        if response_data is None:
+            print("Warning: Empty response from server")
+            return False
+
+        if (
+            response_data
+            and "error" in response_data
+            and response_data["error"]
+        ):
+            error_msg = response_data["error"].get("message", "Unknown error")
+            print(f"Error in bet_stop_post_stg: {error_msg}")
+            return False
+
+        # Format and display the response
+        json_str = json.dumps(response_data, indent=2)
+        colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
+        print(colored_json)
+        print("Successfully stopped betting for the round")
+        return True
+
+    except requests.exceptions.RequestException as e:
+        print(f"Network error in bet_stop_post_stg: {e}")
+        return False
+    except ValueError as e:
+        print(f"JSON decode error in bet_stop_post_stg: {e}")
+        return False
+    except Exception as e:
+        print(f"Unexpected error in bet_stop_post_stg: {e}")
+        return False
+
+
 def broadcast_post_v2_stg(
     url, token, broadcast_type, audience="players", afterSeconds=20
 ):  # , metadata=None):
@@ -494,7 +556,8 @@ if __name__ == "__main__":
         # time.sleep(1)
 
         print("================Deal================\n")
-        # time.sleep(18)
+        time.sleep(18)
+        bet_stop_post_stg(post_url, token)
         deal_post_v2_stg(post_url, token, round_id, results)
         print("================Finish================\n")
         finish_post_v2_stg(post_url, token)
