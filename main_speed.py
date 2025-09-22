@@ -491,13 +491,13 @@ def execute_start_post(table, token):
             print(
                 f"Successfully called start_post for {table['name']}, round_id: {round_id}, betPeriod: {betPeriod}"
             )
-            return round_id, betPeriod
+            return table, round_id, betPeriod
         else:
             print(f"Failed to call start_post for {table['name']}")
-            return -1, 0
+            return None, -1, 0
     except Exception as e:
         print(f"Error executing start_post for {table['name']}: {e}")
-        return -1, 0
+        return None, -1, 0
 
 
 def execute_deal_post(table, token, win_num):
@@ -538,17 +538,19 @@ def betStop_round_for_table(table, token):
         post_url = f"{table['post_url']}{table['game_code']}"
 
         if table["name"] == "CIT":
-            bet_stop_post(post_url, token)
+            result = bet_stop_post(post_url, token)
         elif table["name"] == "UAT":
-            bet_stop_post_uat(post_url, token)
+            result = bet_stop_post_uat(post_url, token)
         elif table["name"] == "PRD":
-            bet_stop_post_prd(post_url, token)
+            result = bet_stop_post_prd(post_url, token)
         elif table["name"] == "STG":
-            bet_stop_post_stg(post_url, token)
+            result = bet_stop_post_stg(post_url, token)
         elif table["name"] == "QAT":
-            bet_stop_post_qat(post_url, token)
+            result = bet_stop_post_qat(post_url, token)
+        else:
+            result = False
 
-        return table["name"], True
+        return table["name"], result
 
     except Exception as e:
         error_msg = str(e)

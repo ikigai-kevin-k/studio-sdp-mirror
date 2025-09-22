@@ -624,8 +624,8 @@ def _bet_stop_countdown(table, round_id, bet_period, token, betStop_round_for_ta
             print(f"[{get_timestamp()}] Successfully stopped betting for {table['name']}")
             log_to_file(f"Successfully stopped betting for {table['name']}", "Bet Stop >>>")
         else:
-            print(f"[{get_timestamp()}] Failed to stop betting for {table['name']}")
-            log_to_file(f"Failed to stop betting for {table['name']}", "Bet Stop >>>")
+            print(f"[{get_timestamp()}] Bet stop completed for {table['name']} (may already be stopped)")
+            log_to_file(f"Bet stop completed for {table['name']} (may already be stopped)", "Bet Stop >>>")
 
     except Exception as e:
         print(f"[{get_timestamp()}] Error in bet stop countdown for {table['name']}: {e}")

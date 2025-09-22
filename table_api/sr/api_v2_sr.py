@@ -48,7 +48,7 @@ else:
 
 
 def start_post_v2(url, token):
-    """Start a new round for SicBo game"""
+    """Start a new round for Speed Roulette game"""
     # Set up HTTP headers
     headers = {
         "accept": "application/json",
@@ -102,7 +102,7 @@ def start_post_v2(url, token):
 
 
 def deal_post_v2(url, token, round_id, result):
-    """Deal the result for SicBo game"""
+    """Deal the result for Speed Roulette game"""
     timecode = str(int(time.time() * 1000))
     headers = {
         "accept": "application/json",
@@ -139,7 +139,7 @@ def deal_post_v2(url, token, round_id, result):
 
 
 def finish_post_v2(url, token):
-    """Finish the current round for SicBo game"""
+    """Finish the current round for Speed Roulette game"""
     headers = {
         "accept": "application/json",
         "Bearer": token,
@@ -167,7 +167,7 @@ def finish_post_v2(url, token):
 
 
 def visibility_post(url, token, enable):
-    """Set table visibility for SicBo game"""
+    """Set table visibility for Speed Roulette game"""
     headers = {
         "accept": "application/json",
         "Bearer": token,
@@ -190,7 +190,7 @@ def visibility_post(url, token, enable):
 
 
 def get_roundID(url, token):
-    """Get current round information for SicBo game"""
+    """Get current round information for Speed Roulette game"""
     headers = {
         "accept": "application/json",
         "Bearer": f"Bearer {token}",
@@ -204,7 +204,7 @@ def get_roundID(url, token):
     # Pretty print API response
     try:
         response_data = response.json()
-        print("=== SICBO API Response ===")
+        print("=== Speed Roulette API Response ===")
         print(json.dumps(response_data, indent=2, ensure_ascii=False))
     except json.JSONDecodeError:
         print("=== Raw Response (Not JSON) ===")
@@ -245,7 +245,7 @@ def get_roundID(url, token):
 
 
 def pause_post(url, token, reason):
-    """Pause the current round for SicBo game"""
+    """Pause the current round for Speed Roulette game"""
     headers = {
         "accept": "application/json",
         "Bearer": token,
@@ -266,7 +266,7 @@ def pause_post(url, token, reason):
 
 
 def resume_post(url, token):
-    """Resume the paused round for SicBo game"""
+    """Resume the paused round for Speed Roulette game"""
     headers = {
         "accept": "application/json",
         "Bearer": token,
@@ -290,7 +290,7 @@ def resume_post(url, token):
 
 def sdp_config_post(url, token, config_data):
     """
-    Update SDP configuration for a specific SicBo table
+    Update SDP configuration for a specific Speed Roulette table
 
     Args:
         url (str): API endpoint URL
@@ -325,7 +325,7 @@ def sdp_config_post(url, token, config_data):
 
 def get_sdp_config(url, token):
     """
-    Get SDP configuration from the SicBo table status
+    Get SDP configuration from the Speed Roulette table status
 
     Args:
         url (str): API endpoint URL
@@ -407,7 +407,7 @@ def update_sdp_config_from_file(url, token, config_file="sdp.config"):
 
 def cancel_post(url: str, token: str) -> None:
     """
-    cancel the current round - SicBo game
+    cancel the current round - Speed Roulette game
     """
     try:
         headers = {
@@ -453,9 +453,10 @@ def cancel_post(url: str, token: str) -> None:
         print(f"Unexpected error in cancel_post: {e}")
 
 
-def bet_stop_post(url: str, token: str) -> None:
+def bet_stop_post(url: str, token: str) -> bool:
     """
     Stop betting for the current round - Speed Roulette game
+    Returns True if successful, False otherwise
     """
     try:
         headers = {
@@ -481,11 +482,11 @@ def bet_stop_post(url: str, token: str) -> None:
             else:
                 error_msg = f"HTTP {response.status_code}"
             print(f"Error in bet_stop_post: {error_msg}")
-            return
+            return False
 
         if response_data is None:
             print("Warning: Empty response from server")
-            return
+            return False
 
         if (
             response_data
@@ -494,20 +495,24 @@ def bet_stop_post(url: str, token: str) -> None:
         ):
             error_msg = response_data["error"].get("message", "Unknown error")
             print(f"Error in bet_stop_post: {error_msg}")
-            return
+            return False
 
         # Format and display the response
         json_str = json.dumps(response_data, indent=2)
         colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
         print(colored_json)
         print("Successfully stopped betting for the round")
+        return True
 
     except requests.exceptions.RequestException as e:
         print(f"Network error in bet_stop_post: {e}")
+        return False
     except ValueError as e:
         print(f"JSON decode error in bet_stop_post: {e}")
+        return False
     except Exception as e:
         print(f"Unexpected error in bet_stop_post: {e}")
+        return False
 
 
 def broadcast_post_v2(
@@ -562,8 +567,8 @@ if __name__ == "__main__":
         # URLs and tokens are now loaded from config file at module level
 
         # broadcast_post(post_url, token, "roulette.relaunch", "players", 20)
-        # print("================Start================\n")
-        # round_id, betPeriod = start_post_v2(post_url, token)
+        print("================Start================\n")
+        round_id, betPeriod = start_post_v2(post_url, token)
         round_id, status, betPeriod = get_roundID(get_url, token)
         print(round_id, status, betPeriod)
 
@@ -593,7 +598,8 @@ if __name__ == "__main__":
         # time.sleep(1)
 
         print("================Deal================\n")
-        # time.sleep(13)
+        time.sleep(13)
+        bet_stop_post(post_url, token)
         deal_post_v2(post_url, token, round_id, results)
         print("================Finish================\n")
         finish_post_v2(post_url, token)
