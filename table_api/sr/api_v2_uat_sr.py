@@ -423,9 +423,10 @@ def cancel_post_v2_uat(url: str, token: str) -> None:
         print(f"Unexpected error in cancel_post: {e}")
 
 
-def bet_stop_post_uat(url: str, token: str) -> None:
+def bet_stop_post_uat(url: str, token: str) -> bool:
     """
     Stop betting for the current round - Speed Roulette game (UAT environment)
+    Returns True if successful, False otherwise
     """
     try:
         headers = {
@@ -451,11 +452,11 @@ def bet_stop_post_uat(url: str, token: str) -> None:
             else:
                 error_msg = f"HTTP {response.status_code}"
             print(f"Error in bet_stop_post_uat: {error_msg}")
-            return
+            return False
 
         if response_data is None:
             print("Warning: Empty response from server")
-            return
+            return False
 
         if (
             response_data
@@ -464,20 +465,24 @@ def bet_stop_post_uat(url: str, token: str) -> None:
         ):
             error_msg = response_data["error"].get("message", "Unknown error")
             print(f"Error in bet_stop_post_uat: {error_msg}")
-            return
+            return False
 
         # Format and display the response
         json_str = json.dumps(response_data, indent=2)
         colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
         print(colored_json)
         print("Successfully stopped betting for the round")
+        return True
 
     except requests.exceptions.RequestException as e:
         print(f"Network error in bet_stop_post_uat: {e}")
+        return False
     except ValueError as e:
         print(f"JSON decode error in bet_stop_post_uat: {e}")
+        return False
     except Exception as e:
         print(f"Unexpected error in bet_stop_post_uat: {e}")
+        return False
 
 
 def broadcast_post_v2_uat(
@@ -533,8 +538,8 @@ if __name__ == "__main__":
         # URLs and tokens are now loaded from config file at module level
 
         # broadcast_post(post_url, token, "roulette.relaunch", "players", 20)
-        # print("================Start================\n")
-        # round_id, betPeriod = start_post_v2(post_url, token)
+        print("================Start================\n")
+        round_id, betPeriod = start_post_v2_uat(post_url, token)
         round_id, status, betPeriod = get_roundID_v2_uat(get_url, token)
         print(round_id, status, betPeriod)
 
@@ -564,7 +569,8 @@ if __name__ == "__main__":
         # time.sleep(1)
 
         print("================Deal================\n")
-        # time.sleep(13)
+        time.sleep(13)
+        bet_stop_post_uat(post_url, token)
         deal_post_v2_uat(post_url, token, round_id, results)
         print("================Finish================\n")
         finish_post_v2_uat(post_url, token)
