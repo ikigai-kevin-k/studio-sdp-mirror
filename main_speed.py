@@ -13,30 +13,35 @@ from table_api.sr.api_v2_sr import (
     deal_post_v2,
     finish_post_v2,
     broadcast_post_v2,
+    bet_stop_post,
 )
 from table_api.sr.api_v2_uat_sr import (
     start_post_v2_uat,
     deal_post_v2_uat,
     finish_post_v2_uat,
     broadcast_post_v2_uat,
+    bet_stop_post_uat,
 )
 from table_api.sr.api_v2_prd_sr import (
     start_post_v2_prd,
     deal_post_v2_prd,
     finish_post_v2_prd,
     broadcast_post_v2_prd,
+    bet_stop_post_prd,
 )
 from table_api.sr.api_v2_stg_sr import (
     start_post_v2_stg,
     deal_post_v2_stg,
     finish_post_v2_stg,
     broadcast_post_v2_stg,
+    bet_stop_post_stg,
 )
 from table_api.sr.api_v2_qat_sr import (
     start_post_v2_qat,
     deal_post_v2_qat,
     finish_post_v2_qat,
     broadcast_post_v2_qat,
+    bet_stop_post_qat,
 )
 from concurrent.futures import ThreadPoolExecutor
 
@@ -62,7 +67,7 @@ from serial_comm.serialUtils import create_serial_connection
 from serial_comm.serialIO import read_from_serial
 
 ser = create_serial_connection(
-    port="/dev/ttyUSB1",
+    port="/dev/ttyUSB0",
     baudrate=9600,
     parity=serial.PARITY_NONE,
     stopbits=serial.STOPBITS_ONE,
@@ -525,6 +530,30 @@ def execute_deal_post(table, token, win_num):
     except Exception as e:
         print(f"Error executing deal_post for {table['name']}: {e}")
         return None
+
+
+def betStop_round_for_table(table, token):
+    """Stop betting for a single table - helper function for thread pool execution"""
+    try:
+        post_url = f"{table['post_url']}{table['game_code']}"
+
+        if table["name"] == "CIT":
+            bet_stop_post(post_url, token)
+        elif table["name"] == "UAT":
+            bet_stop_post_uat(post_url, token)
+        elif table["name"] == "PRD":
+            bet_stop_post_prd(post_url, token)
+        elif table["name"] == "STG":
+            bet_stop_post_stg(post_url, token)
+        elif table["name"] == "QAT":
+            bet_stop_post_qat(post_url, token)
+
+        return table["name"], True
+
+    except Exception as e:
+        error_msg = str(e)
+        print(f"Error stopping betting for table {table['name']}: {error_msg}")
+        return table["name"], False
 
 
 def execute_broadcast_post(table, token):

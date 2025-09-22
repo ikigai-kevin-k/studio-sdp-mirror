@@ -453,6 +453,63 @@ def cancel_post(url: str, token: str) -> None:
         print(f"Unexpected error in cancel_post: {e}")
 
 
+def bet_stop_post(url: str, token: str) -> None:
+    """
+    Stop betting for the current round - Speed Roulette game
+    """
+    try:
+        headers = {
+            "accept": "application/json",
+            "Bearer": token,
+            "x-signature": "los-local-signature",
+            "Content-Type": "application/json",
+            "Cookie": f"accessToken={accessToken}",
+            "Connection": "close",
+        }
+        data = {}
+        response = requests.post(
+            f"{url}/bet-stop", headers=headers, json=data, verify=False
+        )
+        response_data = response.json() if response.text else None
+
+        # Improve error handling
+        if response.status_code != 200:
+            if response_data:
+                error_msg = response_data.get("error", {}).get(
+                    "message", "Unknown error"
+                )
+            else:
+                error_msg = f"HTTP {response.status_code}"
+            print(f"Error in bet_stop_post: {error_msg}")
+            return
+
+        if response_data is None:
+            print("Warning: Empty response from server")
+            return
+
+        if (
+            response_data
+            and "error" in response_data
+            and response_data["error"]
+        ):
+            error_msg = response_data["error"].get("message", "Unknown error")
+            print(f"Error in bet_stop_post: {error_msg}")
+            return
+
+        # Format and display the response
+        json_str = json.dumps(response_data, indent=2)
+        colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
+        print(colored_json)
+        print("Successfully stopped betting for the round")
+
+    except requests.exceptions.RequestException as e:
+        print(f"Network error in bet_stop_post: {e}")
+    except ValueError as e:
+        print(f"JSON decode error in bet_stop_post: {e}")
+    except Exception as e:
+        print(f"Unexpected error in bet_stop_post: {e}")
+
+
 def broadcast_post_v2(
     url, token, broadcast_type, audience="players", afterSeconds=20
 ):  # , metadata=None):

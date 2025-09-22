@@ -339,6 +339,7 @@ def read_from_serial(
                                 )
 
                                 # Asynchronously process start_post for all tables
+                                round_ids = []
                                 with ThreadPoolExecutor(
                                     max_workers=len(tables)
                                 ) as executor:
@@ -348,11 +349,33 @@ def read_from_serial(
                                         )
                                         for table in tables
                                     ]
-                                    for future in futures:
-                                        future.result()  # Wait for all requests to complete
+                                    for i, future in enumerate(futures):
+                                        result = future.result()  # Wait for all requests to complete
+                                        if result and result[0] and result[1]:  # Check if we got valid table and round_id
+                                            table, round_id, bet_period = result
+                                            round_ids.append((table, round_id, bet_period))
 
                                 global_vars["start_post_sent"] = True
                                 global_vars["deal_post_sent"] = False
+
+                                # Start bet stop countdown for each table (non-blocking)
+                                for table, round_id, bet_period in round_ids:
+                                    if bet_period and bet_period > 0:
+                                        # Import betStop_round_for_table function
+                                        import sys
+                                        import os
+                                        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                                        from main_speed import betStop_round_for_table
+                                        
+                                        # Create thread for bet stop countdown
+                                        threading.Timer(
+                                            bet_period,
+                                            lambda t=table, r=round_id, b=bet_period: _bet_stop_countdown(
+                                                t, r, b, token, betStop_round_for_table, get_timestamp, log_to_file
+                                            )
+                                        ).start()
+                                        print(f"[{get_timestamp()}] Started bet stop countdown for {table['name']} (round {round_id}, {bet_period}s)")
+                                        log_to_file(f"Started bet stop countdown for {table['name']} (round {round_id}, {bet_period}s)", "Bet Stop >>>")
 
                                 print("\nSending *u 1 command...")
                                 # Check if serial connection is available
@@ -572,3 +595,38 @@ def read_from_serial(
         else:
             # No data available, sleep briefly to prevent busy waiting
             time.sleep(0.001)  # 1ms sleep
+
+
+def _bet_stop_countdown(table, round_id, bet_period, token, betStop_round_for_table, get_timestamp, log_to_file):
+    """
+    Countdown and call bet stop for a table (non-blocking)
+    
+    Args:
+        table: Table configuration dictionary
+        round_id: Current round ID
+        bet_period: Betting period duration in seconds
+        token: Authentication token
+        betStop_round_for_table: Function to call bet stop
+        get_timestamp: Function to get current timestamp
+        log_to_file: Function to log messages to file
+    """
+    try:
+        # Wait for the bet period duration
+        time.sleep(bet_period)
+
+        # Call bet stop for the table
+        print(f"[{get_timestamp()}] Calling bet stop for {table['name']} (round {round_id})")
+        log_to_file(f"Calling bet stop for {table['name']} (round {round_id})", "Bet Stop >>>")
+        
+        result = betStop_round_for_table(table, token)
+
+        if result[1]:  # Check if successful
+            print(f"[{get_timestamp()}] Successfully stopped betting for {table['name']}")
+            log_to_file(f"Successfully stopped betting for {table['name']}", "Bet Stop >>>")
+        else:
+            print(f"[{get_timestamp()}] Failed to stop betting for {table['name']}")
+            log_to_file(f"Failed to stop betting for {table['name']}", "Bet Stop >>>")
+
+    except Exception as e:
+        print(f"[{get_timestamp()}] Error in bet stop countdown for {table['name']}: {e}")
+        log_to_file(f"Error in bet stop countdown for {table['name']}: {e}", "Error >>>")
