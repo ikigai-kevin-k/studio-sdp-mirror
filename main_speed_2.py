@@ -55,13 +55,27 @@ from studio_api.ws_err_sig import send_roulette_sensor_stuck_error
 from serial_comm.serialUtils import create_serial_connection
 from serial_comm.serialIO import read_from_serial
 
+# Load device configuration
+def load_device_config():
+    with open("conf/sr_dev.json", "r") as f:
+        return json.load(f)
+
+device_config = load_device_config()
+
+# Parse parity setting
+parity_map = {
+    "NONE": serial.PARITY_NONE,
+    "ODD": serial.PARITY_ODD,
+    "EVEN": serial.PARITY_EVEN
+}
+
 ser = create_serial_connection(
-    port="/dev/ttyUSB0",
-    baudrate=9600,
-    parity=serial.PARITY_NONE,
-    stopbits=serial.STOPBITS_ONE,
-    bytesize=serial.EIGHTBITS,
-    timeout=1,
+    port=device_config["dev_port2"],
+    baudrate=device_config["baudrate"],
+    parity=parity_map.get(device_config["parity"], serial.PARITY_NONE),
+    stopbits=device_config["stopbits"],
+    bytesize=device_config["bytesize"],
+    timeout=device_config["timeout"],
 )
 
 
