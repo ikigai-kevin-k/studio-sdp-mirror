@@ -18,7 +18,7 @@ Create a new sudoers file specifically for the `rnd` user:
 
 ```bash
 echo "# Allow rnd user to run main_speed_2.py without password
-rnd ALL=(ALL) NOPASSWD: /home/rnd/studio-sdp-roulette/venv/bin/python /home/rnd/studio-sdp-roulette/main_speed_2.py" | sudo tee /etc/sudoers.d/rnd-nopasswd
+rnd ALL=(ALL) NOPASSWD: /home/rnd/studio-sdp-roulette/venv/bin/python3 /home/rnd/studio-sdp-roulette/main_speed_2.py" | sudo tee /etc/sudoers.d/rnd-nopasswd
 ```
 
 ### 2. Set Correct Permissions
@@ -49,7 +49,7 @@ Expected output:
 Test that the command can be executed without password:
 
 ```bash
-sudo venv/bin/python main_speed_2.py --help
+sudo venv/bin/python3 main_speed_2.py --help
 ```
 
 ## Configuration Details
@@ -59,14 +59,14 @@ sudo venv/bin/python main_speed_2.py --help
 **Content:**
 ```
 # Allow rnd user to run main_speed_2.py without password
-rnd ALL=(ALL) NOPASSWD: /home/rnd/studio-sdp-roulette/venv/bin/python /home/rnd/studio-sdp-roulette/main_speed_2.py
+rnd ALL=(ALL) NOPASSWD: /home/rnd/studio-sdp-roulette/venv/bin/python3 /home/rnd/studio-sdp-roulette/main_speed_2.py
 ```
 
 **Explanation:**
 - `rnd`: The username
 - `ALL=(ALL)`: Can run as any user on any host
 - `NOPASSWD:`: No password required
-- `/home/rnd/studio-sdp-roulette/venv/bin/python /home/rnd/studio-sdp-roulette/main_speed_2.py`: The specific command allowed
+- `/home/rnd/studio-sdp-roulette/venv/bin/python3 /home/rnd/studio-sdp-roulette/main_speed_2.py`: The specific command allowed
 
 ## Security Considerations
 
@@ -104,7 +104,7 @@ The `sr_standby_client.py` script can now execute:
 ```python
 tmux_command = [
     "tmux", "send-keys", "-t", "dp:sdp",
-    f"cd {studio_dir} && sudo venv/bin/python main_speed_2.py",
+    f"cd {studio_dir} && sudo venv/bin/python3 main_speed_2.py",
     "Enter"
 ]
 ```

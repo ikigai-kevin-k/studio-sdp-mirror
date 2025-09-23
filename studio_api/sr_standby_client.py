@@ -162,7 +162,7 @@ class StandbyClient:
             # Create tmux command to run main_speed_2.py in the 'dp:sdp' session/window
             tmux_command = [
                 "tmux", "send-keys", "-t", "dp:sdp",
-                f"cd {studio_dir} && sudo venv/bin/python main_speed_2.py",
+                f"cd {studio_dir} && sudo venv/bin/python3 main_speed_2.py",
                 "Enter"
             ]
             
