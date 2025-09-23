@@ -9,28 +9,28 @@ import os
 
 # Load configuration from JSON file
 def load_config():
-    """Load configuration from sr-1.json"""
+    """Load configuration from sr-2.json"""
     config_path = os.path.join(
         os.path.dirname(__file__),
         "..",
         "..",
         "conf",
-        "sr-1.json",
+        "sr-2.json",
     )
     try:
         with open(config_path, "r") as f:
             configs = json.load(f)
-            # Find QAT configuration
+            # Find STG-2 configuration
             for config in configs:
-                if config["name"] == "QAT":
+                if config["name"] == "STG-2":
                     return config
-        raise Exception("QAT configuration not found in config file")
+        raise Exception("STG-2 configuration not found in config file")
     except Exception as e:
         print(f"Error loading config: {e}")
         return None
 
 
-# Load QAT configuration
+# Load STG-2 configuration
 config = load_config()
 if config:
     accessToken = config["access_token"]
@@ -40,14 +40,15 @@ if config:
     token = config["table_token"]
 else:
     # Fallback to hardcoded values if config loading fails
-    accessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiIyYWJkMDYzOC0xMDkxLTRkOTItYWRmMS1kYTk0M2I0YWE2ZTkiLCJnYW1lQ29kZSI6WyJBUk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NTE2MDcyMTA3NzcsImlhdCI6MTc1MTYwNzIxMH0.kMqwkaHEaSybNUBNGzYss_NJyhbvjhN48vXkUgsqinA"
-    gameCode = "ARO-001"
-    get_url = "https://crystal-table.iki-qat.cc/v2/service/tables/" + gameCode
-    post_url = "https://crystal-table.iki-qat.cc/v2/service/tables/" + gameCode
+    accessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI2MDdlNTg3OS00YTY5LTQ2NTYtYmE1Yy1hOWUyYzNiZmEzODQiLCJnYW1lQ29kZSI6WyJBUk8tMDAxLTIiXSwicm9sZSI6InNkcCIsImNyZWF0ZWRBdCI6MTc1ODU5NTIzNTQ3NSwiaWF0IjoxNzU4NTk1MjM1fQ.YzQ2RW9ISV-JzP5AjW_LYmL0rWF2zjekii8uSQtmffY"
+    gameCode = "ARO-001-2"
+    get_url = "https://crystal-table.iki-stg.cc/v2/service/tables/" + gameCode
+    post_url = "https://crystal-table.iki-stg.cc/v2/service/tables/" + gameCode
     token = "E5LN4END9Q"
 
 
-def start_post_v2_qat(url, token):
+def start_post_v2(url, token):
+    """Start a new round for Speed Roulette game"""
     # Set up HTTP headers
     headers = {
         "accept": "application/json",
@@ -68,7 +69,7 @@ def start_post_v2_qat(url, token):
     # Check if the response status code indicates success
     if response.status_code != 200:
         print(f"Error: {response.status_code} - {response.text}")
-        return -1, -1
+        return None, None
 
     try:
         # Parse the response JSON
@@ -76,7 +77,7 @@ def start_post_v2_qat(url, token):
 
     except json.JSONDecodeError:
         print("Error: Unable to decode JSON response.")
-        return -1, -1
+        return None, None
 
     # Extract roundId from the nested JSON structure
     round_id = (
@@ -90,7 +91,7 @@ def start_post_v2_qat(url, token):
     # Handle cases where roundId is not found
     if not round_id:
         print("Error: roundId not found in response.")
-        return -1, -1
+        return None, None
 
     # Format the JSON for pretty printing and apply syntax highlighting
     json_str = json.dumps(response_data, indent=2)
@@ -100,8 +101,9 @@ def start_post_v2_qat(url, token):
     return round_id, betPeriod
 
 
-def deal_post_v2_qat(url, token, round_id, result):
-    timecode = str(int(time.time() * 1000) + 5000)
+def deal_post_v2(url, token, round_id, result):
+    """Deal the result for Speed Roulette game"""
+    timecode = str(int(time.time() * 1000))
     headers = {
         "accept": "application/json",
         "Bearer": token,
@@ -114,27 +116,30 @@ def deal_post_v2_qat(url, token, round_id, result):
 
     data = {
         "roundId": f"{round_id}",
-        "roulette": result,  # 修改: 使用 "roulette" 而不是 "sicBo"，直接傳入數字的string
+        "roulette": result,
     }
 
     response = requests.post(
         f"{url}/deal", headers=headers, json=data, verify=False
     )
-
     if response.status_code != 200:
         print("====================")
         print("[DEBUG] deal_post_v2")
         print("====================")
         print(f"Error: {response.status_code} - {response.text}")
         print("====================")
+        return False
 
     json_str = json.dumps(response.json(), indent=2)
-
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
+    print(f"Deal result sent successfully: {result}")
+    return True
 
-def finish_post_v2_qat(url, token):
+
+def finish_post_v2(url, token):
+    """Finish the current round for Speed Roulette game"""
     headers = {
         "accept": "application/json",
         "Bearer": token,
@@ -147,13 +152,22 @@ def finish_post_v2_qat(url, token):
     response = requests.post(
         f"{url}/finish", headers=headers, json=data, verify=False
     )
-    json_str = json.dumps(response.json(), indent=2)
 
+    if response.status_code != 200:
+        print(
+            f"Error finishing game: {response.status_code} - {response.text}"
+        )
+        return False
+    json_str = json.dumps(response.json(), indent=2)
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
+    print("Game finished successfully.")
+    return True
 
-def visibility_post_qat(url, token, enable):
+
+def visibility_post(url, token, enable):
+    """Set table visibility for Speed Roulette game"""
     headers = {
         "accept": "application/json",
         "Bearer": token,
@@ -165,47 +179,47 @@ def visibility_post_qat(url, token, enable):
     print("enable: ", enable)
 
     visibility = "disabled" if enable is False else "visible"
-    # print("vis: ", visibility)
     data = {"visibility": visibility}
 
     response = requests.post(
         f"{url}/visibility", headers=headers, json=data, verify=False
     )
     json_str = json.dumps(response.json(), indent=2)
-
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
 
-def get_roundID_v2_qat(url, token):
-    # Set up HTTP headers
-
-    # print("URL:", url)
-
+def get_roundID(url, token):
+    """Get current round information for Speed Roulette game"""
     headers = {
         "accept": "application/json",
         "Bearer": f"Bearer {token}",
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
-        "Connection": "close",
     }
 
-    # Define payload for the POST request
-    data = {}
     response = requests.get(f"{url}", headers=headers, verify=False)
 
+    # Pretty print API response
+    try:
+        response_data = response.json()
+        print("=== Speed Roulette API Response ===")
+        print(json.dumps(response_data, indent=2, ensure_ascii=False))
+    except json.JSONDecodeError:
+        print("=== Raw Response (Not JSON) ===")
+        print(response.text)
     # Check if the response status code indicates success
     if response.status_code != 200:
-        # print(f"Error: {response.status_code} - {response.text}")
-        return -1, -1, -1
+        print(f"Error: {response.status_code} - {response.text}")
+        raise Exception(f"Error: {response.status_code} - {response.text}")
 
     try:
         # Parse the response JSON
         response_data = response.json()
     except json.JSONDecodeError:
         print("Error: Unable to decode JSON response.")
-        return -1, -1, -1
+        raise Exception("Error: Unable to decode JSON response.")
 
     # Extract roundId from the nested JSON structure
     round_id = (
@@ -225,17 +239,13 @@ def get_roundID_v2_qat(url, token):
     # Handle cases where roundId is not found
     if not round_id:
         print("Error: roundId not found in response.")
-        return -1, -1, -1
-
-    # Format the JSON for pretty printing and apply syntax highlighting
-    json_str = json.dumps(response_data, indent=2)
-    # colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
-    # print(colored_json)
+        raise Exception("Error: roundId not found in response.")
 
     return round_id, status, betPeriod
 
 
-def pause_post_v2_qat(url, token, reason):
+def pause_post(url, token, reason):
+    """Pause the current round for Speed Roulette game"""
     headers = {
         "accept": "application/json",
         "Bearer": token,
@@ -251,12 +261,12 @@ def pause_post_v2_qat(url, token, reason):
         f"{url}/pause", headers=headers, json=data, verify=False
     )
     json_str = json.dumps(response.json(), indent=2)
-
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
 
-def resume_post_v2_qat(url, token):
+def resume_post(url, token):
+    """Resume the paused round for Speed Roulette game"""
     headers = {
         "accept": "application/json",
         "Bearer": token,
@@ -271,14 +281,16 @@ def resume_post_v2_qat(url, token):
         f"{url}/resume", headers=headers, json=data, verify=False
     )
     json_str = json.dumps(response.json(), indent=2)
+    colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
+    print(colored_json)
 
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
 
-def sdp_config_post_v2_qat(url, token, config_data):
+def sdp_config_post(url, token, config_data):
     """
-    Update SDP configuration for a specific table
+    Update SDP configuration for a specific Speed Roulette table
 
     Args:
         url (str): API endpoint URL
@@ -311,9 +323,9 @@ def sdp_config_post_v2_qat(url, token, config_data):
     print(colored_json)
 
 
-def get_sdp_config_v2_qat(url, token):
+def get_sdp_config(url, token):
     """
-    Get SDP configuration from the table status
+    Get SDP configuration from the Speed Roulette table status
 
     Args:
         url (str): API endpoint URL
@@ -342,18 +354,17 @@ def get_sdp_config_v2_qat(url, token):
             response_data.get("data", {}).get("table", {}).get("sdpConfig", {})
         )
 
-        broker_host = sdp_config.get("broker_host")
-        broker_port = sdp_config.get("broker_port")
-        room_id = sdp_config.get("room_id")
+        strings = sdp_config.get("strings")
+        number = sdp_config.get("number")
 
-        return broker_host, broker_port, room_id
+        return strings, number
 
     except json.JSONDecodeError:
         print("Error: Unable to decode JSON response.")
         return None, None
 
 
-def update_sdp_config_from_file_v2_qat(url, token, config_file="sdp.config"):
+def update_sdp_config_from_file(url, token, config_file="sdp.config"):
     """
     Read configuration from sdp.config file and update SDP configuration
 
@@ -380,7 +391,7 @@ def update_sdp_config_from_file_v2_qat(url, token, config_file="sdp.config"):
             "number": 0,  # Default value as it's not used for durations
         }
 
-        sdp_config_post_v2_qat(url, token, config_data)
+        sdp_config_post(url, token, config_data)
         return True
 
     except FileNotFoundError:
@@ -394,9 +405,9 @@ def update_sdp_config_from_file_v2_qat(url, token, config_file="sdp.config"):
         return False
 
 
-def cancel_post_v2_qat(url: str, token: str) -> None:
+def cancel_post(url: str, token: str) -> None:
     """
-    取消當前局次
+    cancel the current round - Speed Roulette game
     """
     try:
         headers = {
@@ -411,13 +422,16 @@ def cancel_post_v2_qat(url: str, token: str) -> None:
         response = requests.post(
             f"{url}/cancel", headers=headers, json=data, verify=False
         )
-        response_data = response.json() if response.text else None
+        try:
+            response_data = response.json() if response.text else None
+        except (ValueError, json.JSONDecodeError):
+            response_data = None
 
-        # 改進錯誤處理
+        # improve error handling
         if response.status_code != 200:
             error_msg = (
                 response_data.get("error", {}).get("message", "Unknown error")
-                if response_data
+                if response_data and isinstance(response_data, dict)
                 else f"HTTP {response.status_code}"
             )
             print(f"Error in cancel_post: {error_msg}")
@@ -427,7 +441,7 @@ def cancel_post_v2_qat(url: str, token: str) -> None:
             print("Warning: Empty response from server")
             return
 
-        if "error" in response_data:
+        if response_data and isinstance(response_data, dict) and "error" in response_data:
             error_msg = response_data["error"].get("message", "Unknown error")
             print(f"Error in cancel_post: {error_msg}")
             return
@@ -442,9 +456,9 @@ def cancel_post_v2_qat(url: str, token: str) -> None:
         print(f"Unexpected error in cancel_post: {e}")
 
 
-def bet_stop_post_qat(url: str, token: str) -> bool:
+def bet_stop_post(url: str, token: str) -> bool:
     """
-    Stop betting for the current round - Speed Roulette game (QAT environment)
+    Stop betting for the current round - Speed Roulette game
     Returns True if successful, False otherwise
     """
     try:
@@ -460,17 +474,20 @@ def bet_stop_post_qat(url: str, token: str) -> bool:
         response = requests.post(
             f"{url}/bet-stop", headers=headers, json=data, verify=False
         )
-        response_data = response.json() if response.text else None
+        try:
+            response_data = response.json() if response.text else None
+        except (ValueError, json.JSONDecodeError):
+            response_data = None
 
         # Improve error handling
         if response.status_code != 200:
-            if response_data:
+            if response_data and isinstance(response_data, dict):
                 error_msg = response_data.get("error", {}).get(
                     "message", "Unknown error"
                 )
             else:
                 error_msg = f"HTTP {response.status_code}"
-            print(f"Error in bet_stop_post_qat: {error_msg}")
+            print(f"Error in bet_stop_post: {error_msg}")
             return False
 
         if response_data is None:
@@ -479,32 +496,36 @@ def bet_stop_post_qat(url: str, token: str) -> bool:
 
         if (
             response_data
+            and isinstance(response_data, dict)
             and "error" in response_data
             and response_data["error"]
         ):
             error_msg = response_data["error"].get("message", "Unknown error")
-            print(f"Error in bet_stop_post_qat: {error_msg}")
+            print(f"Error in bet_stop_post: {error_msg}")
             return False
 
         # Format and display the response
-        json_str = json.dumps(response_data, indent=2)
-        colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
-        print(colored_json)
+        if response_data and isinstance(response_data, dict):
+            json_str = json.dumps(response_data, indent=2)
+            colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
+            print(colored_json)
+        else:
+            print("Response data:", response_data)
         print("Successfully stopped betting for the round")
         return True
 
     except requests.exceptions.RequestException as e:
-        print(f"Network error in bet_stop_post_qat: {e}")
+        print(f"Network error in bet_stop_post: {e}")
         return False
     except ValueError as e:
-        print(f"JSON decode error in bet_stop_post_qat: {e}")
+        print(f"JSON decode error in bet_stop_post: {e}")
         return False
     except Exception as e:
-        print(f"Unexpected error in bet_stop_post_qat: {e}")
+        print(f"Unexpected error in bet_stop_post: {e}")
         return False
 
 
-def broadcast_post_v2_qat(
+def broadcast_post_v2(
     url, token, broadcast_type, audience="players", afterSeconds=20
 ):  # , metadata=None):
     """
@@ -523,6 +544,7 @@ def broadcast_post_v2_qat(
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
+        "Connection": "close",
     }
 
     # Generate a unique message ID using timestamp
@@ -549,26 +571,24 @@ def broadcast_post_v2_qat(
 
 
 if __name__ == "__main__":
-    import random
-
     cnt = 0
     while cnt < 1:
-        results = "0"  # str(random.randint(0, 36))
+        results = "2"  # str(random.randint(0, 36))
         # URLs and tokens are now loaded from config file at module level
 
         # broadcast_post(post_url, token, "roulette.relaunch", "players", 20)
         print("================Start================\n")
-        round_id, betPeriod = start_post_v2_qat(post_url, token)
-        round_id, status, betPeriod = get_roundID_v2_qat(get_url, token)
+        round_id, betPeriod = start_post_v2(post_url, token)
+        round_id, status, betPeriod = get_roundID(get_url, token)
         print(round_id, status, betPeriod)
 
-        # betPeriod = 10
+        # betPeriod = 19
         # print(round_id, status, betPeriod)
-        # while betPeriod >= 0: #or status !='bet-stopped':
+        # while betPeriod > 0: #or status !='bet-stopped':
         #     print("Bet Period count down:", betPeriod)
         #     time.sleep(1)
         #     betPeriod = betPeriod - 1
-        #     _, status, _ =  get_roundID_v2_qat(get_url, token)
+        #     _, status, _ =  get_roundID(get_url, token)
         #     print(status)
 
         # print("================Pause================\n")
@@ -589,10 +609,10 @@ if __name__ == "__main__":
 
         print("================Deal================\n")
         time.sleep(13)
-        bet_stop_post_qat(post_url, token)
-        deal_post_v2_qat(post_url, token, round_id, results)
+        bet_stop_post(post_url, token)
+        deal_post_v2(post_url, token, round_id, results)
         print("================Finish================\n")
-        finish_post_v2_qat(post_url, token)
+        finish_post_v2(post_url, token)
 
         # print("================Cancel================\n")
         # cancel_post(post_url, token)

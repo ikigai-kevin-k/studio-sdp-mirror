@@ -8,40 +8,29 @@ import asyncio
 import websockets
 
 sys.path.append(".")  # Ensure los_api can be imported
-from table_api.sr.api_v2_sr import (
+from table_api.sr.cit_sr_2 import (
     start_post_v2,
     deal_post_v2,
     finish_post_v2,
     broadcast_post_v2,
-    bet_stop_post,
 )
-from table_api.sr.api_v2_uat_sr import (
-    start_post_v2_uat,
-    deal_post_v2_uat,
-    finish_post_v2_uat,
-    broadcast_post_v2_uat,
-    bet_stop_post_uat,
+from table_api.sr.uat_sr_2 import (
+    start_post_v2 as start_post_v2_uat,
+    deal_post_v2 as deal_post_v2_uat,
+    finish_post_v2 as finish_post_v2_uat,
+    broadcast_post_v2 as broadcast_post_v2_uat,
 )
-from table_api.sr.api_v2_prd_sr import (
-    start_post_v2_prd,
-    deal_post_v2_prd,
-    finish_post_v2_prd,
-    broadcast_post_v2_prd,
-    bet_stop_post_prd,
+from table_api.sr.stg_sr_2 import (
+    start_post_v2 as start_post_v2_stg,
+    deal_post_v2 as deal_post_v2_stg,
+    finish_post_v2 as finish_post_v2_stg,
+    broadcast_post_v2 as broadcast_post_v2_stg,
 )
-from table_api.sr.api_v2_stg_sr import (
-    start_post_v2_stg,
-    deal_post_v2_stg,
-    finish_post_v2_stg,
-    broadcast_post_v2_stg,
-    bet_stop_post_stg,
-)
-from table_api.sr.api_v2_qat_sr import (
-    start_post_v2_qat,
-    deal_post_v2_qat,
-    finish_post_v2_qat,
-    broadcast_post_v2_qat,
-    bet_stop_post_qat,
+from table_api.sr.qat_sr_2 import (
+    start_post_v2 as start_post_v2_qat,
+    deal_post_v2 as deal_post_v2_qat,
+    finish_post_v2 as finish_post_v2_qat,
+    broadcast_post_v2 as broadcast_post_v2_qat,
 )
 from concurrent.futures import ThreadPoolExecutor
 
@@ -88,7 +77,7 @@ def log_to_file(message, direction):
 
 # Load table configuration
 def load_table_config():
-    with open("conf/sr-1.json", "r") as f:
+    with open("conf/sr-2.json", "r") as f:
         return json.load(f)
 
 
@@ -455,16 +444,22 @@ def log_time_intervals(
 def execute_finish_post(table, token):
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
-        if table["name"] == "UAT":
-            result = finish_post_v2_uat(post_url, token)
-        elif table["name"] == "PRD":
-            result = finish_post_v2_prd(post_url, token)
-        elif table["name"] == "STG":
-            result = finish_post_v2_stg(post_url, token)
-        elif table["name"] == "QAT":
-            result = finish_post_v2_qat(post_url, token)
-        else:
-            result = finish_post_v2(post_url, token)
+        access_token = table.get('access_token', '')
+        
+        # Import the specific module for this environment
+        if table["name"] == "UAT-2":
+            from table_api.sr import uat_sr_2
+            result = uat_sr_2.finish_post_v2(post_url, token)
+        elif table["name"] == "STG-2":
+            from table_api.sr import stg_sr_2
+            result = stg_sr_2.finish_post_v2(post_url, token)
+        elif table["name"] == "QAT-2":
+            from table_api.sr import qat_sr_2
+            result = qat_sr_2.finish_post_v2(post_url, token)
+        else:  # CIT-2
+            from table_api.sr import cit_sr_2
+            result = cit_sr_2.finish_post_v2(post_url, token)
+            
         print(f"Successfully ended this game round for {table['name']}")
         return result
     except Exception as e:
@@ -475,52 +470,58 @@ def execute_finish_post(table, token):
 def execute_start_post(table, token):
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
-        if table["name"] == "UAT":
-            round_id, betPeriod = start_post_v2_uat(post_url, token)
-        elif table["name"] == "PRD":
-            round_id, betPeriod = start_post_v2_prd(post_url, token)
-        elif table["name"] == "STG":
-            round_id, betPeriod = start_post_v2_stg(post_url, token)
-        elif table["name"] == "QAT":
-            round_id, betPeriod = start_post_v2_qat(post_url, token)
-        else:
-            round_id, betPeriod = start_post_v2(post_url, token)
+        
+        # Import the specific module for this environment
+        if table["name"] == "UAT-2":
+            from table_api.sr import uat_sr_2
+            round_id, betPeriod = uat_sr_2.start_post_v2(post_url, token)
+        elif table["name"] == "STG-2":
+            from table_api.sr import stg_sr_2
+            round_id, betPeriod = stg_sr_2.start_post_v2(post_url, token)
+        elif table["name"] == "QAT-2":
+            from table_api.sr import qat_sr_2
+            round_id, betPeriod = qat_sr_2.start_post_v2(post_url, token)
+        else:  # CIT-2
+            from table_api.sr import cit_sr_2
+            round_id, betPeriod = cit_sr_2.start_post_v2(post_url, token)
 
         if round_id != -1:
             table["round_id"] = round_id
             print(
                 f"Successfully called start_post for {table['name']}, round_id: {round_id}, betPeriod: {betPeriod}"
             )
-            return table, round_id, betPeriod
+            return round_id, betPeriod
         else:
             print(f"Failed to call start_post for {table['name']}")
-            return None, -1, 0
+            return -1, 0
     except Exception as e:
         print(f"Error executing start_post for {table['name']}: {e}")
-        return None, -1, 0
+        return -1, 0
 
 
 def execute_deal_post(table, token, win_num):
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
-        if table["name"] == "UAT":
-            result = deal_post_v2_uat(
+        
+        # Import the specific module for this environment
+        if table["name"] == "UAT-2":
+            from table_api.sr import uat_sr_2
+            result = uat_sr_2.deal_post_v2(
                 post_url, token, table["round_id"], str(win_num)
             )
-        elif table["name"] == "PRD":
-            result = deal_post_v2_prd(
+        elif table["name"] == "STG-2":
+            from table_api.sr import stg_sr_2
+            result = stg_sr_2.deal_post_v2(
                 post_url, token, table["round_id"], str(win_num)
             )
-        elif table["name"] == "STG":
-            result = deal_post_v2_stg(
+        elif table["name"] == "QAT-2":
+            from table_api.sr import qat_sr_2
+            result = qat_sr_2.deal_post_v2(
                 post_url, token, table["round_id"], str(win_num)
             )
-        elif table["name"] == "QAT":
-            result = deal_post_v2_qat(
-                post_url, token, table["round_id"], str(win_num)
-            )
-        else:
-            result = deal_post_v2(
+        else:  # CIT-2
+            from table_api.sr import cit_sr_2
+            result = cit_sr_2.deal_post_v2(
                 post_url, token, table["round_id"], str(win_num)
             )
         print(
@@ -532,54 +533,30 @@ def execute_deal_post(table, token, win_num):
         return None
 
 
-def betStop_round_for_table(table, token):
-    """Stop betting for a single table - helper function for thread pool execution"""
-    try:
-        post_url = f"{table['post_url']}{table['game_code']}"
-
-        if table["name"] == "CIT":
-            result = bet_stop_post(post_url, token)
-        elif table["name"] == "UAT":
-            result = bet_stop_post_uat(post_url, token)
-        elif table["name"] == "PRD":
-            result = bet_stop_post_prd(post_url, token)
-        elif table["name"] == "STG":
-            result = bet_stop_post_stg(post_url, token)
-        elif table["name"] == "QAT":
-            result = bet_stop_post_qat(post_url, token)
-        else:
-            result = False
-
-        return table["name"], result
-
-    except Exception as e:
-        error_msg = str(e)
-        print(f"Error stopping betting for table {table['name']}: {error_msg}")
-        return table["name"], False
-
-
 def execute_broadcast_post(table, token):
     """Execute broadcast_post to notify relaunch"""
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
-        if table["name"] == "UAT":
-            result = broadcast_post_v2_uat(
+        
+        # Import the specific module for this environment
+        if table["name"] == "UAT-2":
+            from table_api.sr import uat_sr_2
+            result = uat_sr_2.broadcast_post_v2(
                 post_url, token, "roulette.relaunch", "players", 20
             )  # , None)
-        elif table["name"] == "PRD":
-            result = broadcast_post_v2_prd(
+        elif table["name"] == "STG-2":
+            from table_api.sr import stg_sr_2
+            result = stg_sr_2.broadcast_post_v2(
                 post_url, token, "roulette.relaunch", "players", 20
             )  # , None)
-        elif table["name"] == "STG":
-            result = broadcast_post_v2_stg(
+        elif table["name"] == "QAT-2":
+            from table_api.sr import qat_sr_2
+            result = qat_sr_2.broadcast_post_v2(
                 post_url, token, "roulette.relaunch", "players", 20
             )  # , None)
-        elif table["name"] == "QAT":
-            result = broadcast_post_v2_qat(
-                post_url, token, "roulette.relaunch", "players", 20
-            )  # , None)
-        else:
-            result = broadcast_post_v2(
+        else:  # CIT-2
+            from table_api.sr import cit_sr_2
+            result = cit_sr_2.broadcast_post_v2(
                 post_url, token, "roulette.relaunch", "players", 20
             )  # , None)
 

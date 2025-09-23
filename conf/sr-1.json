@@ -24,6 +24,14 @@
       "table_token": "E5LN4END9Q"
   },
   {
+    "name": "CIT-2",
+    "get_url": "https://crystal-table.iki-cit.cc/v2/service/tables/",
+    "post_url": "https://crystal-table.iki-cit.cc/v2/service/tables/",
+    "game_code": "ARO-001-2",
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiIwYjI2ZmY5Mi1hOGU4LTQwYzMtYjQ1YS05M2RlNDYyY2EwYjMiLCJnYW1lQ29kZSI6WyJBUk8tMDAxLTIiXSwicm9sZSI6InNkcCIsImNyZWF0ZWRBdCI6MTc1ODU5MzM1NTI0NywiaWF0IjoxNzU4NTkzMzU1fQ.oj8eDPQxx_CJvfo6C-O7rF4XPdGGRg1Bw7if8NMijFw",
+    "table_token": "E5LN4END9Q"
+  },
+  {
       "name": "STG",
       "get_url": "https://crystal-table.iki-stg.cc/v2/service/tables/",
       "post_url": "https://crystal-table.iki-stg.cc/v2/service/tables/",

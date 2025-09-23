@@ -10,7 +10,7 @@ import os
 # Load configuration from JSON file
 def load_config(env_name):
     """
-    Load configuration from table-config-speed-roulette-v2.json
+    Load configuration from sr-1.json
 
     Args:
         env_name (str): Environment name (PRD, UAT, CIT, STG, QAT)
@@ -23,7 +23,7 @@ def load_config(env_name):
         "..",
         "..",
         "conf",
-        "table-config-speed-roulette-v2.json",
+        "sr-1.json",
     )
     try:
         with open(config_path, "r") as f:
