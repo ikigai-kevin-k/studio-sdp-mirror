@@ -53,8 +53,8 @@ class ErrorSignalClient:
         try:
             import websockets
 
-            # Create connection URL according to spec: ?id=ARO-001_dealerPC&token=MY_TOKEN
-            connection_url = f"{self.server_url}?id={self.table_id}_{self.device_name}&token={self.token}"
+            # Create connection URL according to spec: ?id=ARO-001_dealerPC&token=MY_TOKEN&gameCode=ARO-001
+            connection_url = f"{self.server_url}?id={self.table_id}-{self.device_name}&token={self.token}&gameCode=ARO-001"
 
             logger.info(f"Connecting to {connection_url}")
             self.websocket = await websockets.connect(connection_url)
