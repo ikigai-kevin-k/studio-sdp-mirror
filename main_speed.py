@@ -67,6 +67,10 @@ from serial_comm.serialUtils import create_serial_connection
 from serial_comm.serialIO import read_from_serial
 
 # Load device configuration
+def load_device_config():
+    with open("conf/sr_dev.json", "r") as f:
+        return json.load(f)
+
 device_config = load_device_config()
 
 # Parse parity setting
@@ -99,12 +103,6 @@ def log_to_file(message, direction):
 # Load table configuration
 def load_table_config():
     with open("conf/sr-1.json", "r") as f:
-        return json.load(f)
-
-
-# Load device configuration
-def load_device_config():
-    with open("conf/sr_dev.json", "r") as f:
         return json.load(f)
 
 
