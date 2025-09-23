@@ -495,13 +495,13 @@ def execute_start_post(table, token):
             print(
                 f"Successfully called start_post for {table['name']}, round_id: {round_id}, betPeriod: {betPeriod}"
             )
-            return round_id, betPeriod
+            return table, round_id, betPeriod
         else:
             print(f"Failed to call start_post for {table['name']}")
-            return -1, 0
+            return table, -1, 0
     except Exception as e:
         print(f"Error executing start_post for {table['name']}: {e}")
-        return -1, 0
+        return table, -1, 0
 
 
 def execute_deal_post(table, token, win_num):
