@@ -66,16 +66,22 @@ def start_post_v2(url, token):
         f"{url}/start", headers=headers, json=data, verify=False
     )
 
+    # Parse response for better error handling
+    try:
+        response_data = response.json() if response.text else None
+    except (ValueError, json.JSONDecodeError):
+        response_data = None
+
     # Check if the response status code indicates success
     if response.status_code != 200:
-        print(f"Error: {response.status_code} - {response.text}")
+        if response_data and isinstance(response_data, dict):
+            error_msg = response_data.get("error", {}).get("message", "Unknown error")
+            print(f"Error: {response.status_code} - {error_msg}")
+        else:
+            print(f"Error: {response.status_code} - {response.text}")
         return None, None
 
-    try:
-        # Parse the response JSON
-        response_data = response.json()
-
-    except json.JSONDecodeError:
+    if not response_data:
         print("Error: Unable to decode JSON response.")
         return None, None
 
@@ -122,17 +128,32 @@ def deal_post_v2(url, token, round_id, result):
     response = requests.post(
         f"{url}/deal", headers=headers, json=data, verify=False
     )
+    
+    # Parse response for better error handling
+    try:
+        response_data = response.json() if response.text else None
+    except (ValueError, json.JSONDecodeError):
+        response_data = None
+    
     if response.status_code != 200:
         print("====================")
         print("[DEBUG] deal_post_v2")
         print("====================")
-        print(f"Error: {response.status_code} - {response.text}")
+        if response_data and isinstance(response_data, dict):
+            error_msg = response_data.get("error", {}).get("message", "Unknown error")
+            print(f"Error: {response.status_code} - {error_msg}")
+        else:
+            print(f"Error: {response.status_code} - {response.text}")
         print("====================")
         return False
 
-    json_str = json.dumps(response.json(), indent=2)
-    colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
-    print(colored_json)
+    # Display response
+    if response_data and isinstance(response_data, dict):
+        json_str = json.dumps(response_data, indent=2)
+        colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
+        print(colored_json)
+    else:
+        print("Response data:", response_data)
 
     print(f"Deal result sent successfully: {result}")
     return True
@@ -153,14 +174,27 @@ def finish_post_v2(url, token):
         f"{url}/finish", headers=headers, json=data, verify=False
     )
 
+    # Parse response for better error handling
+    try:
+        response_data = response.json() if response.text else None
+    except (ValueError, json.JSONDecodeError):
+        response_data = None
+
     if response.status_code != 200:
-        print(
-            f"Error finishing game: {response.status_code} - {response.text}"
-        )
+        if response_data and isinstance(response_data, dict):
+            error_msg = response_data.get("error", {}).get("message", "Unknown error")
+            print(f"Error finishing game: {response.status_code} - {error_msg}")
+        else:
+            print(f"Error finishing game: {response.status_code} - {response.text}")
         return False
-    json_str = json.dumps(response.json(), indent=2)
-    colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
-    print(colored_json)
+    
+    # Display response
+    if response_data and isinstance(response_data, dict):
+        json_str = json.dumps(response_data, indent=2)
+        colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
+        print(colored_json)
+    else:
+        print("Response data:", response_data)
 
     print("Game finished successfully.")
     return True

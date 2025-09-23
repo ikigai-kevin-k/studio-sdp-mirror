@@ -446,6 +446,11 @@ def execute_finish_post(table, token):
         post_url = f"{table['post_url']}{table['game_code']}"
         access_token = table.get('access_token', '')
         
+        # Check if round_id exists
+        if "round_id" not in table or table["round_id"] is None:
+            print(f"Error: No round_id found for {table['name']}")
+            return None
+        
         # Import the specific module for this environment
         if table["name"] == "UAT-2":
             from table_api.sr import uat_sr_2
@@ -485,7 +490,7 @@ def execute_start_post(table, token):
             from table_api.sr import cit_sr_2
             round_id, betPeriod = cit_sr_2.start_post_v2(post_url, token)
 
-        if round_id != -1:
+        if round_id and round_id != -1:
             table["round_id"] = round_id
             print(
                 f"Successfully called start_post for {table['name']}, round_id: {round_id}, betPeriod: {betPeriod}"
@@ -502,6 +507,11 @@ def execute_start_post(table, token):
 def execute_deal_post(table, token, win_num):
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
+        
+        # Check if round_id exists
+        if "round_id" not in table or table["round_id"] is None:
+            print(f"Error: No round_id found for {table['name']}")
+            return None
         
         # Import the specific module for this environment
         if table["name"] == "UAT-2":
@@ -640,6 +650,32 @@ def execute_broadcast_post(table, token):
             )
 
         return None
+
+
+def betStop_round_for_table(table, token):
+    """Stop betting for a single table - helper function for thread pool execution"""
+    try:
+        post_url = f"{table['post_url']}{table['game_code']}"
+        
+        # Import the specific module for this environment
+        if table["name"] == "UAT-2":
+            from table_api.sr import uat_sr_2
+            result = uat_sr_2.bet_stop_post(post_url, token)
+        elif table["name"] == "STG-2":
+            from table_api.sr import stg_sr_2
+            result = stg_sr_2.bet_stop_post(post_url, token)
+        elif table["name"] == "QAT-2":
+            from table_api.sr import qat_sr_2
+            result = qat_sr_2.bet_stop_post(post_url, token)
+        else:  # CIT-2
+            from table_api.sr import cit_sr_2
+            result = cit_sr_2.bet_stop_post(post_url, token)
+
+        return table["name"], result
+
+    except Exception as e:
+        print(f"Error in betStop_round_for_table for {table['name']}: {e}")
+        return table["name"], False
 
 
 def main():

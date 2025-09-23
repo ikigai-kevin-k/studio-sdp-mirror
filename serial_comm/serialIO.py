@@ -361,11 +361,57 @@ def read_from_serial(
                                 # Start bet stop countdown for each table (non-blocking)
                                 for table, round_id, bet_period in round_ids:
                                     if bet_period and bet_period > 0:
-                                        # Import betStop_round_for_table function
+                                        # Import betStop_round_for_table function dynamically
                                         import sys
                                         import os
                                         sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-                                        from main_speed import betStop_round_for_table
+                                        
+                                        # Determine which main module is being used based on the main process
+                                        main_module = None
+                                        if 'main_speed_2' in sys.modules:
+                                            main_module = 'main_speed_2'
+                                        elif 'main_speed' in sys.modules:
+                                            main_module = 'main_speed'
+                                        else:
+                                            # Check the main script name
+                                            main_script = sys.argv[0] if sys.argv else ''
+                                            if 'main_speed_2' in main_script:
+                                                main_module = 'main_speed_2'
+                                            elif 'main_speed' in main_script:
+                                                main_module = 'main_speed'
+                                        
+                                        # Import the appropriate betStop_round_for_table function
+                                        betStop_round_for_table = None
+                                        if main_module == 'main_speed_2':
+                                            try:
+                                                from main_speed_2 import betStop_round_for_table
+                                                print(f"[{get_timestamp()}] Using betStop_round_for_table from main_speed_2")
+                                            except ImportError as e:
+                                                print(f"[{get_timestamp()}] Error importing from main_speed_2: {e}")
+                                                betStop_round_for_table = None
+                                        elif main_module == 'main_speed':
+                                            try:
+                                                from main_speed import betStop_round_for_table
+                                                print(f"[{get_timestamp()}] Using betStop_round_for_table from main_speed")
+                                            except ImportError as e:
+                                                print(f"[{get_timestamp()}] Error importing from main_speed: {e}")
+                                                betStop_round_for_table = None
+                                        else:
+                                            # Fallback: try both modules
+                                            try:
+                                                from main_speed_2 import betStop_round_for_table
+                                                print(f"[{get_timestamp()}] Fallback: Using betStop_round_for_table from main_speed_2")
+                                            except ImportError:
+                                                try:
+                                                    from main_speed import betStop_round_for_table
+                                                    print(f"[{get_timestamp()}] Fallback: Using betStop_round_for_table from main_speed")
+                                                except ImportError:
+                                                    print(f"[{get_timestamp()}] Error: Could not import betStop_round_for_table from either module")
+                                                    continue
+                                        
+                                        if betStop_round_for_table is None:
+                                            print(f"[{get_timestamp()}] Error: betStop_round_for_table function not available")
+                                            continue
                                         
                                         # Create thread for bet stop countdown
                                         threading.Timer(
