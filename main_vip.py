@@ -99,6 +99,8 @@ last_x2_time = 0
 last_x5_time = 0
 start_post_sent = False
 deal_post_sent = False
+start_time = 0
+deal_post_time = 0
 finish_post_time = 0
 token = "E5LN4END9Q"
 ws_client = None
@@ -243,7 +245,12 @@ def send_websocket_error_signal():
         # Run the async function and wait for completion
         def send_ws_error():
             try:
-                result = asyncio.run(send_roulette_sensor_stuck_error())
+                # Send error signal specifically for ARO-002 VIP Roulette table
+                # Server will convert ARO-002-1 to ARO-002-2 for backup device
+                result = asyncio.run(send_roulette_sensor_stuck_error(
+                    table_id="ARO-002", 
+                    device_id="1"
+                ))
                 if result:
                     print(
                         f"[{get_timestamp()}] WebSocket error signal sent successfully"
@@ -343,29 +350,49 @@ def read_from_serial():
                             "Receive >>>",
                         )
 
-                        # Check if warning_flag is 4 (sensor error)
-                        if warning_flag == "4":
+                        # Check if this is a startup condition (warning_flag=0 and recently started)
+                        current_time = time.time()
+                        startup_threshold = 30  # 30 seconds after startup
+                        
+                        # Initialize startup time if not exists
+                        if not hasattr(read_from_serial, "startup_time"):
+                            read_from_serial.startup_time = current_time
+                        
+                        # Check if we're in startup phase and warning_flag is 0
+                        if (warning_flag == "0" and 
+                            hasattr(read_from_serial, "startup_time") and 
+                            current_time - read_from_serial.startup_time < startup_threshold):
                             print(
-                                f"[{get_timestamp()}] SENSOR ERROR detected! Sending notification to Slack..."
+                                f"[{get_timestamp()}] *X;6 with warning_flag=0 detected during startup phase, ignoring (normal behavior)"
                             )
                             log_to_file(
-                                "SENSOR ERROR detected! Sending notification to Slack...",
+                                "*X;6 with warning_flag=0 detected during startup phase, ignoring (normal behavior)",
                                 "Receive >>>",
                             )
+                            continue  # Skip error handling for startup condition
 
-                            # Send sensor error notification to Slack
-                            send_sensor_error_to_slack()
-                            
-                            # Send WebSocket error signal
-                            print(f"[{get_timestamp()}] Sending WebSocket error signal...")
-                            log_to_file("Sending WebSocket error signal...", "WebSocket >>>")
-                            send_websocket_error_signal()
-                            
-                            # Set termination flag to stop the program
-                            global terminate_program
-                            terminate_program = True
-                            print(f"[{get_timestamp()}] Program will terminate due to sensor error")
-                            log_to_file("Program will terminate due to sensor error", "Terminate >>>")
+                        # Trigger error signal and termination for *X;6 message (not startup condition)
+                        print(
+                            f"[{get_timestamp()}] *X;6 MESSAGE detected! Sending notifications and terminating program..."
+                        )
+                        log_to_file(
+                            "*X;6 MESSAGE detected! Sending notifications and terminating program...",
+                            "Receive >>>",
+                        )
+
+                        # Send sensor error notification to Slack
+                        send_sensor_error_to_slack()
+                        
+                        # Send WebSocket error signal
+                        print(f"[{get_timestamp()}] Sending WebSocket error signal...")
+                        log_to_file("Sending WebSocket error signal...", "WebSocket >>>")
+                        send_websocket_error_signal()
+                        
+                        # Set termination flag to stop the program
+                        global terminate_program
+                        terminate_program = True
+                        print(f"[{get_timestamp()}] Program will terminate due to sensor error")
+                        log_to_file("Program will terminate due to sensor error", "Terminate >>>")
                 except Exception as e:
                     print(
                         f"[{get_timestamp()}] Error parsing *X;6 message: {e}"

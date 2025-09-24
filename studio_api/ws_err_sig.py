@@ -54,7 +54,14 @@ class ErrorSignalClient:
             import websockets
 
             # Create connection URL according to spec: ?id=ARO-001_dealerPC&token=MY_TOKEN&gameCode=ARO-001
-            connection_url = f"{self.server_url}?id={self.table_id}-{self.device_name}&token={self.token}&gameCode=ARO-001"
+            # Extract game code from table_id (e.g., ARO-002 -> ARO-002, ARO-002-2 -> ARO-002)
+            if '-' in self.table_id:
+                # For ARO-002-2, take ARO-002; for ARO-002, take ARO-002
+                parts = self.table_id.split('-')
+                game_code = f"{parts[0]}-{parts[1]}" if len(parts) >= 2 else self.table_id
+            else:
+                game_code = self.table_id
+            connection_url = f"{self.server_url}?id={self.table_id}-{self.device_name}&token={self.token}&gameCode={game_code}"
 
             logger.info(f"Connecting to {connection_url}")
             self.websocket = await websockets.connect(connection_url)
@@ -180,7 +187,8 @@ async def send_roulette_sensor_stuck_error(
         return False
 
     # Create error signal client
-    client = ErrorSignalClient(SERVER_URL, table_id, DEVICE_NAME, TOKEN)
+    # Use device_id parameter instead of DEVICE_NAME from config
+    client = ErrorSignalClient(SERVER_URL, table_id, device_id, TOKEN)
 
     try:
         # Connect to the table

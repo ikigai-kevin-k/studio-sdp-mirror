@@ -537,7 +537,7 @@ async def main():
 
         SERVER_URL = config["server_url"]
         TABLE_ID = "ARO-002"  # Connect as ARO-002 to receive backup signals
-        DEVICE_NAME = "VR"  # Override device name for VR
+        DEVICE_NAME = "2"  # Connect as ARO-002-2 to receive backup signals
         TOKEN = config["token"]
 
 
