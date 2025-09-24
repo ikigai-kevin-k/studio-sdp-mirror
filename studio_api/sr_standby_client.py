@@ -247,6 +247,63 @@ class StandbyClient:
             logger.error(f"❌ Error stopping main_speed_2.py in tmux: {e}")
             return False
 
+    def check_main_speed_2_status(self):
+        """Check if main_speed_2.py is still running in tmux session."""
+        try:
+            # Check if there's a Python process running main_speed_2.py
+            check_command = [
+                "tmux", "capture-pane", "-t", "dp:sdp", "-p"
+            ]
+            
+            result = subprocess.run(
+                check_command,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode == 0:
+                # Check if main_speed_2.py is still running by looking for process indicators
+                output = result.stdout.lower()
+                
+                # Look for signs that main_speed_2.py has terminated
+                # - "program terminated" message
+                # - "bad file descriptor" error (from the image description)
+                # - No active serial communication
+                terminated_indicators = [
+                    "program terminated",
+                    "bad file descriptor",
+                    "oserror: [errno 9]",
+                    "exception in thread",
+                    "keyboardinterrupt"
+                ]
+                
+                for indicator in terminated_indicators:
+                    if indicator in output:
+                        logger.info(f"🔍 Detected main_speed_2.py termination: {indicator}")
+                        return False
+                
+                # If we see active serial communication, it's likely still running
+                if "receive >>>" in output or "send <<<" in output:
+                    return True
+                
+                # If we see a prompt, it might have terminated
+                if "$" in output and "main_speed_2.py" not in output:
+                    logger.info("🔍 Detected shell prompt, main_speed_2.py likely terminated")
+                    return False
+                
+                return True
+            else:
+                logger.error(f"❌ Failed to check tmux session status: {result.stderr}")
+                return True  # Assume running if we can't check
+                
+        except subprocess.TimeoutExpired:
+            logger.error("❌ tmux status check timed out")
+            return True  # Assume running if timeout
+        except Exception as e:
+            logger.error(f"❌ Error checking main_speed_2.py status: {e}")
+            return True  # Assume running if error
+
     async def handle_error_signal(self, error_data: Dict[str, Any]):
         """Handle incoming error signal from the server."""
         try:
@@ -299,9 +356,27 @@ class StandbyClient:
                     )
 
                     return True
+                elif self.current_state == DeviceState.RUNNING:
+                    # Already in running state, check if main_speed_2.py is still running
+                    if not self.check_main_speed_2_status():
+                        logger.info("🔄 main_speed_2.py not running, restarting due to error signal...")
+                        self.start_main_speed_2()
+                        
+                        # Send acknowledgment back to server
+                        ack_data = {
+                            "sdp": "up",
+                            "action": "error_signal_acknowledged_restart",
+                        }
+                        ack_message = json.dumps(ack_data, cls=DateTimeEncoder)
+                        await self.websocket.send(ack_message)
+                        logger.info(f"📤 ARO-001-2 sent restart acknowledgment: {ack_data}")
+                        return True
+                    else:
+                        logger.info("🔄 ARO-001-2 already running and main_speed_2.py is active, ignoring duplicate error signal")
+                        return True
                 else:
                     logger.warning(
-                        f"⚠️ ARO-001-2 received error signal but is not in IDLE state (current: {self.current_state.value})"
+                        f"⚠️ ARO-001-2 received error signal but is not in IDLE or RUNNING state (current: {self.current_state.value})"
                     )
                     return False
             else:
@@ -392,10 +467,23 @@ class StandbyClient:
                 logger.info(
                     "🎯 ARO-001-2 error signal received, transitioning to running state"
                 )
-                # Keep running for a while to show the running state
-                for _ in range(30):  # Run for 3 seconds
+                # Keep running and monitor main_speed_2.py status
+                status_check_counter = 0
+                while self.running:
+                    # Send running status every 5 seconds
                     await self.send_running_status()
-                    await asyncio.sleep(0.1)
+                    
+                    # Check main_speed_2.py status every 10 seconds (every 2 status updates)
+                    status_check_counter += 1
+                    if status_check_counter >= 2:  # 10 seconds = 2 * 5 seconds
+                        if not self.check_main_speed_2_status():
+                            logger.info("🔄 main_speed_2.py terminated, transitioning back to IDLE state")
+                            self.current_state = DeviceState.IDLE
+                            self.error_signal_received = False
+                            break
+                        status_check_counter = 0
+                    
+                    await asyncio.sleep(5)  # Wait 5 seconds between status updates
 
         except Exception as e:
             logger.error(f"❌ Error in idle loop: {e}")
