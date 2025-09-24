@@ -1,15 +1,60 @@
 import serial
 import threading
 import time
+import json
+import os
 from datetime import datetime
 
+# Load configuration from sr_dev.json
+def load_serial_config():
+    """Load serial port configuration from sr_dev.json"""
+    config_path = os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "conf",
+        "sr_dev.json",
+    )
+    try:
+        with open(config_path, "r") as f:
+            config = json.load(f)
+        
+        # Map parity string to serial constant
+        parity_map = {
+            "NONE": serial.PARITY_NONE,
+            "ODD": serial.PARITY_ODD,
+            "EVEN": serial.PARITY_EVEN
+        }
+        
+        return {
+            "port": config.get("dev_port", "/dev/ttyUSB0"),
+            "baudrate": config.get("baudrate", 9600),
+            "parity": parity_map.get(config.get("parity", "NONE"), serial.PARITY_NONE),
+            "stopbits": serial.STOPBITS_ONE if config.get("stopbits", 1) == 1 else serial.STOPBITS_TWO,
+            "bytesize": serial.EIGHTBITS if config.get("bytesize", 8) == 8 else serial.SEVENBITS,
+            "timeout": config.get("timeout", 1)
+        }
+    except Exception as e:
+        print(f"Error loading config: {e}")
+        # Fallback to default values
+        return {
+            "port": "/dev/ttyUSB0",
+            "baudrate": 9600,
+            "parity": serial.PARITY_NONE,
+            "stopbits": serial.STOPBITS_ONE,
+            "bytesize": serial.EIGHTBITS,
+            "timeout": 1
+        }
+
+# Load serial configuration
+serial_config = load_serial_config()
+
 ser = serial.Serial(
-    port='/dev/ttyUSB1',
-    baudrate=9600,
-    parity=serial.PARITY_NONE,
-    stopbits=serial.STOPBITS_ONE,
-    bytesize=serial.EIGHTBITS,
-    timeout=1
+    port=serial_config["port"],
+    baudrate=serial_config["baudrate"],
+    parity=serial_config["parity"],
+    stopbits=serial_config["stopbits"],
+    bytesize=serial_config["bytesize"],
+    timeout=serial_config["timeout"]
 )
 
 def get_timestamp():
