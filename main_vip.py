@@ -50,6 +50,10 @@ from table_api.vr.api_v2_qat_vr import (
 sys.path.append("slack")  # ensure slack module can be imported
 from slack import send_error_to_slack
 
+# Import WebSocket error signal module
+sys.path.append("studio_api")  # ensure studio_api module can be imported
+from studio_api.ws_err_sig import send_roulette_sensor_stuck_error
+
 # Try to load environment variables from .env file
 try:
     from dotenv import load_dotenv
@@ -102,6 +106,9 @@ ws_connected = False
 
 # Add Slack notification variables
 sensor_error_sent = False  # Flag to ensure sensor error is only sent once
+
+# Add program termination flag
+terminate_program = False  # Flag to terminate program when *X;6 sensor error is detected
 
 
 # WebSocket connection function
@@ -225,6 +232,78 @@ def send_sensor_error_to_slack():
         return False
 
 
+# Function to send WebSocket error signal
+def send_websocket_error_signal():
+    """Send WebSocket error signal for VIP Roulette table"""
+    global ws_connected, ws_client
+    try:
+        print(f"[{get_timestamp()}] Sending WebSocket error signal...")
+        log_to_file("Sending WebSocket error signal...", "WebSocket >>>")
+
+        # Run the async function and wait for completion
+        def send_ws_error():
+            try:
+                result = asyncio.run(send_roulette_sensor_stuck_error())
+                if result:
+                    print(
+                        f"[{get_timestamp()}] WebSocket error signal sent successfully"
+                    )
+                    log_to_file(
+                        "WebSocket error signal sent successfully", "WebSocket >>>"
+                    )
+                else:
+                    print(
+                        f"[{get_timestamp()}] WebSocket error signal failed"
+                    )
+                    log_to_file(
+                        "WebSocket error signal failed", "WebSocket >>>"
+                    )
+                return result
+            except Exception as e:
+                print(
+                    f"[{get_timestamp()}] Failed to send WebSocket error signal: {e}"
+                )
+                log_to_file(
+                    f"Failed to send WebSocket error signal: {e}",
+                    "WebSocket >>>",
+                )
+                return False
+
+        # Start WebSocket error signal in a separate thread and wait for completion
+        ws_thread = threading.Thread(target=send_ws_error)
+        ws_thread.daemon = True
+        ws_thread.start()
+        
+        # Wait for the WebSocket signal to complete (with timeout)
+        ws_thread.join(timeout=10)  # Wait up to 10 seconds
+        
+        if ws_thread.is_alive():
+            print(f"[{get_timestamp()}] WebSocket error signal timeout, proceeding with termination")
+            log_to_file("WebSocket error signal timeout, proceeding with termination", "WebSocket >>>")
+        
+        # Ensure WebSocket connection is properly closed after sending error signal
+        try:
+            if ws_connected and ws_client:
+                print(f"[{get_timestamp()}] Disconnecting WebSocket after error signal...")
+                log_to_file("Disconnecting WebSocket after error signal...", "WebSocket >>>")
+                asyncio.run(ws_client.close())
+                ws_connected = False
+                print(f"[{get_timestamp()}] WebSocket disconnected successfully")
+                log_to_file("WebSocket disconnected successfully", "WebSocket >>>")
+        except Exception as e:
+            print(f"[{get_timestamp()}] Error disconnecting WebSocket: {e}")
+            log_to_file(f"Error disconnecting WebSocket: {e}", "WebSocket >>>")
+
+        return True
+
+    except Exception as e:
+        print(f"[{get_timestamp()}] Error sending WebSocket error signal: {e}")
+        log_to_file(
+            f"Error sending WebSocket error signal: {e}", "WebSocket >>>"
+        )
+        return False
+
+
 # Function to send start recording message
 def send_start_recording(round_id):
     """Send start recording message"""
@@ -276,6 +355,17 @@ def read_from_serial():
 
                             # Send sensor error notification to Slack
                             send_sensor_error_to_slack()
+                            
+                            # Send WebSocket error signal
+                            print(f"[{get_timestamp()}] Sending WebSocket error signal...")
+                            log_to_file("Sending WebSocket error signal...", "WebSocket >>>")
+                            send_websocket_error_signal()
+                            
+                            # Set termination flag to stop the program
+                            global terminate_program
+                            terminate_program = True
+                            print(f"[{get_timestamp()}] Program will terminate due to sensor error")
+                            log_to_file("Program will terminate due to sensor error", "Terminate >>>")
                 except Exception as e:
                     print(
                         f"[{get_timestamp()}] Error parsing *X;6 message: {e}"
@@ -905,18 +995,111 @@ def _bet_stop_countdown(table, round_id, bet_period, token, betStop_round_for_ta
 
 def main():
     """Main function for VIP Roulette Controller"""
+    global terminate_program, ws_connected, ws_client
+
+    # Create a dictionary containing all global state variables
+    global_vars = {
+        "x2_count": x2_count,
+        "x5_count": x5_count,
+        "last_x2_time": last_x2_time,
+        "last_x5_time": last_x5_time,
+        "start_post_sent": start_post_sent,
+        "deal_post_sent": deal_post_sent,
+        "start_time": start_time,
+        "deal_post_time": deal_post_time,
+        "finish_post_time": finish_post_time,
+        "isLaunch": isLaunch,
+        "sensor_error_sent": sensor_error_sent,
+        "terminate_program": terminate_program,
+    }
+
+    # Create a wrapper function for read_from_serial with all required parameters
+    def read_from_serial_wrapper():
+        read_from_serial()
+
     # Create and start read thread
-    read_thread = threading.Thread(target=read_from_serial)
+    read_thread = threading.Thread(target=read_from_serial_wrapper)
     read_thread.daemon = True
     read_thread.start()
 
-    # Main thread handles writing
+    # Main thread handles writing and monitors termination flag
     try:
-        write_to_serial()
+        while not global_vars.get("terminate_program", False):
+            try:
+                # Check for user input with timeout to allow checking termination flag
+                import select
+                import sys
+                
+                if sys.stdin in select.select([sys.stdin], [], [], 0.1)[0]:
+                    text = input("Send <<< ")
+                    if text.lower() in ["get_config", "gc"]:
+                        get_config()
+                    else:
+                        # Check if serial connection is available
+                        if ser is None:
+                            print("Warning: Serial connection not available, cannot send command")
+                            continue
+                        ser.write((text + "\r\n").encode())
+                        log_to_file(text, "Send <<<")
+            except KeyboardInterrupt:
+                break
+            except Exception as e:
+                print(f"Error in main loop: {e}")
+                time.sleep(0.1)
+        
+        # Check if program should terminate due to *X;6 sensor error
+        if global_vars.get("terminate_program", False):
+            print(f"\n[{get_timestamp()}] Program terminating due to *X;6 message detection")
+            log_to_file("Program terminating due to *X;6 message detection", "Terminate >>>")
+            
+            # Gracefully close WebSocket connection
+            if ws_connected and ws_client:
+                try:
+                    print(f"[{get_timestamp()}] Closing WebSocket connection...")
+                    log_to_file("Closing WebSocket connection...", "WebSocket >>>")
+                    asyncio.run(ws_client.close())
+                    ws_connected = False
+                    print(f"[{get_timestamp()}] WebSocket connection closed successfully")
+                    log_to_file("WebSocket connection closed successfully", "WebSocket >>>")
+                except Exception as e:
+                    print(f"[{get_timestamp()}] Error closing WebSocket connection: {e}")
+                    log_to_file(f"Error closing WebSocket connection: {e}", "WebSocket >>>")
+            
+            # Gracefully close serial connection
+            if ser is not None:
+                try:
+                    print(f"[{get_timestamp()}] Closing serial connection...")
+                    log_to_file("Closing serial connection...", "Serial >>>")
+                    ser.close()
+                    print(f"[{get_timestamp()}] Serial connection closed successfully")
+                    log_to_file("Serial connection closed successfully", "Serial >>>")
+                except Exception as e:
+                    print(f"[{get_timestamp()}] Error closing serial connection: {e}")
+                    log_to_file(f"Error closing serial connection: {e}", "Serial >>>")
+            
+            print(f"[{get_timestamp()}] Program terminated gracefully")
+            log_to_file("Program terminated gracefully", "Terminate >>>")
+            
     except KeyboardInterrupt:
-        print("\nProgram ended")
+        print(f"\n[{get_timestamp()}] Program ended by user")
+        log_to_file("Program ended by user", "Terminate >>>")
     finally:
-        ser.close()
+        # Ensure connections are closed even if not terminated gracefully
+        if ser is not None:
+            try:
+                ser.close()
+                print(f"[{get_timestamp()}] Serial connection closed in finally block")
+            except:
+                pass
+        
+        if ws_connected and ws_client:
+            try:
+                asyncio.run(ws_client.close())
+                print(f"[{get_timestamp()}] WebSocket connection closed in finally block")
+            except:
+                pass
+        
+        print(f"[{get_timestamp()}] Program terminated")
 
 
 if __name__ == "__main__":
