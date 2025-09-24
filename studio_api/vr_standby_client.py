@@ -74,17 +74,17 @@ class StandbyClient:
 
             # Create connection URL for ARO-002 standby device
             # Format: ?id=TABLE_ID-DEVICE_NAME&token=TOKEN&gameCode=TABLE_ID
-            # Connect as ARO-002-VR to receive backup signals from ARO-002-VR
+            # Connect as ARO-002-2-SDP to receive backup signals from ARO-002-2-SDP
             connection_id = f"{self.table_id}-{self.device_name}"
             connection_url = f"{self.server_url}?id={connection_id}&token={self.token}&gameCode={self.table_id}"
 
-            logger.info(f"🔗 Connecting ARO-002 to {connection_url}")
+            logger.info(f"🔗 Connecting ARO-002-2 to {connection_url}")
             self.websocket = await websockets.connect(connection_url)
-            logger.info("✅ ARO-002 WebSocket connection established")
+            logger.info("✅ ARO-002-2 WebSocket connection established")
             return True
 
         except Exception as e:
-            logger.error(f"❌ Failed to connect ARO-002: {e}")
+            logger.error(f"❌ Failed to connect ARO-002-2: {e}")
             return False
 
     async def send_idle_status(self):
@@ -109,7 +109,7 @@ class StandbyClient:
 
             message = json.dumps(ws_message, cls=DateTimeEncoder)
             await self.websocket.send(message)
-            logger.info(f"📤 ARO-002 sent idle status: {status_data}")
+            logger.info(f"📤 ARO-002-2 sent idle status: {status_data}")
             return True
 
         except Exception as e:
@@ -138,7 +138,7 @@ class StandbyClient:
 
             message = json.dumps(ws_message, cls=DateTimeEncoder)
             await self.websocket.send(message)
-            logger.info(f"📤 ARO-002 sent running status: {status_data}")
+            logger.info(f"📤 ARO-002-2 sent running status: {status_data}")
             return True
 
         except Exception as e:
@@ -146,7 +146,7 @@ class StandbyClient:
             return False
 
     def start_main_vip_2(self):
-        """Start main_vip_2.py process in tmux session 'dp' window 'vr'."""
+        """Start main_vip_2.py process in tmux session 'dp' window 'sdp'."""
         try:
             # Get the home directory and construct the full path
             home_dir = os.path.expanduser("~")
@@ -157,11 +157,11 @@ class StandbyClient:
                 logger.error(f"❌ main_vip_2.py not found at {main_vip_2_path}")
                 return False
             
-            logger.info(f"🚀 Starting main_vip_2.py in tmux session 'dp' window 'vr' from {studio_dir}")
+            logger.info(f"🚀 Starting main_vip_2.py in tmux session 'dp' window 'sdp' from {studio_dir}")
             
-            # Create tmux command to run main_vip_2.py in the 'dp:vr' session/window
+            # Create tmux command to run main_vip_2.py in the 'dp:sdp' session/window
             tmux_command = [
-                "tmux", "send-keys", "-t", "dp:vr",
+                "tmux", "send-keys", "-t", "dp:sdp",
                 f"sudo bash -c 'cd {studio_dir} && venv/bin/python3 main_vip_2.py'",
                 "Enter"
             ]
@@ -175,16 +175,16 @@ class StandbyClient:
             )
             
             if result.returncode == 0:
-                logger.info("✅ main_vip_2.py command sent to tmux session 'dp' window 'vr' successfully")
+                logger.info("✅ main_vip_2.py command sent to tmux session 'dp' window 'sdp' successfully")
                 
                 # Wait a moment for main_vip_2.py to start up
                 import time
                 time.sleep(2)
                 
                 # Send "*P 1\n" command to tmux session
-                logger.info("🎯 Sending '*P 1' command to tmux session 'dp' window 'vr'...")
+                logger.info("🎯 Sending '*P 1' command to tmux session 'dp' window 'sdp'...")
                 send_p1_command = [
-                    "tmux", "send-keys", "-t", "dp:vr",
+                    "tmux", "send-keys", "-t", "dp:sdp",
                     "*P 1",
                     "Enter"
                 ]
@@ -198,7 +198,7 @@ class StandbyClient:
                 )
                 
                 if p1_result.returncode == 0:
-                    logger.info("✅ '*P 1' command sent to tmux session 'dp' window 'vr' successfully")
+                    logger.info("✅ '*P 1' command sent to tmux session 'dp' window 'sdp' successfully")
                 else:
                     logger.error(f"❌ Failed to send '*P 1' command to tmux session: {p1_result.stderr}")
                 
@@ -215,13 +215,13 @@ class StandbyClient:
             return False
 
     def stop_main_vip_2(self):
-        """Stop main_vip_2.py process in tmux session 'dp' window 'vr'."""
+        """Stop main_vip_2.py process in tmux session 'dp' window 'sdp'."""
         try:
-            logger.info("🛑 Stopping main_vip_2.py in tmux session 'dp' window 'vr'...")
+            logger.info("🛑 Stopping main_vip_2.py in tmux session 'dp' window 'sdp'...")
             
             # Send Ctrl+C to tmux session to stop the running process
             tmux_stop_command = [
-                "tmux", "send-keys", "-t", "dp:vr",
+                "tmux", "send-keys", "-t", "dp:sdp",
                 "C-c"  # Send Ctrl+C to interrupt the process
             ]
             
@@ -234,7 +234,7 @@ class StandbyClient:
             )
             
             if result.returncode == 0:
-                logger.info("✅ Stop command sent to tmux session 'dp' window 'vr' successfully")
+                logger.info("✅ Stop command sent to tmux session 'dp' window 'sdp' successfully")
                 return True
             else:
                 logger.error(f"❌ Failed to send stop command to tmux session: {result.stderr}")
@@ -252,7 +252,7 @@ class StandbyClient:
         try:
             # Check if there's a Python process running main_vip_2.py
             check_command = [
-                "tmux", "capture-pane", "-t", "dp:vr", "-p"
+                "tmux", "capture-pane", "-t", "dp:sdp", "-p"
             ]
             
             result = subprocess.run(
@@ -307,20 +307,20 @@ class StandbyClient:
     async def handle_error_signal(self, error_data: Dict[str, Any]):
         """Handle incoming error signal from the server."""
         try:
-            logger.info(f"🚨 ARO-002 received error signal: {error_data}")
+            logger.info(f"🚨 ARO-002-2 received error signal: {error_data}")
 
             # Check different signal formats from server
             signal = None
             
-            # Format 1: { event: "exception", data: { signal: {...} } }
-            if "data" in error_data and "signal" in error_data["data"]:
+            # Format 1: { signal: {...}, cmd: {} } - Direct signal from studioAPI server
+            if "signal" in error_data:
+                signal = error_data["signal"]
+            # Format 2: { event: "exception", data: { signal: {...} } }
+            elif "data" in error_data and "signal" in error_data["data"]:
                 signal = error_data["data"]["signal"]
-            # Format 2: { cmd: { signal: {...} } }
+            # Format 3: { cmd: { signal: {...} } }
             elif "cmd" in error_data and "signal" in error_data["cmd"]:
                 signal = error_data["cmd"]["signal"]
-            # Format 3: Direct signal object
-            elif "signal" in error_data:
-                signal = error_data["signal"]
             
             if signal:
                 logger.info(f"📋 Error signal details: {signal}")
@@ -328,7 +328,7 @@ class StandbyClient:
                 # Transition from idle to running state
                 if self.current_state == DeviceState.IDLE:
                     logger.info(
-                        "🔄 ARO-002 transitioning from IDLE to RUNNING state"
+                        "🔄 ARO-002-2 transitioning from IDLE to RUNNING state"
                     )
                     self.current_state = DeviceState.RUNNING
                     self.error_signal_received = True
@@ -352,7 +352,7 @@ class StandbyClient:
                     ack_message = json.dumps(ack_data, cls=DateTimeEncoder)
                     await self.websocket.send(ack_message)
                     logger.info(
-                        f"📤 ARO-002 sent acknowledgment: {ack_data}"
+                        f"📤 ARO-002-2 sent acknowledgment: {ack_data}"
                     )
 
                     return True
@@ -369,18 +369,18 @@ class StandbyClient:
                         }
                         ack_message = json.dumps(ack_data, cls=DateTimeEncoder)
                         await self.websocket.send(ack_message)
-                        logger.info(f"📤 ARO-002 sent restart acknowledgment: {ack_data}")
+                        logger.info(f"📤 ARO-002-2 sent restart acknowledgment: {ack_data}")
                         return True
                     else:
-                        logger.info("🔄 ARO-002 already running and main_vip_2.py is active, ignoring duplicate error signal")
+                        logger.info("🔄 ARO-002-2 already running and main_vip_2.py is active, ignoring duplicate error signal")
                         return True
                 else:
                     logger.warning(
-                        f"⚠️ ARO-002 received error signal but is not in IDLE or RUNNING state (current: {self.current_state.value})"
+                        f"⚠️ ARO-002-2 received error signal but is not in IDLE or RUNNING state (current: {self.current_state.value})"
                     )
                     return False
             else:
-                logger.warning("⚠️ ARO-002 received malformed error signal")
+                logger.warning("⚠️ ARO-002-2 received malformed error signal")
                 return False
 
         except Exception as e:
@@ -402,7 +402,7 @@ class StandbyClient:
                             # Parse JSON message
                             data = json.loads(message)
                             logger.info(
-                                f"📨 ARO-002 received message: {data}"
+                                f"📨 ARO-002-2 received message: {data}"
                             )
 
                             # Check if it's an error signal
@@ -411,28 +411,24 @@ class StandbyClient:
                                 isinstance(data, dict)
                                 and "signal" in data
                             ):
-                                # Wrap the message in the expected format for handle_error_signal
-                                wrapped_data = {
-                                    "event": "exception",
-                                    "data": data
-                                }
-                                await self.handle_error_signal(wrapped_data)
-                            # Also check for direct signal messages from server
+                                # Handle direct signal from server (format: {"signal": {...}, "cmd": {}})
+                                await self.handle_error_signal(data)
+                            # Also check for wrapped signal messages
                             elif (
                                 isinstance(data, dict)
                                 and "cmd" in data
                                 and "signal" in data.get("cmd", {})
                             ):
-                                # Handle direct signal from server
+                                # Handle wrapped signal from server
                                 await self.handle_error_signal(data)
                             else:
                                 logger.info(
-                                    f"📝 ARO-002 received other message: {data}"
+                                    f"📝 ARO-002-2 received other message: {data}"
                                 )
 
                         except json.JSONDecodeError:
                             logger.info(
-                                f"📝 ARO-002 received non-JSON message: {message}"
+                                f"📝 ARO-002-2 received non-JSON message: {message}"
                             )
 
                 except asyncio.TimeoutError:
@@ -441,7 +437,7 @@ class StandbyClient:
                 except Exception as e:
                     if "ConnectionClosed" in str(type(e)):
                         logger.warning(
-                            "🔌 ARO-002 WebSocket connection closed"
+                            "🔌 ARO-002-2 WebSocket connection closed"
                         )
                         break
 
@@ -451,7 +447,7 @@ class StandbyClient:
     async def idle_loop(self):
         """Main idle loop that sends periodic status updates."""
         try:
-            logger.info("🔄 ARO-002 starting idle loop")
+            logger.info("🔄 ARO-002-2 starting idle loop")
 
             while self.running and not self.error_signal_received:
                 # Send idle status every 5 seconds
@@ -465,7 +461,7 @@ class StandbyClient:
 
             if self.error_signal_received:
                 logger.info(
-                    "🎯 ARO-002 error signal received, transitioning to running state"
+                    "🎯 ARO-002-2 error signal received, transitioning to running state"
                 )
                 # Keep running and monitor main_vip_2.py status
                 status_check_counter = 0
@@ -489,14 +485,14 @@ class StandbyClient:
             logger.error(f"❌ Error in idle loop: {e}")
 
     async def start(self):
-        """Start the ARO-002 standby client."""
+        """Start the ARO-002-2 standby client."""
         try:
             # Connect to server
             if not await self.connect():
                 return False
 
             self.running = True
-            logger.info("🚀 ARO-002 standby client started")
+            logger.info("🚀 ARO-002-2 standby client started")
 
             # Start message listener and idle loop concurrently
             await asyncio.gather(self.listen_for_messages(), self.idle_loop())
@@ -504,11 +500,11 @@ class StandbyClient:
             return True
 
         except Exception as e:
-            logger.error(f"❌ Error starting ARO-002 standby client: {e}")
+            logger.error(f"❌ Error starting ARO-002-2 standby client: {e}")
             return False
 
     async def stop(self):
-        """Stop the ARO-002 standby client."""
+        """Stop the ARO-002-2 standby client."""
         self.running = False
         
         # Stop main_vip_2.py if running
@@ -516,7 +512,7 @@ class StandbyClient:
         
         if self.websocket:
             await self.websocket.close()
-            logger.info("🛑 ARO-002 standby client stopped")
+            logger.info("🛑 ARO-002-2 standby client stopped")
 
     async def disconnect(self):
         """Disconnect from the server."""
@@ -524,7 +520,7 @@ class StandbyClient:
 
 
 async def main():
-    """Main function for ARO-002 standby client."""
+    """Main function for ARO-002-2 standby client."""
 
     # Load configuration from ws.json
     config_path = os.path.join(
@@ -536,8 +532,8 @@ async def main():
             config = json.load(f)
 
         SERVER_URL = config["server_url"]
-        TABLE_ID = "ARO-002"  # Connect as ARO-002 to receive backup signals
-        DEVICE_NAME = "2"  # Connect as ARO-002-2 to receive backup signals
+        TABLE_ID = "ARO-002-2"  # Connect as ARO-002-2 to receive backup signals
+        DEVICE_NAME = "SDP"  # Connect as ARO-002-2-SDP to receive backup signals
         TOKEN = config["token"]
 
 
@@ -556,14 +552,14 @@ async def main():
         logger.error(f"❌ Missing required configuration key: {e}")
         return
 
-    # Create ARO-002 standby client
+    # Create ARO-002-2 standby client
     client = StandbyClient(SERVER_URL, TABLE_ID, DEVICE_NAME, TOKEN)
 
     try:
-        logger.info("🎰 ARO-002 standby client - Error Signal Listener")
+        logger.info("🎰 ARO-002-2 standby client - Error Signal Listener")
         logger.info("=" * 60)
         logger.info("📋 This client will:")
-        logger.info("   1. Connect as ARO-002 device")
+        logger.info("   1. Connect as ARO-002-2 device")
         logger.info(
             "   2. Stay in IDLE state and send periodic status updates"
         )
@@ -577,13 +573,13 @@ async def main():
         await client.start()
 
     except KeyboardInterrupt:
-        logger.info("\n🛑 ARO-002 standby client interrupted by user")
+        logger.info("\n🛑 ARO-002-2 standby client interrupted by user")
     except Exception as e:
-        logger.error(f"❌ Error in ARO-002 standby client: {e}")
+        logger.error(f"❌ Error in ARO-002-2 standby client: {e}")
     finally:
         # Clean up
         await client.disconnect()
-        logger.info("✅ ARO-002 standby client cleanup completed")
+        logger.info("✅ ARO-002-2 standby client cleanup completed")
 
 
 if __name__ == "__main__":
