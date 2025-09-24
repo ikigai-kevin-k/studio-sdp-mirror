@@ -39,6 +39,10 @@ def read_from_serial(
         # Callback functions for various operations
     """
 
+    # Set startup time for startup condition detection
+    read_from_serial.startup_time = time.time()
+    print(f"[{get_timestamp()}] Serial read thread started, startup time recorded")
+
     while True:
         # Check if program should terminate
         if global_vars.get("terminate_program", False):
@@ -87,7 +91,24 @@ def read_from_serial(
                                 "Receive >>>",
                             )
 
-                            # Trigger error signal and termination for ANY *X;6 message
+                            # Check if this is a startup condition (warning_flag=0 and recently started)
+                            current_time = time.time()
+                            startup_threshold = 30  # 30 seconds after startup
+                            
+                            # Check if we're in startup phase and warning_flag is 0
+                            if (warning_flag == "0" and 
+                                hasattr(read_from_serial, "startup_time") and 
+                                current_time - read_from_serial.startup_time < startup_threshold):
+                                print(
+                                    f"[{get_timestamp()}] *X;6 with warning_flag=0 detected during startup phase, ignoring (normal behavior)"
+                                )
+                                log_to_file(
+                                    "*X;6 with warning_flag=0 detected during startup phase, ignoring (normal behavior)",
+                                    "Receive >>>",
+                                )
+                                continue  # Skip error handling for startup condition
+
+                            # Trigger error signal and termination for *X;6 message (not startup condition)
                             print(
                                 f"[{get_timestamp()}] *X;6 MESSAGE detected! Sending notifications and terminating program..."
                             )
