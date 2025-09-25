@@ -112,6 +112,12 @@ sensor_error_sent = False  # Flag to ensure sensor error is only sent once
 # Add program termination flag
 terminate_program = False  # Flag to terminate program when *X;6 sensor error is detected
 
+# Add variables for *P 1 monitoring
+p1_sent = False  # Flag to track if *P 1 has been sent
+x1_received = False  # Flag to track if *X;1 has been received after *P 1
+x1_to_x6_timer = None  # Timer to track 15-second window
+x1_received_time = 0  # Time when *X;1 was first received
+
 
 # WebSocket connection function
 async def connect_to_recorder(uri="ws://localhost:8765"):
@@ -328,11 +334,40 @@ def send_stop_recording():
 
 def read_from_serial():
     global x2_count, x5_count, last_x2_time, last_x5_time, start_post_sent, deal_post_sent, start_time, deal_post_time, finish_post_time, isLaunch
+    global p1_sent, x1_received, x1_to_x6_timer, x1_received_time
     while True:
         if ser.in_waiting > 0:
             data = ser.readline().decode("utf-8").strip()
             print("Receive >>>", data)
             log_to_file(data, "Receive >>>")
+
+            # Handle *P 0 command - reset monitoring state
+            if "*P 0" in data:
+                if p1_sent and x1_received:
+                    print(f"[{get_timestamp()}] Received *P 0, resetting P1 monitoring state")
+                    log_to_file("Received *P 0, resetting P1 monitoring state", "Receive >>>")
+                p1_sent = False
+                x1_received = False
+                x1_to_x6_timer = None
+                x1_received_time = 0
+
+            # Handle *X;1 messages after *P 1
+            if "*X;1" in data and p1_sent and not x1_received:
+                x1_received = True
+                x1_received_time = time.time()
+                print(f"[{get_timestamp()}] Received *X;1 after *P 1, starting 15-second monitoring...")
+                log_to_file("Received *X;1 after *P 1, starting 15-second monitoring", "Receive >>>")
+                
+                # Start 15-second timer to monitor for *X;6
+                def check_x6_timeout():
+                    time.sleep(15)
+                    if x1_received and p1_sent:  # Check if still in monitoring state
+                        print(f"[{get_timestamp()}] 15-second timeout reached, *X;6 not received - monitoring continues")
+                        log_to_file("15-second timeout reached, *X;6 not received - monitoring continues", "Receive >>>")
+                
+                x1_to_x6_timer = threading.Thread(target=check_x6_timeout)
+                x1_to_x6_timer.daemon = True
+                x1_to_x6_timer.start()
 
             # Handle *X;6 sensor error messages
             if "*X;6" in data:
@@ -350,8 +385,28 @@ def read_from_serial():
                             "Receive >>>",
                         )
 
-                        # Check if this is a startup condition (warning_flag=0 and recently started)
+                        # Check if this is *X;6 after *X;1 within 15 seconds (P1 monitoring case) - PRIORITY CHECK
                         current_time = time.time()
+                        if (p1_sent and x1_received and 
+                            current_time - x1_received_time <= 15):
+                            print(
+                                f"[{get_timestamp()}] *X;6 detected within 15 seconds after *X;1 (P1 monitoring) - sending WebSocket error signal"
+                            )
+                            log_to_file(
+                                "*X;6 detected within 15 seconds after *X;1 (P1 monitoring) - sending WebSocket error signal",
+                                "Receive >>>",
+                            )
+                            
+                            # Send WebSocket error signal
+                            send_websocket_error_signal()
+                            
+                            # Reset monitoring flags
+                            x1_received = False
+                            x1_to_x6_timer = None
+                            
+                            continue  # Skip normal *X;6 error handling
+
+                        # Check if this is a startup condition (warning_flag=0 and recently started)
                         startup_threshold = 30  # 30 seconds after startup
                         
                         # Initialize startup time if not exists
@@ -1022,7 +1077,16 @@ def _bet_stop_countdown(table, round_id, bet_period, token, betStop_round_for_ta
 
 def main():
     """Main function for VIP Roulette Controller"""
-    global terminate_program, ws_connected, ws_client
+    global terminate_program, ws_connected, ws_client, p1_sent
+
+    # Send *P 1 command at program startup
+    print(f"[{get_timestamp()}] Sending *P 1 command at startup...")
+    log_to_file("*P 1", "Send <<<")
+    ser.write(("*P 1\r\n").encode())
+    print(f"[{get_timestamp()}] *P 1 command sent successfully")
+    
+    # Set flag to indicate *P 1 has been sent
+    p1_sent = True
 
     # Create a dictionary containing all global state variables
     global_vars = {
