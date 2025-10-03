@@ -576,12 +576,12 @@ if __name__ == "__main__":
         token = "E5LN4END9Q"
 
         print("================Start================\n")
-        round_id, betPeriod = start_post_v2(post_url, token)
+        # round_id, betPeriod = start_post_v2(post_url, token)
         round_id, status, betPeriod = get_roundID_v2(get_url, token)
         print(round_id, status, betPeriod)
 
         print("================Bet Stop================\n")
-        time.sleep(11)  # Wait for betting period
+        # time.sleep(11)  # Wait for betting period
         bet_stop_post(post_url, token)
         print("================Deal================\n")
         deal_post_v2(post_url, token, round_id, results)

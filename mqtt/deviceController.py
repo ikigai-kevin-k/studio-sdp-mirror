@@ -113,7 +113,7 @@ class IDPController(Controller):
                 "command": "detect",
                 "arg": {
                     "round_id": round_id,
-                    "input": "rtmp://192.168.88.10:1935/live/r212_sb",
+                    "input": "rtmp://192.168.88.54:1935/live/r14_sb",
                     "output": "https://pull-tc.stream.iki-utl.cc/live/r456_dice.flv",
                 },
             }

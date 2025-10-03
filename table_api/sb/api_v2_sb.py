@@ -693,7 +693,7 @@ if __name__ == "__main__":
         # print("================Visibility================\n")
         # visibility_post(post_url, token, True)
         print("================Bet Stop================\n")
-        time.sleep(11)  # Wait for betting period
+        time.sleep(13)  # Wait for betting period
         bet_stop_post(post_url, token)
         print("================Deal================\n")
         # time.sleep(10)

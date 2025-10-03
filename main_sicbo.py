@@ -35,6 +35,7 @@ from table_api.sb.api_v2_uat_sb import (
     pause_post_v2_uat,
     get_roundID_v2_uat,
     broadcast_post_v2_uat,
+    bet_stop_post_uat,
     get_sdp_config_v2_uat,
 )
 from table_api.sb.api_v2_prd_sb import (
@@ -44,6 +45,7 @@ from table_api.sb.api_v2_prd_sb import (
     pause_post_v2_prd,
     get_roundID_v2_prd,
     broadcast_post_v2_prd,
+    bet_stop_post_prd,
 )
 from table_api.sb.api_v2_stg_sb import (
     start_post_v2_stg,
@@ -52,6 +54,7 @@ from table_api.sb.api_v2_stg_sb import (
     pause_post_v2_stg,
     get_roundID_v2_stg,
     broadcast_post_v2_stg,
+    bet_stop_post_stg,
 )
 from table_api.sb.api_v2_qat_sb import (
     start_post_v2_qat,
@@ -60,6 +63,7 @@ from table_api.sb.api_v2_qat_sb import (
     pause_post_v2_qat,
     get_roundID_v2_qat,
     broadcast_post_v2_qat,
+    bet_stop_post_qat,
 )
 from networkChecker import networkChecker
 from datetime import datetime
@@ -422,25 +426,13 @@ async def betStop_round_for_table(table, token):
         if table["name"] == "CIT":
             await retry_with_network_check(bet_stop_post, post_url, token)
         elif table["name"] == "UAT":
-            # TODO: Implement UAT bet_stop_post
-            logger.warning(
-                f"UAT bet_stop_post not implemented for table {table['name']}"
-            )
+            await retry_with_network_check(bet_stop_post_uat, post_url, token)
         elif table["name"] == "PRD":
-            # TODO: Implement PRD bet_stop_post
-            logger.warning(
-                f"PRD bet_stop_post not implemented for table {table['name']}"
-            )
+            await retry_with_network_check(bet_stop_post_prd, post_url, token)
         elif table["name"] == "STG":
-            # TODO: Implement STG bet_stop_post
-            logger.warning(
-                f"STG bet_stop_post not implemented for table {table['name']}"
-            )
+            await retry_with_network_check(bet_stop_post_stg, post_url, token)
         elif table["name"] == "QAT":
-            # TODO: Implement QAT bet_stop_post
-            logger.warning(
-                f"QAT bet_stop_post not implemented for table {table['name']}"
-            )
+            await retry_with_network_check(bet_stop_post_qat, post_url, token)
 
         return table["name"], True
 
