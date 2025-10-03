@@ -254,7 +254,11 @@ def send_websocket_error_signal():
         # Run the async function and wait for completion
         def send_ws_error():
             try:
-                result = asyncio.run(send_roulette_sensor_stuck_error())
+                # Send error signal specifically for Speed Roulette table
+                result = asyncio.run(send_roulette_sensor_stuck_error(
+                    table_id="ARO-001", 
+                    device_id="ARO-001-1"
+                ))
                 if result:
                     print(
                         f"[{get_timestamp()}] WebSocket error signal sent successfully"
