@@ -4,8 +4,8 @@ from pygments.formatters import TerminalFormatter
 from pygments.lexers import JsonLexer
 import json
 
-# Studio API base URL
-STUDIO_API_BASE_URL = "https://studio-api.iki-cit.cc"
+# Studio API base URL - Development mode
+STUDIO_API_BASE_URL = "http://192.168.20.9:8085"
 
 
 def healthcheck_get_v1():
