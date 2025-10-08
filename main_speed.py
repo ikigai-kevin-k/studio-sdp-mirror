@@ -6,6 +6,8 @@ import sys
 import json
 import asyncio
 import websockets
+import urllib3
+from requests.exceptions import ConnectionError
 
 sys.path.append(".")  # Ensure los_api can be imported
 from table_api.sr.api_v2_sr import (
@@ -52,6 +54,9 @@ from slack import send_error_to_slack
 # Import WebSocket error signal module
 sys.path.append("studio_api")  # ensure studio_api module can be imported
 from studio_api.ws_err_sig import send_roulette_sensor_stuck_error
+
+# Import network checker
+from networkChecker import networkChecker
 
 # import sentry_sdk
 
@@ -127,6 +132,45 @@ sensor_error_sent = False  # Flag to ensure sensor error is only sent once
 
 # Add program termination flag
 terminate_program = False  # Flag to terminate program when *X;6 sensor error is detected
+
+
+async def retry_with_network_check(func, *args, max_retries=5, retry_delay=5):
+    """
+    Retry a function with network error checking.
+
+    Args:
+        func: The function to retry
+        *args: Arguments to pass to the function
+        max_retries: Maximum number of retries
+        retry_delay: Delay between retries in seconds
+
+    Returns:
+        The result of the function if successful
+    """
+    retry_count = 0
+    while retry_count < max_retries:
+        try:
+            return (
+                await func(*args)
+                if asyncio.iscoroutinefunction(func)
+                else func(*args)
+            )
+        except (
+            ConnectionError,
+            urllib3.exceptions.NewConnectionError,
+            urllib3.exceptions.MaxRetryError,
+        ) as e:
+            is_network_error, error_message = networkChecker(e)
+            if is_network_error:
+                print(f"[{get_timestamp()}] Network error occurred: {error_message}")
+                print(f"[{get_timestamp()}] Waiting {retry_delay} seconds before retry...")
+                await asyncio.sleep(retry_delay)
+                retry_count += 1
+                continue
+            raise
+    raise Exception(
+        f"Max retries ({max_retries}) reached while attempting to execute {func.__name__}"
+    )
 
 
 # WebSocket connection function
@@ -484,105 +528,144 @@ def log_time_intervals(
         print(f"Error checking time intervals: {e}")
 
 
-def execute_finish_post(table, token):
+async def _execute_finish_post_async(table, token):
+    """Finish round for a single table - async implementation"""
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
-        if table["name"] == "UAT":
-            result = finish_post_v2_uat(post_url, token)
+        if table["name"] == "CIT":
+            await retry_with_network_check(finish_post_v2, post_url, token)
+        elif table["name"] == "UAT":
+            await retry_with_network_check(finish_post_v2_uat, post_url, token)
         elif table["name"] == "PRD":
-            result = finish_post_v2_prd(post_url, token)
+            await retry_with_network_check(finish_post_v2_prd, post_url, token)
         elif table["name"] == "STG":
-            result = finish_post_v2_stg(post_url, token)
+            await retry_with_network_check(finish_post_v2_stg, post_url, token)
         elif table["name"] == "QAT":
-            result = finish_post_v2_qat(post_url, token)
+            await retry_with_network_check(finish_post_v2_qat, post_url, token)
         else:
-            result = finish_post_v2(post_url, token)
+            return None
+
         print(f"Successfully ended this game round for {table['name']}")
-        return result
+        return table["name"], True
+
     except Exception as e:
-        print(f"Error executing finish_post for {table['name']}: {e}")
-        return None
+        error_msg = str(e)
+        print(f"Error executing finish_post for {table['name']}: {error_msg}")
+        return table["name"], False
 
 
-def execute_start_post(table, token):
+def execute_finish_post(table, token):
+    """Finish round for a single table - synchronous wrapper"""
+    return asyncio.run(_execute_finish_post_async(table, token))
+
+
+async def _execute_start_post_async(table, token):
+    """Start round for a single table - async implementation"""
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
-        if table["name"] == "UAT":
-            round_id, betPeriod = start_post_v2_uat(post_url, token)
+        if table["name"] == "CIT":
+            round_id, bet_period = await retry_with_network_check(
+                start_post_v2, post_url, token
+            )
+        elif table["name"] == "UAT":
+            round_id, bet_period = await retry_with_network_check(
+                start_post_v2_uat, post_url, token
+            )
         elif table["name"] == "PRD":
-            round_id, betPeriod = start_post_v2_prd(post_url, token)
+            round_id, bet_period = await retry_with_network_check(
+                start_post_v2_prd, post_url, token
+            )
         elif table["name"] == "STG":
-            round_id, betPeriod = start_post_v2_stg(post_url, token)
+            round_id, bet_period = await retry_with_network_check(
+                start_post_v2_stg, post_url, token
+            )
         elif table["name"] == "QAT":
-            round_id, betPeriod = start_post_v2_qat(post_url, token)
+            round_id, bet_period = await retry_with_network_check(
+                start_post_v2_qat, post_url, token
+            )
         else:
-            round_id, betPeriod = start_post_v2(post_url, token)
+            return None, None
 
         if round_id != -1:
             table["round_id"] = round_id
             print(
-                f"Successfully called start_post for {table['name']}, round_id: {round_id}, betPeriod: {betPeriod}"
+                f"Successfully called start_post for {table['name']}, round_id: {round_id}, bet_period: {bet_period}"
             )
-            return table, round_id, betPeriod
+            return table, round_id, bet_period
         else:
             print(f"Failed to call start_post for {table['name']}")
-            return None, -1, 0
+            return None, None
     except Exception as e:
         print(f"Error executing start_post for {table['name']}: {e}")
-        return None, -1, 0
+        return None, None
 
 
-def execute_deal_post(table, token, win_num):
+def execute_start_post(table, token):
+    """Start round for a single table - synchronous wrapper"""
+    return asyncio.run(_execute_start_post_async(table, token))
+
+
+async def _execute_deal_post_async(table, token, win_num):
+    """Deal round for a single table - async implementation"""
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
-        if table["name"] == "UAT":
-            result = deal_post_v2_uat(
-                post_url, token, table["round_id"], str(win_num)
+        if table["name"] == "CIT":
+            await retry_with_network_check(
+                deal_post_v2, post_url, token, table["round_id"], str(win_num)
+            )
+        elif table["name"] == "UAT":
+            await retry_with_network_check(
+                deal_post_v2_uat, post_url, token, table["round_id"], str(win_num)
             )
         elif table["name"] == "PRD":
-            result = deal_post_v2_prd(
-                post_url, token, table["round_id"], str(win_num)
+            await retry_with_network_check(
+                deal_post_v2_prd, post_url, token, table["round_id"], str(win_num)
             )
         elif table["name"] == "STG":
-            result = deal_post_v2_stg(
-                post_url, token, table["round_id"], str(win_num)
+            await retry_with_network_check(
+                deal_post_v2_stg, post_url, token, table["round_id"], str(win_num)
             )
         elif table["name"] == "QAT":
-            result = deal_post_v2_qat(
-                post_url, token, table["round_id"], str(win_num)
+            await retry_with_network_check(
+                deal_post_v2_qat, post_url, token, table["round_id"], str(win_num)
             )
         else:
-            result = deal_post_v2(
-                post_url, token, table["round_id"], str(win_num)
-            )
+            return None
+
         print(
             f"Successfully sent winning result for {table['name']}: {win_num}"
         )
-        return result
+        return table["name"], True
+
     except Exception as e:
-        print(f"Error executing deal_post for {table['name']}: {e}")
-        return None
+        error_msg = str(e)
+        print(f"Error executing deal_post for {table['name']}: {error_msg}")
+        return table["name"], False
 
 
-def betStop_round_for_table(table, token):
-    """Stop betting for a single table - helper function for thread pool execution"""
+def execute_deal_post(table, token, win_num):
+    """Deal round for a single table - synchronous wrapper"""
+    return asyncio.run(_execute_deal_post_async(table, token, win_num))
+
+
+async def _betStop_round_for_table_async(table, token):
+    """Stop betting for a single table - async implementation"""
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
-
         if table["name"] == "CIT":
-            result = bet_stop_post(post_url, token)
+            await retry_with_network_check(bet_stop_post, post_url, token)
         elif table["name"] == "UAT":
-            result = bet_stop_post_uat(post_url, token)
+            await retry_with_network_check(bet_stop_post_uat, post_url, token)
         elif table["name"] == "PRD":
-            result = bet_stop_post_prd(post_url, token)
+            await retry_with_network_check(bet_stop_post_prd, post_url, token)
         elif table["name"] == "STG":
-            result = bet_stop_post_stg(post_url, token)
+            await retry_with_network_check(bet_stop_post_stg, post_url, token)
         elif table["name"] == "QAT":
-            result = bet_stop_post_qat(post_url, token)
+            await retry_with_network_check(bet_stop_post_qat, post_url, token)
         else:
-            result = False
+            return table["name"], False
 
-        return table["name"], result
+        return table["name"], True
 
     except Exception as e:
         error_msg = str(e)
@@ -590,30 +673,37 @@ def betStop_round_for_table(table, token):
         return table["name"], False
 
 
-def execute_broadcast_post(table, token):
-    """Execute broadcast_post to notify relaunch"""
+def betStop_round_for_table(table, token):
+    """Stop betting for a single table - synchronous wrapper"""
+    return asyncio.run(_betStop_round_for_table_async(table, token))
+
+
+async def _execute_broadcast_post_async(table, token):
+    """Execute broadcast_post to notify relaunch - async implementation"""
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
-        if table["name"] == "UAT":
-            result = broadcast_post_v2_uat(
-                post_url, token, "roulette.relaunch", "players", 20
-            )  # , None)
+        if table["name"] == "CIT":
+            result = await retry_with_network_check(
+                broadcast_post_v2, post_url, token, "roulette.relaunch", "players", 20
+            )
+        elif table["name"] == "UAT":
+            result = await retry_with_network_check(
+                broadcast_post_v2_uat, post_url, token, "roulette.relaunch", "players", 20
+            )
         elif table["name"] == "PRD":
-            result = broadcast_post_v2_prd(
-                post_url, token, "roulette.relaunch", "players", 20
-            )  # , None)
+            result = await retry_with_network_check(
+                broadcast_post_v2_prd, post_url, token, "roulette.relaunch", "players", 20
+            )
         elif table["name"] == "STG":
-            result = broadcast_post_v2_stg(
-                post_url, token, "roulette.relaunch", "players", 20
-            )  # , None)
+            result = await retry_with_network_check(
+                broadcast_post_v2_stg, post_url, token, "roulette.relaunch", "players", 20
+            )
         elif table["name"] == "QAT":
-            result = broadcast_post_v2_qat(
-                post_url, token, "roulette.relaunch", "players", 20
-            )  # , None)
+            result = await retry_with_network_check(
+                broadcast_post_v2_qat, post_url, token, "roulette.relaunch", "players", 20
+            )
         else:
-            result = broadcast_post_v2(
-                post_url, token, "roulette.relaunch", "players", 20
-            )  # , None)
+            return None
 
         if result:
             print(
@@ -695,6 +785,11 @@ def execute_broadcast_post(table, token):
             )
 
         return None
+
+
+def execute_broadcast_post(table, token):
+    """Execute broadcast_post to notify relaunch - synchronous wrapper"""
+    return asyncio.run(_execute_broadcast_post_async(table, token))
 
 
 def main():
