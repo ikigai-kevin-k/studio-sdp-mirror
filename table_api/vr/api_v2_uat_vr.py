@@ -523,7 +523,7 @@ if __name__ == "__main__":
         # broadcast_post(post_url, token, "roulette.relaunch", "players", 20)
         # broadcast_post(post_url, token, "dice.reshake", "sdp", 20)
         # print("================Start================\n")
-        # round_id, betPeriod = start_post_v2_uat(post_url, token)
+        round_id, betPeriod = start_post_v2_uat(post_url, token)
         round_id, status, betPeriod = get_roundID_v2_uat(get_url, token)
         print(round_id, status, betPeriod)
 

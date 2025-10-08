@@ -912,6 +912,8 @@ def execute_finish_post(table, token):
             result = finish_post_v2_prd(post_url, token)
         elif table["name"] == "STG":
             result = finish_post_v2_stg(post_url, token)
+        elif table["name"] == "QAT":
+            result = finish_post_v2_qat(post_url, token)
         else:
             result = finish_post_v2(post_url, token)
         print(f"Successfully ended this game round for {table['name']}")
@@ -962,6 +964,10 @@ def execute_deal_post(table, token, win_num):
             )
         elif table["name"] == "STG":
             result = deal_post_v2_stg(
+                post_url, token, table["round_id"], str(win_num)
+            )
+        elif table["name"] == "QAT":
+            result = deal_post_v2_qat(
                 post_url, token, table["round_id"], str(win_num)
             )
         else:
@@ -1017,6 +1023,10 @@ def execute_broadcast_post(table, token):
             )  # , None)
         elif table["name"] == "STG":
             result = broadcast_post_v2_stg(
+                post_url, token, "roulette.relaunch", "players", 20
+            )  # , None)
+        elif table["name"] == "QAT":
+            result = broadcast_post_v2_qat(
                 post_url, token, "roulette.relaunch", "players", 20
             )  # , None)
         else:
