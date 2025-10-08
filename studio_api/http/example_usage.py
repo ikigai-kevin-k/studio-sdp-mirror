@@ -15,8 +15,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from register import (
     device_post_v1,
     device_patch_v1,
-    device_get_v1,
-    device_delete_v1
+    device_get_v1
 )
 
 
@@ -59,16 +58,8 @@ def main():
         else:
             print("❌ Failed to retrieve device information!\n")
         
-        # Step 4: Clean up - delete the test device
-        print(f"Step 4: Cleaning up - deleting test device '{device_id}'")
-        print("-" * 50)
-        success = device_delete_v1(device_id)
-        if success:
-            print("✅ Device deletion successful!\n")
-        else:
-            print("❌ Device deletion failed!\n")
-        
         print("=== Example completed ===")
+        print("\nNote: Device deletion is not supported by the API yet.")
         
     except Exception as e:
         print(f"❌ An error occurred: {e}")

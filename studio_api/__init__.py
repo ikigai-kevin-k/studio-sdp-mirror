@@ -20,7 +20,6 @@ try:
         device_post_v1,  # noqa: F401
         device_patch_v1,  # noqa: F401
         device_get_v1,  # noqa: F401
-        device_delete_v1,  # noqa: F401
     )
 
     __all__ = [
@@ -33,7 +32,6 @@ try:
         "device_post_v1",
         "device_patch_v1",
         "device_get_v1",
-        "device_delete_v1",
     ]
 except ImportError:
     # In test environment or when dependencies are not available

@@ -5,7 +5,7 @@ from pygments.lexers import JsonLexer
 import json
 
 # Studio API base URL - Development mode
-STUDIO_API_BASE_URL = "http://192.168.20.9:8085"
+STUDIO_API_BASE_URL = "http://100.64.0.160:8085"
 
 
 def healthcheck_get_v1():

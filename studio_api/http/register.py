@@ -5,7 +5,7 @@ from pygments.lexers import JsonLexer
 import json
 
 # Studio API base URL - Development mode
-STUDIO_API_BASE_URL = "http://192.168.20.9:8085"
+STUDIO_API_BASE_URL = "http://100.64.0.160:8085"
 
 
 def device_post_v1(device_id):
@@ -165,59 +165,6 @@ def device_get_v1(device_id=None):
     json_str = json.dumps(response_data, indent=2)
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
-    
-    return True
-
-
-def device_delete_v1(device_id):
-    """
-    Studio API device endpoint (DELETE) - Unregister Device
-    DELETE /v1/service/device
-    
-    Unregister a device from the Studio API
-    
-    Args:
-        device_id (str): Device ID to unregister
-        
-    Returns:
-        bool: True if successful, False otherwise
-    """
-    # Set up HTTP headers
-    headers = {
-        "accept": "application/json",
-        "x-signature": "rgs-local-signature",
-        "Content-Type": "application/json",
-    }
-    
-    # Define payload for the DELETE request
-    data = {"deviceId": device_id}
-    
-    # Make DELETE request to device endpoint
-    response = requests.delete(
-        f"{STUDIO_API_BASE_URL}/v1/service/device",
-        headers=headers,
-        json=data,
-        verify=False,
-    )
-    
-    # Check if the response status code indicates success
-    if response.status_code not in (200, 204):
-        print(f"Error: {response.status_code} - {response.text}")
-        return False
-    
-    try:
-        # Parse the response JSON (might be empty for DELETE)
-        if response.text:
-            response_data = response.json()
-            # Format the JSON for pretty printing and apply syntax highlighting
-            json_str = json.dumps(response_data, indent=2)
-            colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
-            print(colored_json)
-        else:
-            print("Device successfully deleted.")
-        
-    except json.JSONDecodeError:
-        print("Device successfully deleted.")
     
     return True
 
