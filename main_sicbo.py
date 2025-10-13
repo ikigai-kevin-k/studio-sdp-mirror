@@ -1339,8 +1339,8 @@ async def amain():
     parser.add_argument(
         "--broker",
         type=str,
-        default="192.168.88.180",
-        help="MQTT broker address (default: 192.168.88.180)",
+        default="192.168.88.54",
+        help="MQTT broker address (default: 192.168.88.54)",
     )
     parser.add_argument(
         "--port",

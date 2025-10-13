@@ -17,9 +17,9 @@ class IDPController(Controller):
             client_id=f"idp_controller_{config.room_id}",
             # broker=config.broker_host,
             # broker="192.168.88.213",
-            # broker="192.168.88.180",
+            # broker="192.168.88.54",
             # broker="206.53.48.180", # orginal vps broker
-            broker="192.168.88.180",  # new strong pc broker
+            broker="192.168.88.54", 
             port=config.broker_port,
         )
         self.response_received = False
@@ -113,7 +113,7 @@ class IDPController(Controller):
                 "command": "detect",
                 "arg": {
                     "round_id": round_id,
-                    "input": "rtmp://192.168.88.54:1935/live/r14_sb",
+                    "input": "rtmp://192.168.88.54:1935/live/r14_asb0011",
                     "output": "https://pull-tc.stream.iki-utl.cc/live/r456_dice.flv",
                 },
             }
@@ -182,7 +182,7 @@ class ShakerController(Controller):
             client_id=f"shaker_controller_{config.room_id}",
             # broker="192.168.88.250",  # Specific broker for shaker
             # broker="192.168.88.213",
-            broker="192.168.88.180",
+            broker="192.168.88.54",
             # broker="206.53.48.180",
             # broker="rnd-al.local",
             port=config.broker_port,
