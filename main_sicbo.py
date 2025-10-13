@@ -5,6 +5,7 @@ import time
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import sys
 
 
 import argparse
@@ -14,6 +15,17 @@ import logging.handlers
 import websockets
 import urllib3
 from requests.exceptions import ConnectionError
+
+# Import for reading packaged resources
+try:
+    from importlib.resources import files, as_file
+    HAVE_IMPORTLIB_RESOURCES = True
+except ImportError:
+    try:
+        import pkg_resources
+        HAVE_IMPORTLIB_RESOURCES = False
+    except ImportError:
+        HAVE_IMPORTLIB_RESOURCES = None
 
 from controller import GameType, GameConfig
 from gameStateController import create_game_state_controller
@@ -178,13 +190,61 @@ def setup_logging(enable_logging: bool, log_dir: str):
         logging.info(f"Logging to file: {log_file}")
 
 
-def load_table_config(config_file="conf/table-config-scibo-v2.json"):
-    """Load table configuration from JSON file"""
+def load_table_config(config_file="conf/table-config-sicbo-v2.json"):
+    """Load table configuration from JSON file
+    
+    This function supports loading from:
+    1. Current working directory (development mode)
+    2. Packaged resources in .pyz file (production mode)
+    """
+    # Try to load from current working directory first
+    if os.path.exists(config_file):
+        try:
+            with open(config_file, "r") as f:
+                logger.info(f"Loaded table config from: {config_file}")
+                return json.load(f)
+        except Exception as e:
+            logger.error(f"Error loading table config from {config_file}: {e}")
+    
+    # If not found, try to load from packaged resources
     try:
-        with open(config_file, "r") as f:
-            return json.load(f)
+        # Extract filename from path
+        config_filename = os.path.basename(config_file)
+        
+        if HAVE_IMPORTLIB_RESOURCES:
+            # Use importlib.resources (Python 3.9+)
+            try:
+                conf_files = files('conf')
+                config_resource = conf_files / config_filename
+                with as_file(config_resource) as config_path:
+                    with open(config_path, 'r') as f:
+                        logger.info(f"Loaded table config from packaged resources: {config_filename}")
+                        return json.load(f)
+            except Exception as e:
+                logger.debug(f"Failed to load from importlib.resources: {e}")
+        
+        elif HAVE_IMPORTLIB_RESOURCES is False:
+            # Use pkg_resources (fallback)
+            try:
+                config_data = pkg_resources.resource_string('conf', config_filename)
+                logger.info(f"Loaded table config from pkg_resources: {config_filename}")
+                return json.loads(config_data.decode('utf-8'))
+            except Exception as e:
+                logger.debug(f"Failed to load from pkg_resources: {e}")
+        
+        # Last resort: try to find conf directory in site-packages
+        for path in sys.path:
+            potential_config = os.path.join(path, config_file)
+            if os.path.exists(potential_config):
+                with open(potential_config, 'r') as f:
+                    logger.info(f"Loaded table config from sys.path: {potential_config}")
+                    return json.load(f)
+        
+        logger.error(f"Could not find config file: {config_file} in any location")
+        return []
+        
     except Exception as e:
-        logger.error(f"Error loading table config: {e}")
+        logger.error(f"Error loading table config from packaged resources: {e}")
         return []
 
 
