@@ -230,12 +230,42 @@ jobs:
           echo "${{ secrets.STUDIO_RUNNER_SSH_KEY }}" > ~/.ssh/id_studio_runner
           chmod 600 ~/.ssh/id_studio_runner
           
+          # Ensure proper line endings and format
+          sed -i 's/\r$//' ~/.ssh/id_studio_runner
+          
+          # Verify key format
+          echo "Verifying SSH key format..."
+          head -n 1 ~/.ssh/id_studio_runner | grep -q "BEGIN.*PRIVATE KEY" && echo "✅ Key format looks correct" || echo "⚠️ Key format might be incorrect"
+          
           echo "SSH configuration completed"
 
       - name: Test SSH connection to ASB-001-1
         run: |
           echo "Testing SSH connection to ASB-001-1..."
-          ssh -o ConnectTimeout=10 ASB-001-1 "echo 'SSH connection successful'"
+          
+          # Debug SSH key information
+          echo "SSH key file info:"
+          ls -la ~/.ssh/id_studio_runner
+          echo "SSH key content (first 100 chars):"
+          head -c 100 ~/.ssh/id_studio_runner
+          echo ""
+          
+          # Test SSH with verbose output
+          echo "Attempting SSH connection with verbose output..."
+          ssh -v -o ConnectTimeout=10 -o StrictHostKeyChecking=no ASB-001-1 "echo 'SSH connection successful'" || {
+            echo "❌ SSH connection failed"
+            echo "Trying alternative SSH key format..."
+            
+            # Try to convert key format if needed
+            if command -v ssh-keygen >/dev/null; then
+              echo "Converting SSH key to PEM format..."
+              ssh-keygen -p -m PEM -f ~/.ssh/id_studio_runner -N "" || true
+            fi
+            
+            # Try connection again
+            ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no ASB-001-1 "echo 'SSH connection successful'"
+          }
+          
           echo "✅ SSH connection to ASB-001-1 verified"
   
       - name: Upload to dealer PCs
