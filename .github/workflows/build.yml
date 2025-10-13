@@ -182,6 +182,55 @@ jobs:
         with:
           name: sdp_bundle
           path: ~/artifacts
+
+      - name: Setup SSH for dealer PCs
+        run: |
+          # Create SSH directory
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          
+          # Create SSH config file for dealer PCs
+          cat > ~/.ssh/config << 'EOF'
+          Host ASB-001-1
+              HostName 192.168.88.54
+              User rnd
+              IdentityFile ~/.ssh/id_studio_runner
+              IdentitiesOnly yes
+              StrictHostKeyChecking no
+              UserKnownHostsFile /dev/null
+
+          Host ARO-001-1
+              HostName 192.168.88.50
+              User rnd
+              IdentityFile ~/.ssh/id_studio_runner
+              IdentitiesOnly yes
+              StrictHostKeyChecking no
+              UserKnownHostsFile /dev/null
+
+          Host ARO-001-2
+              HostName 192.168.88.51
+              User rnd
+              IdentityFile ~/.ssh/id_studio_runner
+              IdentitiesOnly yes
+              StrictHostKeyChecking no
+              UserKnownHostsFile /dev/null
+
+          Host ARO-002-1
+              HostName 192.168.88.52
+              User rnd
+              IdentityFile ~/.ssh/id_studio_runner
+              IdentitiesOnly yes
+              StrictHostKeyChecking no
+              UserKnownHostsFile /dev/null
+          EOF
+          
+          chmod 600 ~/.ssh/config
+          
+          # Create SSH private key from secret
+          echo "${{ secrets.STUDIO_RUNNER_SSH_KEY }}" > ~/.ssh/id_studio_runner
+          chmod 600 ~/.ssh/id_studio_runner
+          
+          echo "SSH configuration completed"
   
       - name: Upload to dealer PCs
         shell: bash   
@@ -196,11 +245,11 @@ jobs:
             echo "Deploying to $pc_name..."
             
             # Upload requirements.txt and sdp.zip
-            scp -o BatchMode=yes requirements.txt "$pc_name:$deploy_path/"
-            scp -o BatchMode=yes "$HOME/artifacts/sdp.zip" "$pc_name:$deploy_path/"
+            scp requirements.txt "$pc_name:$deploy_path/"
+            scp "$HOME/artifacts/sdp.zip" "$pc_name:$deploy_path/"
             
             # Create virtual environment and install packages
-            ssh -o BatchMode=yes "$pc_name" << 'EOF'
+            ssh "$pc_name" << 'EOF'
           set -e
           cd "${{ vars.DEPLOY_PATH }}"
           
