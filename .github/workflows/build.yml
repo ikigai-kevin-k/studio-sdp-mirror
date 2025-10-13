@@ -231,6 +231,12 @@ jobs:
           chmod 600 ~/.ssh/id_studio_runner
           
           echo "SSH configuration completed"
+
+      - name: Test SSH connection to ASB-001-1
+        run: |
+          echo "Testing SSH connection to ASB-001-1..."
+          ssh -o ConnectTimeout=10 ASB-001-1 "echo 'SSH connection successful'"
+          echo "✅ SSH connection to ASB-001-1 verified"
   
       - name: Upload to dealer PCs
         shell: bash   
@@ -277,11 +283,14 @@ jobs:
           EOF
           }
           
-          # Deploy to all dealer PCs
+          # Deploy to dealer PCs (prioritize ASB-001-1 first)
+          echo "Testing ASB-001-1 connection first..."
           deploy_to_pc "ASB-001-1"
-          deploy_to_pc "ARO-001-1"
-          deploy_to_pc "ARO-001-2"
-          deploy_to_pc "ARO-002-1"
+          
+          # TODO: Enable other PCs after ASB-001-1 is confirmed working
+          # deploy_to_pc "ARO-001-1"
+          # deploy_to_pc "ARO-001-2" 
+          # deploy_to_pc "ARO-002-1"
           
           echo "All deployments completed successfully!"
 
