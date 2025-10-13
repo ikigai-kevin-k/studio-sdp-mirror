@@ -10,40 +10,49 @@ from concurrent.futures import ThreadPoolExecutor
 from utils import create_serial_connection
 
 sys.path.append(".")  # ensure los_api can be imported
-from los_api.vr.api_v2_vr import (
+from table_api.vr.api_v2_vr import (
     start_post_v2,
     deal_post_v2,
     finish_post_v2,
     broadcast_post_v2,
+    bet_stop_post,
 )
-from los_api.vr.api_v2_uat_vr import (
+from table_api.vr.api_v2_uat_vr import (
     start_post_v2_uat,
     deal_post_v2_uat,
     finish_post_v2_uat,
     broadcast_post_v2_uat,
+    bet_stop_post_uat,
 )
-from los_api.vr.api_v2_prd_vr import (
+from table_api.vr.api_v2_prd_vr import (
     start_post_v2_prd,
     deal_post_v2_prd,
     finish_post_v2_prd,
     broadcast_post_v2_prd,
+    bet_stop_post_prd,
 )
-from los_api.vr.api_v2_stg_vr import (
+from table_api.vr.api_v2_stg_vr import (
     start_post_v2_stg,
     deal_post_v2_stg,
     finish_post_v2_stg,
     broadcast_post_v2_stg,
+    bet_stop_post_stg,
 )
-from los_api.vr.api_v2_qat_vr import (
+from table_api.vr.api_v2_qat_vr import (
     start_post_v2_qat,
     deal_post_v2_qat,
     finish_post_v2_qat,
     broadcast_post_v2_qat,
+    bet_stop_post_qat,
 )
 
 # Import Slack notification module
 sys.path.append("slack")  # ensure slack module can be imported
 from slack import send_error_to_slack
+
+# Import WebSocket error signal module
+sys.path.append("studio_api")  # ensure studio_api module can be imported
+from studio_api.ws_err_sig import send_roulette_sensor_stuck_error
 
 # Try to load environment variables from .env file
 try:
@@ -90,6 +99,8 @@ last_x2_time = 0
 last_x5_time = 0
 start_post_sent = False
 deal_post_sent = False
+start_time = 0
+deal_post_time = 0
 finish_post_time = 0
 token = "E5LN4END9Q"
 ws_client = None
@@ -97,6 +108,15 @@ ws_connected = False
 
 # Add Slack notification variables
 sensor_error_sent = False  # Flag to ensure sensor error is only sent once
+
+# Add program termination flag
+terminate_program = False  # Flag to terminate program when *X;6 sensor error is detected
+
+# Add variables for *P 1 monitoring
+p1_sent = False  # Flag to track if *P 1 has been sent
+x1_received = False  # Flag to track if *X;1 has been received after *P 1
+x1_to_x6_timer = None  # Timer to track 15-second window
+x1_received_time = 0  # Time when *X;1 was first received
 
 
 # WebSocket connection function
@@ -220,6 +240,83 @@ def send_sensor_error_to_slack():
         return False
 
 
+# Function to send WebSocket error signal
+def send_websocket_error_signal():
+    """Send WebSocket error signal for VIP Roulette table"""
+    global ws_connected, ws_client
+    try:
+        print(f"[{get_timestamp()}] Sending WebSocket error signal...")
+        log_to_file("Sending WebSocket error signal...", "WebSocket >>>")
+
+        # Run the async function and wait for completion
+        def send_ws_error():
+            try:
+                # Send error signal specifically for ARO-002 VIP Roulette table
+                # Server will convert ARO-002-1 to ARO-002-2 for backup device
+                result = asyncio.run(send_roulette_sensor_stuck_error(
+                    table_id="ARO-002", 
+                    device_id="1"
+                ))
+                if result:
+                    print(
+                        f"[{get_timestamp()}] WebSocket error signal sent successfully"
+                    )
+                    log_to_file(
+                        "WebSocket error signal sent successfully", "WebSocket >>>"
+                    )
+                else:
+                    print(
+                        f"[{get_timestamp()}] WebSocket error signal failed"
+                    )
+                    log_to_file(
+                        "WebSocket error signal failed", "WebSocket >>>"
+                    )
+                return result
+            except Exception as e:
+                print(
+                    f"[{get_timestamp()}] Failed to send WebSocket error signal: {e}"
+                )
+                log_to_file(
+                    f"Failed to send WebSocket error signal: {e}",
+                    "WebSocket >>>",
+                )
+                return False
+
+        # Start WebSocket error signal in a separate thread and wait for completion
+        ws_thread = threading.Thread(target=send_ws_error)
+        ws_thread.daemon = True
+        ws_thread.start()
+        
+        # Wait for the WebSocket signal to complete (with timeout)
+        ws_thread.join(timeout=10)  # Wait up to 10 seconds
+        
+        if ws_thread.is_alive():
+            print(f"[{get_timestamp()}] WebSocket error signal timeout, proceeding with termination")
+            log_to_file("WebSocket error signal timeout, proceeding with termination", "WebSocket >>>")
+        
+        # Ensure WebSocket connection is properly closed after sending error signal
+        try:
+            if ws_connected and ws_client:
+                print(f"[{get_timestamp()}] Disconnecting WebSocket after error signal...")
+                log_to_file("Disconnecting WebSocket after error signal...", "WebSocket >>>")
+                asyncio.run(ws_client.close())
+                ws_connected = False
+                print(f"[{get_timestamp()}] WebSocket disconnected successfully")
+                log_to_file("WebSocket disconnected successfully", "WebSocket >>>")
+        except Exception as e:
+            print(f"[{get_timestamp()}] Error disconnecting WebSocket: {e}")
+            log_to_file(f"Error disconnecting WebSocket: {e}", "WebSocket >>>")
+
+        return True
+
+    except Exception as e:
+        print(f"[{get_timestamp()}] Error sending WebSocket error signal: {e}")
+        log_to_file(
+            f"Error sending WebSocket error signal: {e}", "WebSocket >>>"
+        )
+        return False
+
+
 # Function to send start recording message
 def send_start_recording(round_id):
     """Send start recording message"""
@@ -237,11 +334,40 @@ def send_stop_recording():
 
 def read_from_serial():
     global x2_count, x5_count, last_x2_time, last_x5_time, start_post_sent, deal_post_sent, start_time, deal_post_time, finish_post_time, isLaunch
+    global p1_sent, x1_received, x1_to_x6_timer, x1_received_time
     while True:
         if ser.in_waiting > 0:
             data = ser.readline().decode("utf-8").strip()
             print("Receive >>>", data)
             log_to_file(data, "Receive >>>")
+
+            # Handle *P 0 command - reset monitoring state
+            if "*P 0" in data:
+                if p1_sent and x1_received:
+                    print(f"[{get_timestamp()}] Received *P 0, resetting P1 monitoring state")
+                    log_to_file("Received *P 0, resetting P1 monitoring state", "Receive >>>")
+                p1_sent = False
+                x1_received = False
+                x1_to_x6_timer = None
+                x1_received_time = 0
+
+            # Handle *X;1 messages after *P 1
+            if "*X;1" in data and p1_sent and not x1_received:
+                x1_received = True
+                x1_received_time = time.time()
+                print(f"[{get_timestamp()}] Received *X;1 after *P 1, starting 15-second monitoring...")
+                log_to_file("Received *X;1 after *P 1, starting 15-second monitoring", "Receive >>>")
+                
+                # Start 15-second timer to monitor for *X;6
+                def check_x6_timeout():
+                    time.sleep(15)
+                    if x1_received and p1_sent:  # Check if still in monitoring state
+                        print(f"[{get_timestamp()}] 15-second timeout reached, *X;6 not received - monitoring continues")
+                        log_to_file("15-second timeout reached, *X;6 not received - monitoring continues", "Receive >>>")
+                
+                x1_to_x6_timer = threading.Thread(target=check_x6_timeout)
+                x1_to_x6_timer.daemon = True
+                x1_to_x6_timer.start()
 
             # Handle *X;6 sensor error messages
             if "*X;6" in data:
@@ -259,18 +385,69 @@ def read_from_serial():
                             "Receive >>>",
                         )
 
-                        # Check if warning_flag is 4 (sensor error)
-                        if warning_flag == "4":
+                        # Check if this is *X;6 after *X;1 within 15 seconds (P1 monitoring case) - PRIORITY CHECK
+                        current_time = time.time()
+                        if (p1_sent and x1_received and 
+                            current_time - x1_received_time <= 15):
                             print(
-                                f"[{get_timestamp()}] SENSOR ERROR detected! Sending notification to Slack..."
+                                f"[{get_timestamp()}] *X;6 detected within 15 seconds after *X;1 (P1 monitoring) - sending WebSocket error signal"
                             )
                             log_to_file(
-                                "SENSOR ERROR detected! Sending notification to Slack...",
+                                "*X;6 detected within 15 seconds after *X;1 (P1 monitoring) - sending WebSocket error signal",
                                 "Receive >>>",
                             )
+                            
+                            # Send WebSocket error signal
+                            send_websocket_error_signal()
+                            
+                            # Reset monitoring flags
+                            x1_received = False
+                            x1_to_x6_timer = None
+                            
+                            continue  # Skip normal *X;6 error handling
 
-                            # Send sensor error notification to Slack
-                            send_sensor_error_to_slack()
+                        # Check if this is a startup condition (warning_flag=0 and recently started)
+                        startup_threshold = 30  # 30 seconds after startup
+                        
+                        # Initialize startup time if not exists
+                        if not hasattr(read_from_serial, "startup_time"):
+                            read_from_serial.startup_time = current_time
+                        
+                        # Check if we're in startup phase and warning_flag is 0
+                        if (warning_flag == "0" and 
+                            hasattr(read_from_serial, "startup_time") and 
+                            current_time - read_from_serial.startup_time < startup_threshold):
+                            print(
+                                f"[{get_timestamp()}] *X;6 with warning_flag=0 detected during startup phase, ignoring (normal behavior)"
+                            )
+                            log_to_file(
+                                "*X;6 with warning_flag=0 detected during startup phase, ignoring (normal behavior)",
+                                "Receive >>>",
+                            )
+                            continue  # Skip error handling for startup condition
+
+                        # Trigger error signal and termination for *X;6 message (not startup condition)
+                        print(
+                            f"[{get_timestamp()}] *X;6 MESSAGE detected! Sending notifications and terminating program..."
+                        )
+                        log_to_file(
+                            "*X;6 MESSAGE detected! Sending notifications and terminating program...",
+                            "Receive >>>",
+                        )
+
+                        # Send sensor error notification to Slack
+                        send_sensor_error_to_slack()
+                        
+                        # Send WebSocket error signal
+                        print(f"[{get_timestamp()}] Sending WebSocket error signal...")
+                        log_to_file("Sending WebSocket error signal...", "WebSocket >>>")
+                        send_websocket_error_signal()
+                        
+                        # Set termination flag to stop the program
+                        global terminate_program
+                        terminate_program = True
+                        print(f"[{get_timestamp()}] Program will terminate due to sensor error")
+                        log_to_file("Program will terminate due to sensor error", "Terminate >>>")
                 except Exception as e:
                     print(
                         f"[{get_timestamp()}] Error parsing *X;6 message: {e}"
@@ -376,6 +553,7 @@ def read_from_serial():
                         )
 
                         # Asynchronously process start_post for all tables
+                        round_ids = []
                         with ThreadPoolExecutor(
                             max_workers=len(tables)
                         ) as executor:
@@ -385,11 +563,27 @@ def read_from_serial():
                                 )
                                 for table in tables
                             ]
-                            for future in futures:
-                                future.result()  # Wait for all requests to complete
+                            for i, future in enumerate(futures):
+                                result = future.result()  # Wait for all requests to complete
+                                if result and result[0] and result[1]:  # Check if we got valid table and round_id
+                                    table, round_id, bet_period = result
+                                    round_ids.append((table, round_id, bet_period))
 
                         start_post_sent = True
                         deal_post_sent = False
+
+                        # Start bet stop countdown for each table (non-blocking)
+                        for table, round_id, bet_period in round_ids:
+                            if bet_period and bet_period > 0:
+                                # Create thread for bet stop countdown
+                                threading.Timer(
+                                    bet_period,
+                                    lambda t=table, r=round_id, b=bet_period: _bet_stop_countdown(
+                                        t, r, b, token, betStop_round_for_table, get_timestamp, log_to_file
+                                    )
+                                ).start()
+                                print(f"[{get_timestamp()}] Started bet stop countdown for {table['name']} (round {round_id}, {bet_period}s)")
+                                log_to_file(f"Started bet stop countdown for {table['name']} (round {round_id}, {bet_period}s)", "Bet Stop >>>")
 
                         print("\nSending *u 1 command...")
                         ser.write(("*u 1\r\n").encode())
@@ -718,6 +912,8 @@ def execute_finish_post(table, token):
             result = finish_post_v2_prd(post_url, token)
         elif table["name"] == "STG":
             result = finish_post_v2_stg(post_url, token)
+        elif table["name"] == "QAT":
+            result = finish_post_v2_qat(post_url, token)
         else:
             result = finish_post_v2(post_url, token)
         print(f"Successfully ended this game round for {table['name']}")
@@ -736,20 +932,23 @@ def execute_start_post(table, token):
             round_id, betPeriod = start_post_v2_prd(post_url, token)
         elif table["name"] == "STG":
             round_id, betPeriod = start_post_v2_stg(post_url, token)
+        elif table["name"] == "QAT":
+            round_id, betPeriod = start_post_v2_qat(post_url, token)
         else:
             round_id, betPeriod = start_post_v2(post_url, token)
+
         if round_id != -1:
             table["round_id"] = round_id
             print(
                 f"Successfully called start_post for {table['name']}, round_id: {round_id}, betPeriod: {betPeriod}"
             )
-            return round_id, betPeriod
+            return table, round_id, betPeriod
         else:
             print(f"Failed to call start_post for {table['name']}")
-            return -1, 0
+            return None, -1, 0
     except Exception as e:
         print(f"Error executing start_post for {table['name']}: {e}")
-        return -1, 0
+        return None, -1, 0
 
 
 def execute_deal_post(table, token, win_num):
@@ -767,6 +966,10 @@ def execute_deal_post(table, token, win_num):
             result = deal_post_v2_stg(
                 post_url, token, table["round_id"], str(win_num)
             )
+        elif table["name"] == "QAT":
+            result = deal_post_v2_qat(
+                post_url, token, table["round_id"], str(win_num)
+            )
         else:
             result = deal_post_v2(
                 post_url, token, table["round_id"], str(win_num)
@@ -778,6 +981,32 @@ def execute_deal_post(table, token, win_num):
     except Exception as e:
         print(f"Error executing deal_post for {table['name']}: {e}")
         return None
+
+
+def betStop_round_for_table(table, token):
+    """Stop betting for a single table - helper function for thread pool execution"""
+    try:
+        post_url = f"{table['post_url']}{table['game_code']}"
+
+        if table["name"] == "CIT":
+            result = bet_stop_post(post_url, token)
+        elif table["name"] == "UAT":
+            result = bet_stop_post_uat(post_url, token)
+        elif table["name"] == "PRD":
+            result = bet_stop_post_prd(post_url, token)
+        elif table["name"] == "STG":
+            result = bet_stop_post_stg(post_url, token)
+        elif table["name"] == "QAT":
+            result = bet_stop_post_qat(post_url, token)
+        else:
+            result = False
+
+        return table["name"], result
+
+    except Exception as e:
+        error_msg = str(e)
+        print(f"Error stopping betting for table {table['name']}: {error_msg}")
+        return table["name"], False
 
 
 def execute_broadcast_post(table, token):
@@ -794,6 +1023,10 @@ def execute_broadcast_post(table, token):
             )  # , None)
         elif table["name"] == "STG":
             result = broadcast_post_v2_stg(
+                post_url, token, "roulette.relaunch", "players", 20
+            )  # , None)
+        elif table["name"] == "QAT":
+            result = broadcast_post_v2_qat(
                 post_url, token, "roulette.relaunch", "players", 20
             )  # , None)
         else:
@@ -817,20 +1050,157 @@ def execute_broadcast_post(table, token):
         return None
 
 
+def _bet_stop_countdown(table, round_id, bet_period, token, betStop_round_for_table, get_timestamp, log_to_file):
+    """
+    Countdown and call bet stop for a table (non-blocking)
+    
+    Args:
+        table: Table configuration dictionary
+        round_id: Current round ID
+        bet_period: Betting period duration in seconds
+        token: Authentication token
+        betStop_round_for_table: Function to call bet stop
+        get_timestamp: Function to get current timestamp
+        log_to_file: Function to log messages to file
+    """
+    try:
+        # Wait for the bet period duration
+        time.sleep(bet_period)
+
+        # Call bet stop for the table
+        print(f"[{get_timestamp()}] Calling bet stop for {table['name']} (round {round_id})")
+        log_to_file(f"Calling bet stop for {table['name']} (round {round_id})", "Bet Stop >>>")
+        
+        result = betStop_round_for_table(table, token)
+
+        if result[1]:  # Check if successful
+            print(f"[{get_timestamp()}] Successfully stopped betting for {table['name']}")
+            log_to_file(f"Successfully stopped betting for {table['name']}", "Bet Stop >>>")
+        else:
+            print(f"[{get_timestamp()}] Bet stop completed for {table['name']} (may already be stopped)")
+            log_to_file(f"Bet stop completed for {table['name']} (may already be stopped)", "Bet Stop >>>")
+
+    except Exception as e:
+        print(f"[{get_timestamp()}] Error in bet stop countdown for {table['name']}: {e}")
+        log_to_file(f"Error in bet stop countdown for {table['name']}: {e}", "Error >>>")
+
+
 def main():
     """Main function for VIP Roulette Controller"""
+    global terminate_program, ws_connected, ws_client, p1_sent
+
+    # Send *P 1 command at program startup
+    print(f"[{get_timestamp()}] Sending *P 1 command at startup...")
+    log_to_file("*P 1", "Send <<<")
+    ser.write(("*P 1\r\n").encode())
+    print(f"[{get_timestamp()}] *P 1 command sent successfully")
+    
+    # Set flag to indicate *P 1 has been sent
+    p1_sent = True
+
+    # Create a dictionary containing all global state variables
+    global_vars = {
+        "x2_count": x2_count,
+        "x5_count": x5_count,
+        "last_x2_time": last_x2_time,
+        "last_x5_time": last_x5_time,
+        "start_post_sent": start_post_sent,
+        "deal_post_sent": deal_post_sent,
+        "start_time": start_time,
+        "deal_post_time": deal_post_time,
+        "finish_post_time": finish_post_time,
+        "isLaunch": isLaunch,
+        "sensor_error_sent": sensor_error_sent,
+        "terminate_program": terminate_program,
+    }
+
+    # Create a wrapper function for read_from_serial with all required parameters
+    def read_from_serial_wrapper():
+        read_from_serial()
+
     # Create and start read thread
-    read_thread = threading.Thread(target=read_from_serial)
+    read_thread = threading.Thread(target=read_from_serial_wrapper)
     read_thread.daemon = True
     read_thread.start()
 
-    # Main thread handles writing
+    # Main thread handles writing and monitors termination flag
     try:
-        write_to_serial()
+        while not global_vars.get("terminate_program", False):
+            try:
+                # Check for user input with timeout to allow checking termination flag
+                import select
+                import sys
+                
+                if sys.stdin in select.select([sys.stdin], [], [], 0.1)[0]:
+                    text = input("Send <<< ")
+                    if text.lower() in ["get_config", "gc"]:
+                        get_config()
+                    else:
+                        # Check if serial connection is available
+                        if ser is None:
+                            print("Warning: Serial connection not available, cannot send command")
+                            continue
+                        ser.write((text + "\r\n").encode())
+                        log_to_file(text, "Send <<<")
+            except KeyboardInterrupt:
+                break
+            except Exception as e:
+                print(f"Error in main loop: {e}")
+                time.sleep(0.1)
+        
+        # Check if program should terminate due to *X;6 sensor error
+        if global_vars.get("terminate_program", False):
+            print(f"\n[{get_timestamp()}] Program terminating due to *X;6 message detection")
+            log_to_file("Program terminating due to *X;6 message detection", "Terminate >>>")
+            
+            # Gracefully close WebSocket connection
+            if ws_connected and ws_client:
+                try:
+                    print(f"[{get_timestamp()}] Closing WebSocket connection...")
+                    log_to_file("Closing WebSocket connection...", "WebSocket >>>")
+                    asyncio.run(ws_client.close())
+                    ws_connected = False
+                    print(f"[{get_timestamp()}] WebSocket connection closed successfully")
+                    log_to_file("WebSocket connection closed successfully", "WebSocket >>>")
+                except Exception as e:
+                    print(f"[{get_timestamp()}] Error closing WebSocket connection: {e}")
+                    log_to_file(f"Error closing WebSocket connection: {e}", "WebSocket >>>")
+            
+            # Gracefully close serial connection
+            if ser is not None:
+                try:
+                    print(f"[{get_timestamp()}] Closing serial connection...")
+                    log_to_file("Closing serial connection...", "Serial >>>")
+                    ser.close()
+                    print(f"[{get_timestamp()}] Serial connection closed successfully")
+                    log_to_file("Serial connection closed successfully", "Serial >>>")
+                except Exception as e:
+                    print(f"[{get_timestamp()}] Error closing serial connection: {e}")
+                    log_to_file(f"Error closing serial connection: {e}", "Serial >>>")
+            
+            print(f"[{get_timestamp()}] Program terminated gracefully")
+            log_to_file("Program terminated gracefully", "Terminate >>>")
+            
     except KeyboardInterrupt:
-        print("\nProgram ended")
+        print(f"\n[{get_timestamp()}] Program ended by user")
+        log_to_file("Program ended by user", "Terminate >>>")
     finally:
-        ser.close()
+        # Ensure connections are closed even if not terminated gracefully
+        if ser is not None:
+            try:
+                ser.close()
+                print(f"[{get_timestamp()}] Serial connection closed in finally block")
+            except:
+                pass
+        
+        if ws_connected and ws_client:
+            try:
+                asyncio.run(ws_client.close())
+                print(f"[{get_timestamp()}] WebSocket connection closed in finally block")
+            except:
+                pass
+        
+        print(f"[{get_timestamp()}] Program terminated")
 
 
 if __name__ == "__main__":

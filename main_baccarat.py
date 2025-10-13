@@ -5,7 +5,7 @@ import time
 import sys
 import json
 import argparse
-from deviceController import BarcodeController, GameConfig
+from mqtt.deviceController import BarcodeController, GameConfig
 from controller import GameType
 
 sys.path.append("./studio-sdp-roulette")
@@ -17,7 +17,7 @@ from dealing_order_check import (
 import check_outs_rule
 
 # Import BCR API functions
-from los_api.bcr.api_v2_bcr import start_post_v2, deal_post_v2, finish_post_v2
+from table_api.bcr.api_v2_bcr import start_post_v2, deal_post_v2, finish_post_v2
 
 # Import WebSocket utilities
 from baccaratWsUtils import ws_handler, broadcast_barcode
@@ -451,7 +451,7 @@ async def main():
     if idp_mode:
         # Initialize IDP controller
         try:
-            from deviceController import BaccaratIDPController
+            from mqtt.deviceController import BaccaratIDPController
 
             idp_controller = BaccaratIDPController(config)
             await idp_controller.initialize()

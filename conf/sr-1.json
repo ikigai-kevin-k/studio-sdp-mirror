@@ -1,0 +1,50 @@
+[
+  {
+      "name": "PRD",
+      "get_url": "https://crystal-table.ikg-game.cc/v2/service/tables/",
+      "post_url": "https://crystal-table.ikg-game.cc/v2/service/tables/",
+      "game_code": "ARO-001",
+      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiJmMzcyMDg5MC1kYjk4LTQ3MDctYTNlNi1kOGY3OTFhODBlMTUiLCJnYW1lQ29kZSI6WyJBUk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NDk3OTM4OTA1NTYsImlhdCI6MTc0OTc5Mzg5MH0.aQMIEhc4y0kDE2N_OgK6odZdVBGOxNvAKh7pRy__SA0",
+      "table_token": "E5LN4END9Q"
+  },
+  {
+      "name": "UAT",
+      "get_url": "https://crystal-table.iki-uat.cc/v2/service/tables/",
+      "post_url": "https://crystal-table.iki-uat.cc/v2/service/tables/",
+      "game_code": "ARO-001",
+      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiJmYjYyOWIxYy1hZWQyLTRlOWQtYjE4OC03M2VmMTBhMTI0YjciLCJnYW1lQ29kZSI6WyJBUk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NDk3OTI0NTU0MDIsImlhdCI6MTc0OTc5MjQ1NX0.VCQgerfIziHFa55U3M1k4zQTOvSeCqmekPh69pMNaM4",
+      "table_token": "E5LN4END9Q"
+  },
+  {
+      "name": "CIT",
+      "get_url": "https://crystal-table.iki-cit.cc/v2/service/tables/",
+      "post_url": "https://crystal-table.iki-cit.cc/v2/service/tables/",
+      "game_code": "ARO-001",
+      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiIyMmMwMDYyMi1jMGUzLTQ4ZTItODJmYS0xMDBjZDc4N2NjZDAiLCJnYW1lQ29kZSI6WyJBUk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NDg0MDA5OTExMDEsImlhdCI6MTc0ODQwMDk5MX0.THfLy_JXiTmkYA_MYKX0L1m3LhhrUT31z-Wm7yCtYxw",
+      "table_token": "E5LN4END9Q"
+  },
+  {
+    "name": "CIT-2",
+    "get_url": "https://crystal-table.iki-cit.cc/v2/service/tables/",
+    "post_url": "https://crystal-table.iki-cit.cc/v2/service/tables/",
+    "game_code": "ARO-001-2",
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiIwYjI2ZmY5Mi1hOGU4LTQwYzMtYjQ1YS05M2RlNDYyY2EwYjMiLCJnYW1lQ29kZSI6WyJBUk8tMDAxLTIiXSwicm9sZSI6InNkcCIsImNyZWF0ZWRBdCI6MTc1ODU5MzM1NTI0NywiaWF0IjoxNzU4NTkzMzU1fQ.oj8eDPQxx_CJvfo6C-O7rF4XPdGGRg1Bw7if8NMijFw",
+    "table_token": "E5LN4END9Q"
+  },
+  {
+      "name": "STG",
+      "get_url": "https://crystal-table.iki-stg.cc/v2/service/tables/",
+      "post_url": "https://crystal-table.iki-stg.cc/v2/service/tables/",
+      "game_code": "ARO-001",
+      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI5YTRjNzM5ZC00OWY0LTQ1ZWQtYmVkNi0wYzZkYmQyNzc2NTAiLCJnYW1lQ29kZSI6W10sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NTA0MTI0MTI4NzEsImlhdCI6MTc1MDQxMjQxMn0.mXjNdwf5iKHeEpLkOlOxzIpLvTQ5aUaKDFMMq_4VS5Q",
+      "table_token": "E5LN4END9Q"
+  },
+  {
+      "name": "QAT",
+      "get_url": "https://crystal-table.iki-qat.cc/v2/service/tables/",
+      "post_url": "https://crystal-table.iki-qat.cc/v2/service/tables/",
+      "game_code": "ARO-001",
+      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiIyYWJkMDYzOC0xMDkxLTRkOTItYWRmMS1kYTk0M2I0YWE2ZTkiLCJnYW1lQ29kZSI6WyJBUk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NTE2MDcyMTA3NzcsImlhdCI6MTc1MTYwNzIxMH0.kMqwkaHEaSybNUBNGzYss_NJyhbvjhN48vXkUgsqinA",
+      "table_token": "E5LN4END9Q"
+  }
+]

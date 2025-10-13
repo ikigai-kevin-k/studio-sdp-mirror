@@ -1,6 +1,6 @@
 {
-    "server_url": "ws://100.64.0.160:8082",
-    "device_name": "dealerPC",
+    "server_url": "ws://100.64.0.160:8081",
+    "device_name": "2",
     "token": "0000",
     "tables": [
         {

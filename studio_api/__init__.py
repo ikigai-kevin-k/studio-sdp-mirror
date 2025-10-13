@@ -14,6 +14,13 @@ try:
         table_post_v1,  # noqa: F401
         table_patch_v1,  # noqa: F401
     )
+    
+    # Import device registration functions
+    from .http.register import (
+        device_post_v1,  # noqa: F401
+        device_patch_v1,  # noqa: F401
+        device_get_v1,  # noqa: F401
+    )
 
     __all__ = [
         # Standard API
@@ -21,6 +28,10 @@ try:
         "table_get_v1",
         "table_post_v1",
         "table_patch_v1",
+        # Device API
+        "device_post_v1",
+        "device_patch_v1",
+        "device_get_v1",
     ]
 except ImportError:
     # In test environment or when dependencies are not available

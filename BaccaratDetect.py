@@ -13,8 +13,8 @@ from datetime import datetime
 # Add the current directory to Python path to import local modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from deviceController import BaccaratIDPController
-from controller import GameConfig, GameType
+from mqtt.deviceController import BaccaratIDPController  # noqa: E402
+from controller import GameConfig, GameType  # noqa: E402
 
 
 async def baccarat_detect():

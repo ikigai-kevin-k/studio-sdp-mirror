@@ -72,8 +72,8 @@ class SmartStudioWebSocketClient:
     async def connect(self):
         """Connect to the WebSocket server."""
         try:
-            # Create connection URL (without query parameters for now)
-            connection_url = self.server_url
+            # Create connection URL with required query parameters for authentication and identification
+            connection_url = f"{self.server_url}?token={self.token}&id={self.table_id}&device={self.device_name}"
 
             logger.info(f"Connecting to {connection_url}")
             self.websocket = await websockets.connect(connection_url)
@@ -98,13 +98,14 @@ class SmartStudioWebSocketClient:
                         "💡 No welcome message received, continuing..."
                     )
 
-            # Skip authentication since it doesn't affect functionality
+            # Authentication is handled via token in connection URL
             logger.info(
-                "💡 Skipping authentication - proceeding with status updates"
+                "🔐 Authentication via token in connection URL - proceeding with status updates"
             )
-            self.auth_successful = True  # Set to True to avoid warnings
+            self.auth_successful = (
+                True  # Set to True since token is included in URL
+            )
 
-            # Always return True to allow testing to continue
             return True
 
         except Exception as e:

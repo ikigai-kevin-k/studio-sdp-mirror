@@ -6,43 +6,57 @@ import sys
 import json
 import asyncio
 import websockets
+import urllib3
+from requests.exceptions import ConnectionError
 
 sys.path.append(".")  # Ensure los_api can be imported
-from los_api.sr.api_v2_sr import (
+from table_api.sr.api_v2_sr import (
     start_post_v2,
     deal_post_v2,
     finish_post_v2,
     broadcast_post_v2,
+    bet_stop_post,
 )
-from los_api.sr.api_v2_uat_sr import (
+from table_api.sr.api_v2_uat_sr import (
     start_post_v2_uat,
     deal_post_v2_uat,
     finish_post_v2_uat,
     broadcast_post_v2_uat,
+    bet_stop_post_uat,
 )
-from los_api.sr.api_v2_prd_sr import (
+from table_api.sr.api_v2_prd_sr import (
     start_post_v2_prd,
     deal_post_v2_prd,
     finish_post_v2_prd,
     broadcast_post_v2_prd,
+    bet_stop_post_prd,
 )
-from los_api.sr.api_v2_stg_sr import (
+from table_api.sr.api_v2_stg_sr import (
     start_post_v2_stg,
     deal_post_v2_stg,
     finish_post_v2_stg,
     broadcast_post_v2_stg,
+    bet_stop_post_stg,
 )
-from los_api.sr.api_v2_qat_sr import (
+from table_api.sr.api_v2_qat_sr import (
     start_post_v2_qat,
     deal_post_v2_qat,
     finish_post_v2_qat,
     broadcast_post_v2_qat,
+    bet_stop_post_qat,
 )
 from concurrent.futures import ThreadPoolExecutor
 
 # Import Slack notification module
 sys.path.append("slack")  # ensure slack module can be imported
 from slack import send_error_to_slack
+
+# Import WebSocket error signal module
+sys.path.append("studio_api")  # ensure studio_api module can be imported
+from studio_api.ws_err_sig import send_roulette_sensor_stuck_error
+
+# Import network checker
+from networkChecker import networkChecker
 
 # import sentry_sdk
 
@@ -54,15 +68,30 @@ from slack import send_error_to_slack
 # )
 
 # Initialize serial connection only if hardware is available
-from utils import create_serial_connection
+from serial_comm.serialUtils import create_serial_connection
+from serial_comm.serialIO import read_from_serial
+
+# Load device configuration
+def load_device_config():
+    with open("conf/sr_dev.json", "r") as f:
+        return json.load(f)
+
+device_config = load_device_config()
+
+# Parse parity setting
+parity_map = {
+    "NONE": serial.PARITY_NONE,
+    "ODD": serial.PARITY_ODD,
+    "EVEN": serial.PARITY_EVEN
+}
 
 ser = create_serial_connection(
-    port="/dev/ttyUSB1",
-    baudrate=9600,
-    parity=serial.PARITY_NONE,
-    stopbits=serial.STOPBITS_ONE,
-    bytesize=serial.EIGHTBITS,
-    timeout=1,
+    port=device_config["dev_port"],
+    baudrate=device_config["baudrate"],
+    parity=parity_map.get(device_config["parity"], serial.PARITY_NONE),
+    stopbits=device_config["stopbits"],
+    bytesize=device_config["bytesize"],
+    timeout=device_config["timeout"],
 )
 
 
@@ -78,7 +107,7 @@ def log_to_file(message, direction):
 
 # Load table configuration
 def load_table_config():
-    with open("conf/table-config-speed-roulette-v2.json", "r") as f:
+    with open("conf/sr-1.json", "r") as f:
         return json.load(f)
 
 
@@ -91,6 +120,8 @@ last_x2_time = 0
 last_x5_time = 0
 start_post_sent = False
 deal_post_sent = False
+start_time = 0
+deal_post_time = 0
 finish_post_time = 0
 token = "E5LN4END9Q"
 ws_client = None
@@ -98,6 +129,48 @@ ws_connected = False
 
 # Add Slack notification variables
 sensor_error_sent = False  # Flag to ensure sensor error is only sent once
+
+# Add program termination flag
+terminate_program = False  # Flag to terminate program when *X;6 sensor error is detected
+
+
+async def retry_with_network_check(func, *args, max_retries=5, retry_delay=5):
+    """
+    Retry a function with network error checking.
+
+    Args:
+        func: The function to retry
+        *args: Arguments to pass to the function
+        max_retries: Maximum number of retries
+        retry_delay: Delay between retries in seconds
+
+    Returns:
+        The result of the function if successful
+    """
+    retry_count = 0
+    while retry_count < max_retries:
+        try:
+            return (
+                await func(*args)
+                if asyncio.iscoroutinefunction(func)
+                else func(*args)
+            )
+        except (
+            ConnectionError,
+            urllib3.exceptions.NewConnectionError,
+            urllib3.exceptions.MaxRetryError,
+        ) as e:
+            is_network_error, error_message = networkChecker(e)
+            if is_network_error:
+                print(f"[{get_timestamp()}] Network error occurred: {error_message}")
+                print(f"[{get_timestamp()}] Waiting {retry_delay} seconds before retry...")
+                await asyncio.sleep(retry_delay)
+                retry_count += 1
+                continue
+            raise
+    raise Exception(
+        f"Max retries ({max_retries}) reached while attempting to execute {func.__name__}"
+    )
 
 
 # WebSocket connection function
@@ -214,6 +287,82 @@ def send_sensor_error_to_slack():
         return False
 
 
+# Function to send WebSocket error signal
+def send_websocket_error_signal():
+    """Send WebSocket error signal for Speed Roulette table"""
+    global ws_connected, ws_client
+    try:
+        print(f"[{get_timestamp()}] Sending WebSocket error signal...")
+        log_to_file("Sending WebSocket error signal...", "WebSocket >>>")
+
+        # Run the async function and wait for completion
+        def send_ws_error():
+            try:
+                # Send error signal specifically for Speed Roulette table
+                result = asyncio.run(send_roulette_sensor_stuck_error(
+                    table_id="ARO-001", 
+                    device_id="ARO-001-1"
+                ))
+                if result:
+                    print(
+                        f"[{get_timestamp()}] WebSocket error signal sent successfully"
+                    )
+                    log_to_file(
+                        "WebSocket error signal sent successfully", "WebSocket >>>"
+                    )
+                else:
+                    print(
+                        f"[{get_timestamp()}] WebSocket error signal failed"
+                    )
+                    log_to_file(
+                        "WebSocket error signal failed", "WebSocket >>>"
+                    )
+                return result
+            except Exception as e:
+                print(
+                    f"[{get_timestamp()}] Failed to send WebSocket error signal: {e}"
+                )
+                log_to_file(
+                    f"Failed to send WebSocket error signal: {e}",
+                    "WebSocket >>>",
+                )
+                return False
+
+        # Start WebSocket error signal in a separate thread and wait for completion
+        ws_thread = threading.Thread(target=send_ws_error)
+        ws_thread.daemon = True
+        ws_thread.start()
+        
+        # Wait for the WebSocket signal to complete (with timeout)
+        ws_thread.join(timeout=10)  # Wait up to 10 seconds
+        
+        if ws_thread.is_alive():
+            print(f"[{get_timestamp()}] WebSocket error signal timeout, proceeding with termination")
+            log_to_file("WebSocket error signal timeout, proceeding with termination", "WebSocket >>>")
+        
+        # Ensure WebSocket connection is properly closed after sending error signal
+        try:
+            if ws_connected and ws_client:
+                print(f"[{get_timestamp()}] Disconnecting WebSocket after error signal...")
+                log_to_file("Disconnecting WebSocket after error signal...", "WebSocket >>>")
+                asyncio.run(ws_client.close())
+                ws_connected = False
+                print(f"[{get_timestamp()}] WebSocket disconnected successfully")
+                log_to_file("WebSocket disconnected successfully", "WebSocket >>>")
+        except Exception as e:
+            print(f"[{get_timestamp()}] Error disconnecting WebSocket: {e}")
+            log_to_file(f"Error disconnecting WebSocket: {e}", "WebSocket >>>")
+
+        return True
+
+    except Exception as e:
+        print(f"[{get_timestamp()}] Error sending WebSocket error signal: {e}")
+        log_to_file(
+            f"Error sending WebSocket error signal: {e}", "WebSocket >>>"
+        )
+        return False
+
+
 # Function to send start recording message
 def send_start_recording(round_id):
     """Send start recording message"""
@@ -227,408 +376,6 @@ def send_stop_recording():
     threading.Thread(
         target=lambda: asyncio.run(send_to_recorder("stop_recording"))
     ).start()
-
-
-def read_from_serial():
-    global x2_count, x5_count, last_x2_time, last_x5_time, start_post_sent, deal_post_sent, start_time, deal_post_time, finish_post_time, isLaunch, sensor_error_sent
-    while True:
-        # Check if serial connection is available
-        if ser is None:
-            print(
-                "Warning: Serial connection not available, skipping serial read"
-            )
-            time.sleep(5)  # Wait 5 seconds before checking again
-            continue
-
-        if ser.in_waiting > 0:
-            # # Blocking read approach
-            # data = ser.readline().decode("utf-8").strip()
-            # print("Receive >>>", data)
-            # log_to_file(data, "Receive >>>")
-
-            # Non-blocking read approach
-            raw_data = ser.read(ser.in_waiting)
-            data_str = raw_data.decode("utf-8", errors="ignore")
-
-            # Add to buffer and process complete lines
-            if not hasattr(read_from_serial, "buffer"):
-                read_from_serial.buffer = ""
-            read_from_serial.buffer += data_str
-
-            # Process complete lines from buffer
-            while "\n" in read_from_serial.buffer:
-                line, read_from_serial.buffer = read_from_serial.buffer.split(
-                    "\n", 1
-                )
-                line = line.strip()
-                if line:
-                    print("Receive >>>", line)
-                    log_to_file(line, "Receive >>>")
-                    data = line  # Use the current line for processing
-
-                    # Handle *X;6 sensor error messages
-                    if "*X;6" in data:
-                        try:
-                            parts = data.split(";")
-                            if (
-                                len(parts) >= 5
-                            ):  # Ensure there are enough parts to get warning_flag
-                                warning_flag = parts[4]
-                                print(
-                                    f"[{get_timestamp()}] Detected *X;6 message with warning_flag: {warning_flag}"
-                                )
-                                log_to_file(
-                                    f"Detected *X;6 message with warning_flag: {warning_flag}",
-                                    "Receive >>>",
-                                )
-
-                                # Check if warning_flag is 4 (sensor error)
-                                if warning_flag == "4":
-                                    print(
-                                        f"[{get_timestamp()}] SENSOR ERROR detected! Sending notification to Slack..."
-                                    )
-                                    log_to_file(
-                                        "SENSOR ERROR detected! Sending notification to Slack...",
-                                        "Receive >>>",
-                                    )
-
-                                    # Send sensor error notification to Slack
-                                    send_sensor_error_to_slack()
-                        except Exception as e:
-                            print(
-                                f"[{get_timestamp()}] Error parsing *X;6 message: {e}"
-                            )
-                            log_to_file(
-                                f"Error parsing *X;6 message: {e}", "Error >>>"
-                            )
-
-                    # Handle *X;2 count
-                    if "*X;2" in data:
-                        current_time = time.time()
-                        if current_time - last_x2_time > 5:
-                            x2_count = 1
-                        else:
-                            x2_count += 1
-                        last_x2_time = current_time
-
-                        # Check if warning_flag is 8, if so send broadcast_post
-                        try:
-                            parts = data.split(";")
-                            if (
-                                len(parts) >= 5
-                            ):  # Ensure there are enough parts to get warning_flag
-                                warning_flag = parts[4]
-                                current_time = time.time()
-
-                                # Check if warning_flag requires broadcast
-                                if (
-                                    int(warning_flag) == 8
-                                    or int(warning_flag) == 2
-                                    or warning_flag == "A"
-                                ):
-                                    # Check if 10 seconds have passed or it's the first broadcast
-                                    if (
-                                        not hasattr(
-                                            execute_broadcast_post,
-                                            "last_broadcast_time",
-                                        )
-                                        or (
-                                            current_time
-                                            - execute_broadcast_post.last_broadcast_time
-                                        )
-                                        >= 10
-                                    ):
-
-                                        print(
-                                            f"\nDetected warning_flag not equal to 0, sending broadcast_post to notify relaunch..."
-                                        )
-                                        log_to_file(
-                                            "Detected warning_flag not equal to 0, sending broadcast_post to notify relaunch",
-                                            "Broadcast >>>",
-                                        )
-
-                                        # Send broadcast_post to each table
-                                        with ThreadPoolExecutor(
-                                            max_workers=len(tables)
-                                        ) as executor:
-                                            futures = [
-                                                executor.submit(
-                                                    execute_broadcast_post,
-                                                    table,
-                                                    token,
-                                                )
-                                                for table in tables
-                                            ]
-                                            for future in futures:
-                                                future.result()  # Wait for all requests to complete
-
-                                        # Update last send time
-                                        execute_broadcast_post.last_broadcast_time = (
-                                            current_time
-                                        )
-                                    else:
-                                        print(
-                                            f"Already sent broadcast {current_time - execute_broadcast_post.last_broadcast_time:.1f} seconds ago, waiting for time interval..."
-                                        )
-                        except Exception as e:
-                            print(
-                                f"Error parsing warning_flag or sending broadcast_post: {e}"
-                            )
-                            log_to_file(
-                                f"Error parsing warning_flag or sending broadcast_post: {e}",
-                                "Error >>>",
-                            )
-
-                        if x2_count >= 1 and not start_post_sent:
-                            time.sleep(2)  # for the show result animation time
-                            print("\n================Start================")
-
-                            try:
-                                start_time = time.time()
-                                print(f"start_time: {start_time}")
-                                log_to_file(
-                                    f"start_time: {start_time}", "Receive >>>"
-                                )
-
-                                if finish_post_time == 0:
-                                    finish_post_time = start_time
-                                finish_to_start_time = (
-                                    start_time - finish_post_time
-                                )
-                                print(
-                                    f"finish_to_start_time: {finish_to_start_time}"
-                                )
-                                log_to_file(
-                                    f"finish_to_start_time: {finish_to_start_time}",
-                                    "Receive >>>",
-                                )
-
-                                # Asynchronously process start_post for all tables
-                                with ThreadPoolExecutor(
-                                    max_workers=len(tables)
-                                ) as executor:
-                                    futures = [
-                                        executor.submit(
-                                            execute_start_post, table, token
-                                        )
-                                        for table in tables
-                                    ]
-                                    for future in futures:
-                                        future.result()  # Wait for all requests to complete
-
-                                start_post_sent = True
-                                deal_post_sent = False
-
-                                print("\nSending *u 1 command...")
-                                # Check if serial connection is available
-                                if ser is not None:
-                                    ser.write(("*u 1\r\n").encode())
-                                    log_to_file("*u 1", "Send <<<")
-                                    print("*u 1 command sent\n")
-                                else:
-                                    print(
-                                        "Warning: Serial connection not available, cannot send *u 1 command"
-                                    )
-
-                                # Start recording two seconds after sending *u 1 command
-                                if (
-                                    tables
-                                    and len(tables) > 0
-                                    and "round_id" in tables[0]
-                                ):
-                                    round_id = tables[0]["round_id"]
-                                    print(
-                                        f"[{get_timestamp()}] Preparing to start recording round_id: {round_id}, will start in two seconds"
-                                    )
-                                    log_to_file(
-                                        f"Preparing to start recording round_id: {round_id}, will start in two seconds",
-                                        "WebSocket >>>",
-                                    )
-                                    # Use thread to delay recording execution, avoid blocking main process
-                                    threading.Timer(
-                                        2.0,
-                                        lambda: send_start_recording(round_id),
-                                    ).start()
-                            except Exception as e:
-                                print(f"start_post error: {e}")
-                            print("======================================\n")
-
-                    elif "*X;3" in data and not isLaunch:
-                        ball_launch_time = time.time()
-                        print(f"ball_launch_time: {ball_launch_time}")
-                        log_to_file(
-                            f"ball_launch_time: {ball_launch_time}",
-                            "Receive >>>",
-                        )
-                        isLaunch = 1
-
-                        start_to_launch_time = ball_launch_time - start_time
-                        print(f"start_to_launch_time: {start_to_launch_time}")
-                        log_to_file(
-                            f"start_to_launch_time: {start_to_launch_time}",
-                            "Receive >>>",
-                        )
-
-                        # Removed code that starts recording when ball launches, as it now starts two seconds after *u 1 command
-
-                    # Handle *X;5 count
-                    elif "*X;5" in data and not deal_post_sent:
-                        current_time = time.time()
-                        if current_time - last_x5_time > 5:
-                            x5_count = 1
-                        else:
-                            x5_count += 1
-                        last_x5_time = current_time
-
-                        if x5_count == 1:
-                            try:
-                                parts = data.split(";")
-                                if len(parts) >= 4:
-                                    win_num = int(parts[3])
-                                    print(
-                                        f"Winning number for this round: {win_num}"
-                                    )
-
-                                    print(
-                                        "\n================Deal================"
-                                    )
-
-                                    try:
-                                        deal_post_time = time.time()
-                                        print(
-                                            f"deal_post_time: {deal_post_time}"
-                                        )
-                                        log_to_file(
-                                            f"deal_post_time: {deal_post_time}",
-                                            "Receive >>>",
-                                        )
-
-                                        launch_to_deal_time = (
-                                            deal_post_time - ball_launch_time
-                                        )
-                                        print(
-                                            f"launch_to_deal_time: {launch_to_deal_time}"
-                                        )
-                                        log_to_file(
-                                            f"launch_to_deal_time: {launch_to_deal_time}",
-                                            "Receive >>>",
-                                        )
-
-                                        # Stop recording - changed to non-blocking execution
-                                        print(
-                                            f"[{get_timestamp()}] Stop recording"
-                                        )
-                                        log_to_file(
-                                            "Stop recording", "WebSocket >>>"
-                                        )
-                                        send_stop_recording()  # This function now doesn't block the main thread
-
-                                        # Asynchronously process deal_post for all tables
-                                        time.sleep(0.5)
-                                        with ThreadPoolExecutor(
-                                            max_workers=len(tables)
-                                        ) as executor:
-                                            futures = [
-                                                executor.submit(
-                                                    execute_deal_post,
-                                                    table,
-                                                    token,
-                                                    win_num,
-                                                )
-                                                for table in tables
-                                            ]
-                                            for future in futures:
-                                                future.result()  # Wait for all requests to complete
-
-                                        deal_post_sent = True
-                                    except Exception as e:
-                                        print(f"deal_post error: {e}")
-
-                                    print(
-                                        "======================================\n"
-                                    )
-
-                                    # time.sleep(1)
-                                    print(
-                                        "\n================Finish================"
-                                    )
-
-                                    try:
-                                        finish_post_time = time.time()
-                                        print(
-                                            f"finish_post_time: {finish_post_time}"
-                                        )
-                                        log_to_file(
-                                            f"finish_post_time: {finish_post_time}",
-                                            "Receive >>>",
-                                        )
-
-                                        deal_to_finish_time = (
-                                            finish_post_time - deal_post_time
-                                        )
-                                        print(
-                                            f"deal_to_finish_time: {deal_to_finish_time}"
-                                        )
-                                        log_to_file(
-                                            f"deal_to_finish_time: {deal_to_finish_time}",
-                                            "Receive >>>",
-                                        )
-
-                                        log_to_file("Summary:", "Receive >>>")
-                                        log_to_file(
-                                            f"start_to_launch_time: {start_to_launch_time}",
-                                            "Receive >>>",
-                                        )
-                                        log_to_file(
-                                            f"launch_to_deal_time: {launch_to_deal_time}",
-                                            "Receive >>>",
-                                        )
-                                        log_to_file(
-                                            f"deal_to_finish_time: {deal_to_finish_time}",
-                                            "Receive >>>",
-                                        )
-                                        log_to_file(
-                                            f"finish_to_start_time: {finish_to_start_time}",
-                                            "Receive >>>",
-                                        )
-
-                                        log_time_intervals(
-                                            finish_to_start_time,
-                                            start_to_launch_time,
-                                            launch_to_deal_time,
-                                            deal_to_finish_time,
-                                        )
-
-                                        # Asynchronously process finish_post for all tables
-                                        with ThreadPoolExecutor(
-                                            max_workers=len(tables)
-                                        ) as executor:
-                                            futures = [
-                                                executor.submit(
-                                                    execute_finish_post,
-                                                    table,
-                                                    token,
-                                                )
-                                                for table in tables
-                                            ]
-                                            for future in futures:
-                                                future.result()  # Wait for all requests to complete
-
-                                        # Reset all flags and counters
-                                        start_post_sent = False
-                                        x2_count = 0
-                                        x5_count = 0
-                                        isLaunch = 0
-                                    except Exception as e:
-                                        print(f"finish_post error: {e}")
-                                    print(
-                                        "======================================\n"
-                                    )
-                            except Exception as e:
-                                print(f"Error parsing winning number: {e}")
-        else:
-            # No data available, sleep briefly to prevent busy waiting
-            time.sleep(0.001)  # 1ms sleep
 
 
 def send_command_and_wait(command, timeout=2):
@@ -703,6 +450,7 @@ def get_config():
 
 
 def write_to_serial():
+    """Legacy function - functionality moved to main() for better termination control"""
     while True:
         try:
             text = input("Send <<< ")
@@ -780,110 +528,182 @@ def log_time_intervals(
         print(f"Error checking time intervals: {e}")
 
 
-def execute_finish_post(table, token):
+async def _execute_finish_post_async(table, token):
+    """Finish round for a single table - async implementation"""
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
-        if table["name"] == "UAT":
-            result = finish_post_v2_uat(post_url, token)
+        if table["name"] == "CIT":
+            await retry_with_network_check(finish_post_v2, post_url, token)
+        elif table["name"] == "UAT":
+            await retry_with_network_check(finish_post_v2_uat, post_url, token)
         elif table["name"] == "PRD":
-            result = finish_post_v2_prd(post_url, token)
+            await retry_with_network_check(finish_post_v2_prd, post_url, token)
         elif table["name"] == "STG":
-            result = finish_post_v2_stg(post_url, token)
+            await retry_with_network_check(finish_post_v2_stg, post_url, token)
         elif table["name"] == "QAT":
-            result = finish_post_v2_qat(post_url, token)
+            await retry_with_network_check(finish_post_v2_qat, post_url, token)
         else:
-            result = finish_post_v2(post_url, token)
+            return None
+
         print(f"Successfully ended this game round for {table['name']}")
-        return result
+        return table["name"], True
+
     except Exception as e:
-        print(f"Error executing finish_post for {table['name']}: {e}")
-        return None
+        error_msg = str(e)
+        print(f"Error executing finish_post for {table['name']}: {error_msg}")
+        return table["name"], False
 
 
-def execute_start_post(table, token):
+def execute_finish_post(table, token):
+    """Finish round for a single table - synchronous wrapper"""
+    return asyncio.run(_execute_finish_post_async(table, token))
+
+
+async def _execute_start_post_async(table, token):
+    """Start round for a single table - async implementation"""
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
-        if table["name"] == "UAT":
-            round_id, betPeriod = start_post_v2_uat(post_url, token)
+        if table["name"] == "CIT":
+            round_id, bet_period = await retry_with_network_check(
+                start_post_v2, post_url, token
+            )
+        elif table["name"] == "UAT":
+            round_id, bet_period = await retry_with_network_check(
+                start_post_v2_uat, post_url, token
+            )
         elif table["name"] == "PRD":
-            round_id, betPeriod = start_post_v2_prd(post_url, token)
+            round_id, bet_period = await retry_with_network_check(
+                start_post_v2_prd, post_url, token
+            )
         elif table["name"] == "STG":
-            round_id, betPeriod = start_post_v2_stg(post_url, token)
+            round_id, bet_period = await retry_with_network_check(
+                start_post_v2_stg, post_url, token
+            )
         elif table["name"] == "QAT":
-            round_id, betPeriod = start_post_v2_qat(post_url, token)
+            round_id, bet_period = await retry_with_network_check(
+                start_post_v2_qat, post_url, token
+            )
         else:
-            round_id, betPeriod = start_post_v2(post_url, token)
+            return None, None
 
         if round_id != -1:
             table["round_id"] = round_id
             print(
-                f"Successfully called start_post for {table['name']}, round_id: {round_id}, betPeriod: {betPeriod}"
+                f"Successfully called start_post for {table['name']}, round_id: {round_id}, bet_period: {bet_period}"
             )
-            return round_id, betPeriod
+            return table, round_id, bet_period
         else:
             print(f"Failed to call start_post for {table['name']}")
-            return -1, 0
+            return None, None
     except Exception as e:
         print(f"Error executing start_post for {table['name']}: {e}")
-        return -1, 0
+        return None, None
 
 
-def execute_deal_post(table, token, win_num):
+def execute_start_post(table, token):
+    """Start round for a single table - synchronous wrapper"""
+    return asyncio.run(_execute_start_post_async(table, token))
+
+
+async def _execute_deal_post_async(table, token, win_num):
+    """Deal round for a single table - async implementation"""
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
-        if table["name"] == "UAT":
-            result = deal_post_v2_uat(
-                post_url, token, table["round_id"], str(win_num)
+        if table["name"] == "CIT":
+            await retry_with_network_check(
+                deal_post_v2, post_url, token, table["round_id"], str(win_num)
+            )
+        elif table["name"] == "UAT":
+            await retry_with_network_check(
+                deal_post_v2_uat, post_url, token, table["round_id"], str(win_num)
             )
         elif table["name"] == "PRD":
-            result = deal_post_v2_prd(
-                post_url, token, table["round_id"], str(win_num)
+            await retry_with_network_check(
+                deal_post_v2_prd, post_url, token, table["round_id"], str(win_num)
             )
         elif table["name"] == "STG":
-            result = deal_post_v2_stg(
-                post_url, token, table["round_id"], str(win_num)
+            await retry_with_network_check(
+                deal_post_v2_stg, post_url, token, table["round_id"], str(win_num)
             )
         elif table["name"] == "QAT":
-            result = deal_post_v2_qat(
-                post_url, token, table["round_id"], str(win_num)
+            await retry_with_network_check(
+                deal_post_v2_qat, post_url, token, table["round_id"], str(win_num)
             )
         else:
-            result = deal_post_v2(
-                post_url, token, table["round_id"], str(win_num)
-            )
+            return None
+
         print(
             f"Successfully sent winning result for {table['name']}: {win_num}"
         )
-        return result
+        return table["name"], True
+
     except Exception as e:
-        print(f"Error executing deal_post for {table['name']}: {e}")
-        return None
+        error_msg = str(e)
+        print(f"Error executing deal_post for {table['name']}: {error_msg}")
+        return table["name"], False
 
 
-def execute_broadcast_post(table, token):
-    """Execute broadcast_post to notify relaunch"""
+def execute_deal_post(table, token, win_num):
+    """Deal round for a single table - synchronous wrapper"""
+    return asyncio.run(_execute_deal_post_async(table, token, win_num))
+
+
+async def _betStop_round_for_table_async(table, token):
+    """Stop betting for a single table - async implementation"""
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
-        if table["name"] == "UAT":
-            result = broadcast_post_v2_uat(
-                post_url, token, "roulette.relaunch", "players", 20
-            )  # , None)
+        if table["name"] == "CIT":
+            await retry_with_network_check(bet_stop_post, post_url, token)
+        elif table["name"] == "UAT":
+            await retry_with_network_check(bet_stop_post_uat, post_url, token)
         elif table["name"] == "PRD":
-            result = broadcast_post_v2_prd(
-                post_url, token, "roulette.relaunch", "players", 20
-            )  # , None)
+            await retry_with_network_check(bet_stop_post_prd, post_url, token)
         elif table["name"] == "STG":
-            result = broadcast_post_v2_stg(
-                post_url, token, "roulette.relaunch", "players", 20
-            )  # , None)
+            await retry_with_network_check(bet_stop_post_stg, post_url, token)
         elif table["name"] == "QAT":
-            result = broadcast_post_v2_qat(
-                post_url, token, "roulette.relaunch", "players", 20
-            )  # , None)
+            await retry_with_network_check(bet_stop_post_qat, post_url, token)
         else:
-            result = broadcast_post_v2(
-                post_url, token, "roulette.relaunch", "players", 20
-            )  # , None)
+            return table["name"], False
+
+        return table["name"], True
+
+    except Exception as e:
+        error_msg = str(e)
+        print(f"Error stopping betting for table {table['name']}: {error_msg}")
+        return table["name"], False
+
+
+def betStop_round_for_table(table, token):
+    """Stop betting for a single table - synchronous wrapper"""
+    return asyncio.run(_betStop_round_for_table_async(table, token))
+
+
+async def _execute_broadcast_post_async(table, token):
+    """Execute broadcast_post to notify relaunch - async implementation"""
+    try:
+        post_url = f"{table['post_url']}{table['game_code']}"
+        if table["name"] == "CIT":
+            result = await retry_with_network_check(
+                broadcast_post_v2, post_url, token, "roulette.relaunch", "players", 20
+            )
+        elif table["name"] == "UAT":
+            result = await retry_with_network_check(
+                broadcast_post_v2_uat, post_url, token, "roulette.relaunch", "players", 20
+            )
+        elif table["name"] == "PRD":
+            result = await retry_with_network_check(
+                broadcast_post_v2_prd, post_url, token, "roulette.relaunch", "players", 20
+            )
+        elif table["name"] == "STG":
+            result = await retry_with_network_check(
+                broadcast_post_v2_stg, post_url, token, "roulette.relaunch", "players", 20
+            )
+        elif table["name"] == "QAT":
+            result = await retry_with_network_check(
+                broadcast_post_v2_qat, post_url, token, "roulette.relaunch", "players", 20
+            )
+        else:
+            return None
 
         if result:
             print(
@@ -967,21 +787,135 @@ def execute_broadcast_post(table, token):
         return None
 
 
+def execute_broadcast_post(table, token):
+    """Execute broadcast_post to notify relaunch - synchronous wrapper"""
+    return asyncio.run(_execute_broadcast_post_async(table, token))
+
+
 def main():
     """Main function for Speed Roulette Controller"""
+    global terminate_program, ws_connected, ws_client
+
+    # Create a dictionary containing all global state variables
+    global_vars = {
+        "x2_count": x2_count,
+        "x5_count": x5_count,
+        "last_x2_time": last_x2_time,
+        "last_x5_time": last_x5_time,
+        "start_post_sent": start_post_sent,
+        "deal_post_sent": deal_post_sent,
+        "start_time": start_time,
+        "deal_post_time": deal_post_time,
+        "finish_post_time": finish_post_time,
+        "isLaunch": isLaunch,
+        "sensor_error_sent": sensor_error_sent,
+        "terminate_program": terminate_program,
+    }
+
+    # Create a wrapper function for read_from_serial with all required parameters
+    def read_from_serial_wrapper():
+
+        read_from_serial(
+            ser=ser,
+            tables=tables,
+            token=token,
+            global_vars=global_vars,
+            # Callback functions
+            get_timestamp=get_timestamp,
+            log_to_file=log_to_file,
+            send_sensor_error_to_slack=send_sensor_error_to_slack,
+            execute_broadcast_post=execute_broadcast_post,
+            execute_start_post=execute_start_post,
+            execute_deal_post=execute_deal_post,
+            execute_finish_post=execute_finish_post,
+            send_start_recording=send_start_recording,
+            send_stop_recording=send_stop_recording,
+            log_time_intervals=log_time_intervals,
+        )
+
     # Create and start read thread
-    read_thread = threading.Thread(target=read_from_serial)
+    read_thread = threading.Thread(target=read_from_serial_wrapper)
     read_thread.daemon = True
     read_thread.start()
 
-    # Main thread handles writing
+    # Main thread handles writing and monitors termination flag
     try:
-        write_to_serial()
+        while not global_vars.get("terminate_program", False):
+            try:
+                # Check for user input with timeout to allow checking termination flag
+                import select
+                import sys
+                
+                if sys.stdin in select.select([sys.stdin], [], [], 0.1)[0]:
+                    text = input("Send <<< ")
+                    if text.lower() in ["get_config", "gc"]:
+                        get_config()
+                    else:
+                        # Check if serial connection is available
+                        if ser is None:
+                            print("Warning: Serial connection not available, cannot send command")
+                            continue
+                        ser.write((text + "\r\n").encode())
+                        log_to_file(text, "Send <<<")
+            except KeyboardInterrupt:
+                break
+            except Exception as e:
+                print(f"Error in main loop: {e}")
+                time.sleep(0.1)
+        
+        # Check if program should terminate due to *X;6 sensor error
+        if global_vars.get("terminate_program", False):
+            print(f"\n[{get_timestamp()}] Program terminating due to *X;6 message detection")
+            log_to_file("Program terminating due to *X;6 message detection", "Terminate >>>")
+            
+            # Gracefully close WebSocket connection
+            if ws_connected and ws_client:
+                try:
+                    print(f"[{get_timestamp()}] Closing WebSocket connection...")
+                    log_to_file("Closing WebSocket connection...", "WebSocket >>>")
+                    asyncio.run(ws_client.close())
+                    ws_connected = False
+                    print(f"[{get_timestamp()}] WebSocket connection closed successfully")
+                    log_to_file("WebSocket connection closed successfully", "WebSocket >>>")
+                except Exception as e:
+                    print(f"[{get_timestamp()}] Error closing WebSocket connection: {e}")
+                    log_to_file(f"Error closing WebSocket connection: {e}", "WebSocket >>>")
+            
+            # Gracefully close serial connection
+            if ser is not None:
+                try:
+                    print(f"[{get_timestamp()}] Closing serial connection...")
+                    log_to_file("Closing serial connection...", "Serial >>>")
+                    ser.close()
+                    print(f"[{get_timestamp()}] Serial connection closed successfully")
+                    log_to_file("Serial connection closed successfully", "Serial >>>")
+                except Exception as e:
+                    print(f"[{get_timestamp()}] Error closing serial connection: {e}")
+                    log_to_file(f"Error closing serial connection: {e}", "Serial >>>")
+            
+            print(f"[{get_timestamp()}] Program terminated gracefully")
+            log_to_file("Program terminated gracefully", "Terminate >>>")
+            
     except KeyboardInterrupt:
-        print("\nProgram ended")
+        print(f"\n[{get_timestamp()}] Program ended by user")
+        log_to_file("Program ended by user", "Terminate >>>")
     finally:
+        # Ensure connections are closed even if not terminated gracefully
         if ser is not None:
-            ser.close()
+            try:
+                ser.close()
+                print(f"[{get_timestamp()}] Serial connection closed in finally block")
+            except:
+                pass
+        
+        if ws_connected and ws_client:
+            try:
+                asyncio.run(ws_client.close())
+                print(f"[{get_timestamp()}] WebSocket connection closed in finally block")
+            except:
+                pass
+        
+        print(f"[{get_timestamp()}] Program terminated")
 
 
 if __name__ == "__main__":

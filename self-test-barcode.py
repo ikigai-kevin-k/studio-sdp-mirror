@@ -4,7 +4,7 @@ import websockets
 import time
 import requests
 import json
-from deviceController import BarcodeController, GameConfig
+from mqtt.deviceController import BarcodeController, GameConfig
 from controller import GameType
 
 logging.basicConfig(level=logging.INFO)

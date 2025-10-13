@@ -6,7 +6,8 @@ Supports multiple methods: Webhook, Bot Token, and User Token
 import os
 import logging
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
+import hashlib
 
 try:
     from slack_sdk import WebClient
@@ -67,6 +68,10 @@ class SlackNotifier:
         self.webhook_client = None
         self.bot_client = None
         self.user_client = None
+        
+        # Duplicate message prevention
+        self.sent_messages = {}  # Store message hashes and timestamps
+        self.duplicate_threshold = 30  # seconds
 
         if self.webhook_url and SLACK_SDK_AVAILABLE:
             try:
@@ -92,6 +97,37 @@ class SlackNotifier:
                 logger.error(f"Failed to initialize user client: {e}")
                 self.user_client = None
 
+    def _is_duplicate_message(self, message_content: str) -> bool:
+        """
+        Check if a message is a duplicate within the threshold time
+        
+        Args:
+            message_content: Message content to check
+            
+        Returns:
+            bool: True if duplicate, False otherwise
+        """
+        # Create hash of message content
+        message_hash = hashlib.md5(message_content.encode()).hexdigest()
+        current_time = datetime.now()
+        
+        # Clean old entries
+        cutoff_time = current_time - timedelta(seconds=self.duplicate_threshold)
+        self.sent_messages = {
+            hash_key: timestamp 
+            for hash_key, timestamp in self.sent_messages.items() 
+            if timestamp > cutoff_time
+        }
+        
+        # Check if message was sent recently
+        if message_hash in self.sent_messages:
+            logger.info(f"Duplicate message detected, skipping: {message_content[:50]}...")
+            return True
+        
+        # Record this message
+        self.sent_messages[message_hash] = current_time
+        return False
+
     def send_simple_message(
         self,
         message: str,
@@ -111,6 +147,10 @@ class SlackNotifier:
         Returns:
             bool: True if successful, False otherwise
         """
+        # Check for duplicate message
+        if self._is_duplicate_message(message):
+            return True  # Return True to indicate "success" (message was handled)
+        
         if not self.webhook_client:
             logger.error("Webhook client not available")
             return False
@@ -241,15 +281,7 @@ class SlackNotifier:
                 }
             )
 
-        blocks.append(
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"*Error Message:*\n```{error_message}```",
-                },
-            }
-        )
+        # Removed error message block for simplified format
 
         # Try to send rich message first, fallback to simple message
         if self.bot_client:
@@ -257,13 +289,13 @@ class SlackNotifier:
             if success:
                 return True
 
-        # Fallback to simple message
+        # Fallback to simple message (simplified format)
         simple_message = f"🚨 SDP Error in {environment}\n"
         if table_name:
             simple_message += f"Table: {table_name}\n"
         if error_code:
             simple_message += f"Error Code: {error_code}\n"
-        simple_message += f"Error: {error_message}\nTime: {timestamp}"
+        simple_message += f"Time: {timestamp}"
 
         return self.send_simple_message(simple_message)
 
@@ -308,6 +340,10 @@ class SlackNotifier:
         Returns:
             bool: True if successful, False otherwise
         """
+        # Check for duplicate message
+        if self._is_duplicate_message(message):
+            return True  # Return True to indicate "success" (message was handled)
+        
         if not REQUESTS_AVAILABLE:
             logger.error("Requests library not available for webhook fallback")
             return False
