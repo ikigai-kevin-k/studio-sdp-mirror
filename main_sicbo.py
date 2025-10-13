@@ -641,42 +641,27 @@ class SDPGame:
         try:
             # Check shaker controller MQTT connection
             if hasattr(self.shaker_controller, "mqtt_client"):
-                shaker_info = (
-                    self.shaker_controller.mqtt_client.get_connection_info()
-                )
-                if not shaker_info["connected"]:
-                    self.logger.warning(
-                        f"Shaker MQTT disconnected. "
-                        f"Reconnect attempts: {shaker_info['reconnect_attempts']}"
-                    )
-                else:
-                    self.logger.info("Shaker MQTT connection is healthy")
+                if hasattr(self.shaker_controller.mqtt_client, "connected"):
+                    if not self.shaker_controller.mqtt_client.connected:
+                        self.logger.warning("Shaker MQTT disconnected")
+                    else:
+                        self.logger.info("Shaker MQTT connection is healthy")
 
             # Check IDP controller MQTT connection
             if hasattr(self.idp_controller, "mqtt_client"):
-                idp_info = (
-                    self.idp_controller.mqtt_client.get_connection_info()
-                )
-                if not idp_info["connected"]:
-                    self.logger.warning(
-                        f"IDP MQTT disconnected. "
-                        f"Reconnect attempts: {idp_info['reconnect_attempts']}"
-                    )
-                else:
-                    self.logger.info("IDP MQTT connection is healthy")
+                if hasattr(self.idp_controller.mqtt_client, "connected"):
+                    if not self.idp_controller.mqtt_client.connected:
+                        self.logger.warning("IDP MQTT disconnected")
+                    else:
+                        self.logger.info("IDP MQTT connection is healthy")
 
             # Check main MQTT controller connection
             if hasattr(self.mqtt_controller, "mqtt_logger"):
-                mqtt_info = (
-                    self.mqtt_controller.mqtt_logger.get_connection_info()
-                )
-                if not mqtt_info["connected"]:
-                    self.logger.warning(
-                        f"Main MQTT disconnected. "
-                        f"Reconnect attempts: {mqtt_info['reconnect_attempts']}"
-                    )
-                else:
-                    self.logger.info("Main MQTT connection is healthy")
+                if hasattr(self.mqtt_controller.mqtt_logger, "connected"):
+                    if not self.mqtt_controller.mqtt_logger.connected:
+                        self.logger.warning("Main MQTT disconnected")
+                    else:
+                        self.logger.info("Main MQTT connection is healthy")
 
         except Exception as e:
             self.logger.error(f"Error checking MQTT connections: {e}")
@@ -687,7 +672,8 @@ class SDPGame:
             # Check and reconnect shaker controller if needed
             if (
                 hasattr(self.shaker_controller, "mqtt_client")
-                and not self.shaker_controller.mqtt_client.is_connected()
+                and hasattr(self.shaker_controller.mqtt_client, "connected")
+                and not self.shaker_controller.mqtt_client.connected
             ):
                 self.logger.info("Reconnecting shaker MQTT...")
                 await self.shaker_controller.initialize()
@@ -695,7 +681,8 @@ class SDPGame:
             # Check and reconnect IDP controller if needed
             if (
                 hasattr(self.idp_controller, "mqtt_client")
-                and not self.idp_controller.mqtt_client.is_connected()
+                and hasattr(self.idp_controller.mqtt_client, "connected")
+                and not self.idp_controller.mqtt_client.connected
             ):
                 self.logger.info("Reconnecting IDP MQTT...")
                 await self.idp_controller.initialize()
@@ -703,7 +690,8 @@ class SDPGame:
             # Check and reconnect main MQTT controller if needed
             if (
                 hasattr(self.mqtt_controller, "mqtt_logger")
-                and not self.mqtt_controller.mqtt_logger.is_connected()
+                and hasattr(self.mqtt_controller.mqtt_logger, "connected")
+                and not self.mqtt_controller.mqtt_logger.connected
             ):
                 self.logger.info("Reconnecting main MQTT...")
                 await self.mqtt_controller.initialize()
