@@ -66,6 +66,27 @@ from table_api.sr.api_v2_sr_7 import (
     broadcast_post_v2 as broadcast_post_v2_cit7,
     bet_stop_post as bet_stop_post_cit7,
 )
+from table_api.sr.api_v2_prd_sr_5 import (
+    start_post_v2_prd as start_post_v2_prd5,
+    deal_post_v2_prd as deal_post_v2_prd5,
+    finish_post_v2_prd as finish_post_v2_prd5,
+    broadcast_post_v2_prd as broadcast_post_v2_prd5,
+    bet_stop_post_prd as bet_stop_post_prd5,
+)
+from table_api.sr.api_v2_prd_sr_6 import (
+    start_post_v2_prd as start_post_v2_prd6,
+    deal_post_v2_prd as deal_post_v2_prd6,
+    finish_post_v2_prd as finish_post_v2_prd6,
+    broadcast_post_v2_prd as broadcast_post_v2_prd6,
+    bet_stop_post_prd as bet_stop_post_prd6,
+)
+from table_api.sr.api_v2_prd_sr_7 import (
+    start_post_v2_prd as start_post_v2_prd7,
+    deal_post_v2_prd as deal_post_v2_prd7,
+    finish_post_v2_prd as finish_post_v2_prd7,
+    broadcast_post_v2_prd as broadcast_post_v2_prd7,
+    bet_stop_post_prd as bet_stop_post_prd7,
+)
 from concurrent.futures import ThreadPoolExecutor
 
 # Import Slack notification module
@@ -605,6 +626,12 @@ async def _execute_finish_post_async(table, token):
             await retry_with_network_check(finish_post_v2_cit6, post_url, token)
         elif table["name"] == "CIT-7":
             await retry_with_network_check(finish_post_v2_cit7, post_url, token)
+        elif table["name"] == "PRD-5":
+            await retry_with_network_check(finish_post_v2_prd5, post_url, token)
+        elif table["name"] == "PRD-6":
+            await retry_with_network_check(finish_post_v2_prd6, post_url, token)
+        elif table["name"] == "PRD-7":
+            await retry_with_network_check(finish_post_v2_prd7, post_url, token)
         else:
             return None
 
@@ -657,6 +684,18 @@ async def _execute_start_post_async(table, token):
         elif table["name"] == "CIT-7":
             round_id, bet_period = await retry_with_network_check(
                 start_post_v2_cit7, post_url, token
+            )
+        elif table["name"] == "PRD-5":
+            round_id, bet_period = await retry_with_network_check(
+                start_post_v2_prd5, post_url, token
+            )
+        elif table["name"] == "PRD-6":
+            round_id, bet_period = await retry_with_network_check(
+                start_post_v2_prd6, post_url, token
+            )
+        elif table["name"] == "PRD-7":
+            round_id, bet_period = await retry_with_network_check(
+                start_post_v2_prd7, post_url, token
             )
         else:
             return None, None
@@ -716,6 +755,18 @@ async def _execute_deal_post_async(table, token, win_num):
             await retry_with_network_check(
                 deal_post_v2_cit7, post_url, token, table["round_id"], str(win_num)
             )
+        elif table["name"] == "PRD-5":
+            await retry_with_network_check(
+                deal_post_v2_prd5, post_url, token, table["round_id"], str(win_num)
+            )
+        elif table["name"] == "PRD-6":
+            await retry_with_network_check(
+                deal_post_v2_prd6, post_url, token, table["round_id"], str(win_num)
+            )
+        elif table["name"] == "PRD-7":
+            await retry_with_network_check(
+                deal_post_v2_prd7, post_url, token, table["round_id"], str(win_num)
+            )
         else:
             return None
 
@@ -755,6 +806,12 @@ async def _betStop_round_for_table_async(table, token):
             await retry_with_network_check(bet_stop_post_cit6, post_url, token)
         elif table["name"] == "CIT-7":
             await retry_with_network_check(bet_stop_post_cit7, post_url, token)
+        elif table["name"] == "PRD-5":
+            await retry_with_network_check(bet_stop_post_prd5, post_url, token)
+        elif table["name"] == "PRD-6":
+            await retry_with_network_check(bet_stop_post_prd6, post_url, token)
+        elif table["name"] == "PRD-7":
+            await retry_with_network_check(bet_stop_post_prd7, post_url, token)
         else:
             return table["name"], False
 
@@ -806,6 +863,18 @@ async def _execute_broadcast_post_async(table, token):
         elif table["name"] == "CIT-7":
             result = await retry_with_network_check(
                 broadcast_post_v2_cit7, post_url, token, "roulette.relaunch", "players", 20
+            )
+        elif table["name"] == "PRD-5":
+            result = await retry_with_network_check(
+                broadcast_post_v2_prd5, post_url, token, "roulette.relaunch", "players", 20
+            )
+        elif table["name"] == "PRD-6":
+            result = await retry_with_network_check(
+                broadcast_post_v2_prd6, post_url, token, "roulette.relaunch", "players", 20
+            )
+        elif table["name"] == "PRD-7":
+            result = await retry_with_network_check(
+                broadcast_post_v2_prd7, post_url, token, "roulette.relaunch", "players", 20
             )
         else:
             return None

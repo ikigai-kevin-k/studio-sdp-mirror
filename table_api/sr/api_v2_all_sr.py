@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """
 API v2 All-in-One Script for Speed Roulette (SR)
-parallel execution of eight environments' API test scripts
+parallel execution of eleven environments' API test scripts
 
 supported environments:
 - CIT (api_v2_sr.py)
 - PRD (api_v2_prd_sr.py)
+- PRD-5 (api_v2_prd_sr_5.py)
+- PRD-6 (api_v2_prd_sr_6.py)
+- PRD-7 (api_v2_prd_sr_7.py)
 - STG (api_v2_stg_sr.py)
 - QAT (api_v2_qat_sr.py)
 - UAT (api_v2_uat_sr.py)
@@ -33,13 +36,16 @@ logger = logging.getLogger(__name__)
 
 
 class APIv2AllSRRunner:
-    """parallel execution of eight Speed Roulette API environments' executor"""
+    """parallel execution of eleven Speed Roulette API environments' executor"""
 
     def __init__(self):
         self.script_dir = Path(__file__).parent
         self.api_scripts = {
             "CIT": "api_v2_sr.py",
             "PRD": "api_v2_prd_sr.py",
+            "PRD-5": "api_v2_prd_sr_5.py",
+            "PRD-6": "api_v2_prd_sr_6.py",
+            "PRD-7": "api_v2_prd_sr_7.py",
             "STG": "api_v2_stg_sr.py",
             "QAT": "api_v2_qat_sr.py",
             "UAT": "api_v2_uat_sr.py",
@@ -57,7 +63,7 @@ class APIv2AllSRRunner:
         execute single Speed Roulette API script
 
         Args:
-            env_name: environment name (CIT, PRD, STG, QAT, UAT, CIT-5, CIT-6, CIT-7)
+            env_name: environment name (CIT, PRD, PRD-5, PRD-6, PRD-7, STG, QAT, UAT, CIT-5, CIT-6, CIT-7)
             script_name: script file name
 
         Returns:
@@ -111,7 +117,7 @@ class APIv2AllSRRunner:
         )
 
         # use ThreadPoolExecutor to execute in parallel
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=11) as executor:
             # submit all tasks
             future_to_env = {
                 executor.submit(
@@ -233,7 +239,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="parallel execution of five Speed Roulette API environments' scripts"
+        description="parallel execution of eleven Speed Roulette API environments' scripts"
     )
     parser.add_argument(
         "--mode",
