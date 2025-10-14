@@ -73,8 +73,26 @@ from serial_comm.serialIO import read_from_serial
 
 # Load device configuration
 def load_device_config():
-    with open("conf/sr_dev.json", "r") as f:
-        return json.load(f)
+    import os
+    # Try multiple possible paths for configuration file
+    possible_paths = [
+        "conf/sr_dev.json",  # Original relative path
+        os.path.join(os.path.dirname(__file__), "conf", "sr_dev.json"),  # Relative to script location
+        "/home/rnd/studio-sdp-roulette/conf/sr_dev.json",  # Absolute path to source
+        os.path.join(os.getcwd(), "conf", "sr_dev.json"),  # Relative to current working directory
+    ]
+    
+    for config_path in possible_paths:
+        if os.path.exists(config_path):
+            with open(config_path, "r") as f:
+                return json.load(f)
+    
+    # If no config found, raise an error with helpful message
+    raise FileNotFoundError(
+        f"Configuration file 'sr_dev.json' not found. Tried paths: {possible_paths}\n"
+        f"Current working directory: {os.getcwd()}\n"
+        f"Script location: {os.path.dirname(__file__)}"
+    )
 
 device_config = load_device_config()
 
@@ -107,8 +125,26 @@ def log_to_file(message, direction):
 
 # Load table configuration
 def load_table_config():
-    with open("conf/sr-1.json", "r") as f:
-        return json.load(f)
+    import os
+    # Try multiple possible paths for table configuration file
+    possible_paths = [
+        "conf/sr-1.json",  # Original relative path
+        os.path.join(os.path.dirname(__file__), "conf", "sr-1.json"),  # Relative to script location
+        "/home/rnd/studio-sdp-roulette/conf/sr-1.json",  # Absolute path to source
+        os.path.join(os.getcwd(), "conf", "sr-1.json"),  # Relative to current working directory
+    ]
+    
+    for config_path in possible_paths:
+        if os.path.exists(config_path):
+            with open(config_path, "r") as f:
+                return json.load(f)
+    
+    # If no config found, raise an error with helpful message
+    raise FileNotFoundError(
+        f"Table configuration file 'sr-1.json' not found. Tried paths: {possible_paths}\n"
+        f"Current working directory: {os.getcwd()}\n"
+        f"Script location: {os.path.dirname(__file__)}"
+    )
 
 
 # Add LOS API related variables
