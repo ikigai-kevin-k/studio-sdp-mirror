@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
 API v2 All-in-One Script for VIP Roulette (VR)
-parallel execution of five environments' API test scripts
+parallel execution of seven environments' API test scripts
 
 supported environments:
 - CIT (api_v2_vr.py)
 - PRD (api_v2_prd_vr.py)
+- PRD-3 (api_v2_prd_vr-3.py)
+- PRD-4 (api_v2_prd_vr-4.py)
 - STG (api_v2_stg_vr.py)
 - QAT (api_v2_qat_vr.py)
 - UAT (api_v2_uat_vr.py)
@@ -30,13 +32,15 @@ logger = logging.getLogger(__name__)
 
 
 class APIv2AllVRRunner:
-    """parallel execution of five VIP Roulette API environments' executor"""
+    """parallel execution of seven VIP Roulette API environments' executor"""
 
     def __init__(self):
         self.script_dir = Path(__file__).parent
         self.api_scripts = {
             "CIT": "api_v2_vr.py",
             "PRD": "api_v2_prd_vr.py",
+            "PRD-3": "api_v2_prd_vr_3.py",
+            "PRD-4": "api_v2_prd_vr_4.py",
             "STG": "api_v2_stg_vr.py",
             "QAT": "api_v2_qat_vr.py",
             "UAT": "api_v2_uat_vr.py",
@@ -105,7 +109,7 @@ class APIv2AllVRRunner:
         )
 
         # use ThreadPoolExecutor to execute in parallel
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=7) as executor:
             # submit all tasks
             future_to_env = {
                 executor.submit(
@@ -227,7 +231,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="parallel execution of five VIP Roulette API environments' scripts"
+        description="parallel execution of seven VIP Roulette API environments' scripts"
     )
     parser.add_argument(
         "--mode",

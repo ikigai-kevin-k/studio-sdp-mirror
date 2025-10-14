@@ -18,6 +18,20 @@
     "game_code": "ARO-002"
     },
     {
+    "name": "PRD-3",
+    "get_url": "https://crystal-table.ikg-game.cc/v2/service/tables/",
+    "post_url": "https://crystal-table.ikg-game.cc/v2/service/tables/",
+    "game_code": "ARO-003",
+    "table_token": "E5LN4END9Q"
+    },
+    {
+    "name": "PRD-4",
+    "get_url": "https://crystal-table.ikg-game.cc/v2/service/tables/",
+    "post_url": "https://crystal-table.ikg-game.cc/v2/service/tables/",
+    "game_code": "ARO-004",
+    "table_token": "E5LN4END9Q"
+    },
+    {
       "name": "STG",
       "get_url": "https://crystal-table.iki-stg.cc/v2/service/tables/",
       "post_url": "https://crystal-table.iki-stg.cc/v2/service/tables/",
