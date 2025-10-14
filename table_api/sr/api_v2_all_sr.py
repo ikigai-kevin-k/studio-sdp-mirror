@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 API v2 All-in-One Script for Speed Roulette (SR)
-parallel execution of five environments' API test scripts
+parallel execution of eight environments' API test scripts
 
 supported environments:
 - CIT (api_v2_sr.py)
@@ -9,6 +9,9 @@ supported environments:
 - STG (api_v2_stg_sr.py)
 - QAT (api_v2_qat_sr.py)
 - UAT (api_v2_uat_sr.py)
+- CIT-5 (api_v2_sr_5.py)
+- CIT-6 (api_v2_sr_6.py)
+- CIT-7 (api_v2_sr_7.py)
 """
 
 import asyncio
@@ -30,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 class APIv2AllSRRunner:
-    """parallel execution of five Speed Roulette API environments' executor"""
+    """parallel execution of eight Speed Roulette API environments' executor"""
 
     def __init__(self):
         self.script_dir = Path(__file__).parent
@@ -40,6 +43,9 @@ class APIv2AllSRRunner:
             "STG": "api_v2_stg_sr.py",
             "QAT": "api_v2_qat_sr.py",
             "UAT": "api_v2_uat_sr.py",
+            "CIT-5": "api_v2_sr_5.py",
+            "CIT-6": "api_v2_sr_6.py",
+            "CIT-7": "api_v2_sr_7.py",
         }
         self.results = {}
         self.execution_times = {}
@@ -51,7 +57,7 @@ class APIv2AllSRRunner:
         execute single Speed Roulette API script
 
         Args:
-            env_name: environment name (CIT, PRD, STG, QAT, UAT)
+            env_name: environment name (CIT, PRD, STG, QAT, UAT, CIT-5, CIT-6, CIT-7)
             script_name: script file name
 
         Returns:
@@ -105,7 +111,7 @@ class APIv2AllSRRunner:
         )
 
         # use ThreadPoolExecutor to execute in parallel
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
             # submit all tasks
             future_to_env = {
                 executor.submit(
