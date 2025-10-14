@@ -6,10 +6,21 @@ import sys
 import json
 import asyncio
 import websockets
+import os
 from concurrent.futures import ThreadPoolExecutor
 from utils import create_serial_connection
 
-sys.path.append(".")  # ensure los_api can be imported
+# Import for reading packaged resources
+try:
+    from importlib.resources import files, as_file
+    HAVE_IMPORTLIB_RESOURCES = True
+except ImportError:
+    try:
+        import pkg_resources
+        HAVE_IMPORTLIB_RESOURCES = False
+    except ImportError:
+        HAVE_IMPORTLIB_RESOURCES = None
+
 from table_api.vr.api_v2_vr import (
     start_post_v2,
     deal_post_v2,
@@ -47,11 +58,9 @@ from table_api.vr.api_v2_qat_vr import (
 )
 
 # Import Slack notification module
-sys.path.append("slack")  # ensure slack module can be imported
 from slack import send_error_to_slack
 
 # Import WebSocket error signal module
-sys.path.append("studio_api")  # ensure studio_api module can be imported
 from studio_api.ws_err_sig import send_roulette_sensor_stuck_error
 
 # Try to load environment variables from .env file
@@ -64,14 +73,8 @@ except ImportError:
     print("python-dotenv not installed, using system environment variables")
     print("Install with: pip install python-dotenv")
 
-ser = create_serial_connection(
-    port="/dev/ttyUSB0",
-    baudrate=9600,
-    parity=serial.PARITY_NONE,
-    stopbits=serial.STOPBITS_ONE,
-    bytesize=serial.EIGHTBITS,
-    timeout=1,
-)
+# Serial connection will be initialized in main()
+ser = None
 
 
 def get_timestamp():
@@ -85,13 +88,69 @@ def log_to_file(message, direction):
 
 
 # Load table configuration
-def load_table_config():
-    with open("conf/table-config-vip-roulette-v2.json", "r") as f:
-        return json.load(f)
+def load_table_config(config_file="conf/table-config-vip-roulette-v2.json"):
+    """Load table configuration from JSON file
+    
+    This function supports loading from:
+    1. Current working directory (development mode)
+    2. Packaged resources in .pyz file (production mode)
+    """
+    # Try to load from current working directory first
+    if os.path.exists(config_file):
+        try:
+            with open(config_file, "r") as f:
+                print(f"Loaded table config from: {config_file}")
+                return json.load(f)
+        except Exception as e:
+            print(f"Error loading table config from {config_file}: {e}")
+    
+    # If not found, try to load from packaged resources
+    try:
+        # Extract filename from path
+        config_filename = os.path.basename(config_file)
+        
+        if HAVE_IMPORTLIB_RESOURCES:
+            # Use importlib.resources (Python 3.9+)
+            try:
+                conf_files = files('conf')
+                config_resource = conf_files / config_filename
+                with as_file(config_resource) as config_path:
+                    with open(config_path, 'r') as f:
+                        print(f"Loaded table config from packaged resources: {config_filename}")
+                        return json.load(f)
+            except Exception as e:
+                print(f"Failed to load from importlib.resources: {e}")
+        
+        elif HAVE_IMPORTLIB_RESOURCES is False:
+            # Use pkg_resources (fallback)
+            try:
+                config_data = pkg_resources.resource_string('conf', config_filename)
+                print(f"Loaded table config from pkg_resources: {config_filename}")
+                return json.loads(config_data.decode('utf-8'))
+            except Exception as e:
+                print(f"Failed to load from pkg_resources: {e}")
+        
+        # Last resort: try to find conf directory in site-packages
+        try:
+            import site
+            for site_dir in site.getsitepackages():
+                conf_path = os.path.join(site_dir, 'conf', config_filename)
+                if os.path.exists(conf_path):
+                    with open(conf_path, 'r') as f:
+                        print(f"Loaded table config from site-packages: {conf_path}")
+                        return json.load(f)
+        except Exception as e:
+            print(f"Failed to load from site-packages: {e}")
+    
+    except Exception as e:
+        print(f"Error loading table configuration: {e}")
+    
+    # If all methods fail, raise error
+    raise FileNotFoundError(f"Could not load table configuration file: {config_file}")
 
 
 # Add LOS API related variables
-tables = load_table_config()
+tables = None  # Will be loaded in main()
 x2_count = 0
 x5_count = 0
 isLaunch = 0
@@ -1087,13 +1146,44 @@ def _bet_stop_countdown(table, round_id, bet_period, token, betStop_round_for_ta
 
 def main():
     """Main function for VIP Roulette Controller"""
-    global terminate_program, ws_connected, ws_client, p1_sent
+    global terminate_program, ws_connected, ws_client, p1_sent, tables, ser
+    
+    # Load table configuration at startup
+    try:
+        tables = load_table_config()
+        print(f"[{get_timestamp()}] Table configuration loaded successfully")
+    except Exception as e:
+        print(f"[{get_timestamp()}] Error loading table configuration: {e}")
+        print("Program cannot continue without table configuration")
+        sys.exit(1)
+    
+    # Initialize serial connection
+    try:
+        ser = create_serial_connection(
+            port="/dev/ttyUSB0",
+            baudrate=9600,
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
+            bytesize=serial.EIGHTBITS,
+            timeout=1,
+        )
+        if ser is None:
+            print(f"[{get_timestamp()}] Warning: Serial connection not available")
+        else:
+            print(f"[{get_timestamp()}] Serial connection established successfully")
+    except Exception as e:
+        print(f"[{get_timestamp()}] Error creating serial connection: {e}")
+        print("Program cannot continue without serial connection")
+        sys.exit(1)
 
     # Send *P 1 command at program startup
-    print(f"[{get_timestamp()}] Sending *P 1 command at startup...")
-    log_to_file("*P 1", "Send <<<")
-    ser.write(("*P 1\r\n").encode())
-    print(f"[{get_timestamp()}] *P 1 command sent successfully")
+    if ser is not None:
+        print(f"[{get_timestamp()}] Sending *P 1 command at startup...")
+        log_to_file("*P 1", "Send <<<")
+        ser.write(("*P 1\r\n").encode())
+        print(f"[{get_timestamp()}] *P 1 command sent successfully")
+    else:
+        print(f"[{get_timestamp()}] Cannot send *P 1 command: Serial connection not available")
     
     # Set flag to indicate *P 1 has been sent
     p1_sent = True

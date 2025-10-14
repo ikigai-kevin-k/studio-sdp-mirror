@@ -678,8 +678,8 @@ def _bet_stop_countdown(table, round_id, bet_period, token, betStop_round_for_ta
         log_to_file: Function to log messages to file
     """
     try:
-        # Wait for the bet period duration
-        time.sleep(bet_period)
+        # Note: Timer already handles the delay, no need to sleep here
+        # Previously: time.sleep(bet_period) - removed to fix double delay issue (14s late bet-stop)
 
         # Call bet stop for the table
         print(f"[{get_timestamp()}] Calling bet stop for {table['name']} (round {round_id})")
