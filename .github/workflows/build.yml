@@ -323,10 +323,15 @@ jobs:
           echo "Testing ASB-001-1 connection first..."
           deploy_to_pc "ASB-001-1"
           
-          # TODO: Enable other PCs after ASB-001-1 is confirmed working
-          # deploy_to_pc "ARO-001-1"
-          # deploy_to_pc "ARO-001-2" 
-          # deploy_to_pc "ARO-002-1"
+          # Deploy to all other dealer PCs
+          echo "Deploying to ARO-001-1..."
+          deploy_to_pc "ARO-001-1"
+          
+          echo "Deploying to ARO-001-2..."
+          deploy_to_pc "ARO-001-2" 
+          
+          echo "Deploying to ARO-002-1..."
+          deploy_to_pc "ARO-002-1"
           
           echo "All deployments completed successfully!"
 
