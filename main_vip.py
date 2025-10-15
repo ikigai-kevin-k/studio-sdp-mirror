@@ -42,6 +42,20 @@ from table_api.vr.api_v2_prd_vr import (
     broadcast_post_v2_prd,
     bet_stop_post_prd,
 )
+from table_api.vr.api_v2_prd_vr_3 import (
+    start_post_v2_prd as start_post_v2_prd3,
+    deal_post_v2_prd as deal_post_v2_prd3,
+    finish_post_v2_prd as finish_post_v2_prd3,
+    broadcast_post_v2_prd as broadcast_post_v2_prd3,
+    bet_stop_post_prd as bet_stop_post_prd3,
+)
+from table_api.vr.api_v2_prd_vr_4 import (
+    start_post_v2_prd as start_post_v2_prd4,
+    deal_post_v2_prd as deal_post_v2_prd4,
+    finish_post_v2_prd as finish_post_v2_prd4,
+    broadcast_post_v2_prd as broadcast_post_v2_prd4,
+    bet_stop_post_prd as bet_stop_post_prd4,
+)
 from table_api.vr.api_v2_stg_vr import (
     start_post_v2_stg,
     deal_post_v2_stg,
@@ -969,6 +983,10 @@ def execute_finish_post(table, token):
             result = finish_post_v2_uat(post_url, token)
         elif table["name"] == "PRD":
             result = finish_post_v2_prd(post_url, token)
+        elif table["name"] == "PRD-3":
+            result = finish_post_v2_prd3(post_url, token)
+        elif table["name"] == "PRD-4":
+            result = finish_post_v2_prd4(post_url, token)
         elif table["name"] == "STG":
             result = finish_post_v2_stg(post_url, token)
         elif table["name"] == "QAT":
@@ -989,6 +1007,10 @@ def execute_start_post(table, token):
             round_id, betPeriod = start_post_v2_uat(post_url, token)
         elif table["name"] == "PRD":
             round_id, betPeriod = start_post_v2_prd(post_url, token)
+        elif table["name"] == "PRD-3":
+            round_id, betPeriod = start_post_v2_prd3(post_url, token)
+        elif table["name"] == "PRD-4":
+            round_id, betPeriod = start_post_v2_prd4(post_url, token)
         elif table["name"] == "STG":
             round_id, betPeriod = start_post_v2_stg(post_url, token)
         elif table["name"] == "QAT":
@@ -1019,6 +1041,14 @@ def execute_deal_post(table, token, win_num):
             )
         elif table["name"] == "PRD":
             result = deal_post_v2_prd(
+                post_url, token, table["round_id"], str(win_num)
+            )
+        elif table["name"] == "PRD-3":
+            result = deal_post_v2_prd3(
+                post_url, token, table["round_id"], str(win_num)
+            )
+        elif table["name"] == "PRD-4":
+            result = deal_post_v2_prd4(
                 post_url, token, table["round_id"], str(win_num)
             )
         elif table["name"] == "STG":
@@ -1053,6 +1083,10 @@ def betStop_round_for_table(table, token):
             result = bet_stop_post_uat(post_url, token)
         elif table["name"] == "PRD":
             result = bet_stop_post_prd(post_url, token)
+        elif table["name"] == "PRD-3":
+            result = bet_stop_post_prd3(post_url, token)
+        elif table["name"] == "PRD-4":
+            result = bet_stop_post_prd4(post_url, token)
         elif table["name"] == "STG":
             result = bet_stop_post_stg(post_url, token)
         elif table["name"] == "QAT":
@@ -1078,6 +1112,14 @@ def execute_broadcast_post(table, token):
             )  # , None)
         elif table["name"] == "PRD":
             result = broadcast_post_v2_prd(
+                post_url, token, "roulette.relaunch", "players", 20
+            )  # , None)
+        elif table["name"] == "PRD-3":
+            result = broadcast_post_v2_prd3(
+                post_url, token, "roulette.relaunch", "players", 20
+            )  # , None)
+        elif table["name"] == "PRD-4":
+            result = broadcast_post_v2_prd4(
                 post_url, token, "roulette.relaunch", "players", 20
             )  # , None)
         elif table["name"] == "STG":
