@@ -184,11 +184,9 @@ include_files = [
                 "pyarmor", "gen",
                 "--output", str(self.obfuscated_dir),
                 "--recursive",
-                "--enable-suffix",  # Add random suffix to obfuscated files
                 "--mix-str",        # Mix string literals
                 "--assert-call",    # Add assertion calls for integrity
                 "--assert-import",  # Add import assertions
-                "--restrict",       # Restrict mode for better security (more secure than private)
                 str(temp_source)
             ]
             

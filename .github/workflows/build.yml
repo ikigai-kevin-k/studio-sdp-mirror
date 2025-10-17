@@ -117,11 +117,9 @@ jobs:
           pyarmor gen \
             --output obfuscated_output \
             --recursive \
-            --enable-suffix \
             --mix-str \
             --assert-call \
             --assert-import \
-            --restrict \
             .
           
           echo "✅ Code obfuscation completed"
