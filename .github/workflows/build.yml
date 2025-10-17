@@ -87,7 +87,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -e .
-          pip install shiv pyarmor
+          pip install shiv pyminifier
           
       - name: Verify project installation
         run: |
@@ -106,21 +106,33 @@ jobs:
           python -c "import main_speed; print('main_speed module imported successfully')"
           python -c "import main_baccarat; print('main_baccarat module imported successfully')"
 
-      - name: Obfuscate code with PyArmor
+      - name: Obfuscate code with pyminifier
         run: |
-          echo "🔒 Starting code obfuscation process..."
+          echo "🔒 Starting code obfuscation process with pyminifier..."
           
           # Create obfuscation output directory
           mkdir -p obfuscated_output
           
-          # Run PyArmor obfuscation with security features
-          pyarmor gen \
-            --output obfuscated_output \
-            --recursive \
-            --mix-str \
-            --assert-call \
-            --assert-import \
-            .
+          # Copy source files to obfuscated directory
+          cp -r . obfuscated_output/
+          cd obfuscated_output
+          
+          # Remove unnecessary files
+          rm -rf __pycache__ .git .github tests venv .venv build dist *.egg-info
+          find . -name "*.pyc" -delete
+          find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+          
+          # Obfuscate Python files using pyminifier
+          echo "🔒 Obfuscating Python files..."
+          find . -name "*.py" -type f | while read file; do
+            echo "Processing: $file"
+            # Use pyminifier with obfuscation options
+            pyminifier --obfuscate --obfuscate-import-methods --obfuscate-builtins \
+              --obfuscate-imports --obfuscate-classes --obfuscate-functions \
+              --replacement-length=1 "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
+          done
+          
+          cd ..
           
           echo "✅ Code obfuscation completed"
           echo "📁 Obfuscated files location: obfuscated_output/"

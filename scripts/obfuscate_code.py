@@ -22,28 +22,28 @@ class CodeObfuscator:
         self.project_name = project_name
         self.obfuscated_dir = self.output_dir / "obfuscated"
         
-    def check_pyarmor_installation(self) -> bool:
-        """Check if PyArmor is installed"""
+    def check_pyminifier_installation(self) -> bool:
+        """Check if pyminifier is installed"""
         try:
             result = subprocess.run(
-                ["pyarmor", "--version"], 
+                ["pyminifier", "--version"], 
                 capture_output=True, 
                 text=True, 
                 check=True
             )
-            print(f"✅ PyArmor version: {result.stdout.strip()}")
+            print(f"✅ pyminifier version: {result.stdout.strip()}")
             return True
         except (subprocess.CalledProcessError, FileNotFoundError):
-            print("❌ PyArmor is not installed. Installing...")
+            print("❌ pyminifier is not installed. Installing...")
             try:
                 subprocess.run(
-                    [sys.executable, "-m", "pip", "install", "pyarmor"], 
+                    [sys.executable, "-m", "pip", "install", "pyminifier"], 
                     check=True
                 )
-                print("✅ PyArmor installed successfully")
+                print("✅ pyminifier installed successfully")
                 return True
             except subprocess.CalledProcessError as e:
-                print(f"❌ Failed to install PyArmor: {e}")
+                print(f"❌ Failed to install pyminifier: {e}")
                 return False
     
     def create_obfuscation_config(self) -> str:
@@ -175,43 +175,64 @@ include_files = [
         return ignored
     
     def obfuscate_code(self) -> bool:
-        """Perform code obfuscation using PyArmor"""
+        """Perform code obfuscation using pyminifier"""
         try:
             temp_source = self.output_dir / "temp_source"
             
-            # PyArmor obfuscation command with security features
-            cmd = [
-                "pyarmor", "gen",
-                "--output", str(self.obfuscated_dir),
-                "--recursive",
-                "--mix-str",        # Mix string literals
-                "--assert-call",    # Add assertion calls for integrity
-                "--assert-import",  # Add import assertions
-                str(temp_source)
-            ]
+            # Copy source files to obfuscated directory
+            shutil.copytree(self.source_dir, self.obfuscated_dir, ignore=self._ignore_files)
             
-            print(f"🔒 Running PyArmor obfuscation...")
-            print(f"Command: {' '.join(cmd)}")
+            # Remove unnecessary files
+            for pattern in ["__pycache__", "*.pyc", "*.pyo", ".git", ".github", "tests", "venv", ".venv", "build", "dist", "*.egg-info"]:
+                for path in self.obfuscated_dir.rglob(pattern):
+                    if path.is_file():
+                        path.unlink()
+                    elif path.is_dir():
+                        shutil.rmtree(path, ignore_errors=True)
             
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                check=True
-            )
+            # Obfuscate Python files using pyminifier
+            print(f"🔒 Running pyminifier obfuscation...")
+            
+            python_files = list(self.obfuscated_dir.rglob("*.py"))
+            print(f"Found {len(python_files)} Python files to obfuscate")
+            
+            for py_file in python_files:
+                print(f"Processing: {py_file.relative_to(self.obfuscated_dir)}")
+                
+                # Use pyminifier with obfuscation options
+                cmd = [
+                    "pyminifier",
+                    "--obfuscate",
+                    "--obfuscate-import-methods",
+                    "--obfuscate-builtins",
+                    "--obfuscate-imports",
+                    "--obfuscate-classes",
+                    "--obfuscate-functions",
+                    "--replacement-length=1",
+                    str(py_file)
+                ]
+                
+                try:
+                    result = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True,
+                        check=True
+                    )
+                    
+                    # Write obfuscated content back to file
+                    with open(py_file, 'w', encoding='utf-8') as f:
+                        f.write(result.stdout)
+                        
+                except subprocess.CalledProcessError as e:
+                    print(f"⚠️  Failed to obfuscate {py_file}: {e}")
+                    continue
             
             print("✅ Code obfuscation completed successfully")
             print(f"Obfuscated code location: {self.obfuscated_dir}")
             
-            # Clean up temporary source directory
-            shutil.rmtree(temp_source)
-            
             return True
             
-        except subprocess.CalledProcessError as e:
-            print(f"❌ PyArmor obfuscation failed: {e}")
-            print(f"Error output: {e.stderr}")
-            return False
         except Exception as e:
             print(f"❌ Unexpected error during obfuscation: {e}")
             return False
@@ -313,8 +334,8 @@ include_files = [
         print(f"Source: {self.source_dir}")
         print(f"Output: {self.output_dir}")
         
-        # Step 1: Check PyArmor installation
-        if not self.check_pyarmor_installation():
+        # Step 1: Check pyminifier installation
+        if not self.check_pyminifier_installation():
             return False
         
         # Step 2: Create configuration
