@@ -199,7 +199,7 @@ include_files = [
             for py_file in python_files:
                 print(f"Processing: {py_file.relative_to(self.obfuscated_dir)}")
                 
-                # Use pyminifier with obfuscation options
+                # Use pyminifier with obfuscation options (pyminifier 2.1 compatible)
                 cmd = [
                     "pyminifier",
                     "--obfuscate",

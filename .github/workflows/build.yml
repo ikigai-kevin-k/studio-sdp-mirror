@@ -126,7 +126,7 @@ jobs:
           echo "🔒 Obfuscating Python files..."
           find . -name "*.py" -type f | while read file; do
             echo "Processing: $file"
-            # Use pyminifier with obfuscation options
+            # Use pyminifier with obfuscation options (pyminifier 2.1 compatible)
             pyminifier --obfuscate --obfuscate-import-methods --obfuscate-builtins \
               --obfuscate-imports --obfuscate-classes --obfuscate-functions \
               --replacement-length=1 "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
