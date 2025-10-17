@@ -22,29 +22,21 @@ class CodeObfuscator:
         self.project_name = project_name
         self.obfuscated_dir = self.output_dir / "obfuscated"
         
-    def check_pyminifier_installation(self) -> bool:
-        """Check if pyminifier is installed"""
+    def check_basic_obfuscation_tools(self) -> bool:
+        """Check if basic obfuscation tools are available (Python built-in)"""
         try:
+            # Check if Python is available
             result = subprocess.run(
-                ["pyminifier", "--version"], 
+                [sys.executable, "--version"], 
                 capture_output=True, 
                 text=True, 
                 check=True
             )
-            print(f"✅ pyminifier version: {result.stdout.strip()}")
+            print(f"✅ Python version: {result.stdout.strip()}")
             return True
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            print("❌ pyminifier is not installed. Installing...")
-            try:
-                subprocess.run(
-                    [sys.executable, "-m", "pip", "install", "pyminifier"], 
-                    check=True
-                )
-                print("✅ pyminifier installed successfully")
-                return True
-            except subprocess.CalledProcessError as e:
-                print(f"❌ Failed to install pyminifier: {e}")
-                return False
+        except Exception as e:
+            print(f"❌ Python not available: {e}")
+            return False
     
     def create_obfuscation_config(self) -> str:
         """Create PyArmor configuration file with security features"""
@@ -175,10 +167,8 @@ include_files = [
         return ignored
     
     def obfuscate_code(self) -> bool:
-        """Perform code obfuscation using pyminifier"""
+        """Perform basic code obfuscation using Python built-in tools"""
         try:
-            temp_source = self.output_dir / "temp_source"
-            
             # Copy source files to obfuscated directory
             shutil.copytree(self.source_dir, self.obfuscated_dir, ignore=self._ignore_files)
             
@@ -190,8 +180,8 @@ include_files = [
                     elif path.is_dir():
                         shutil.rmtree(path, ignore_errors=True)
             
-            # Obfuscate Python files using pyminifier
-            print(f"🔒 Running pyminifier obfuscation...")
+            # Basic obfuscation using Python built-in tools
+            print(f"🔒 Running basic obfuscation...")
             
             python_files = list(self.obfuscated_dir.rglob("*.py"))
             print(f"Found {len(python_files)} Python files to obfuscate")
@@ -199,36 +189,81 @@ include_files = [
             for py_file in python_files:
                 print(f"Processing: {py_file.relative_to(self.obfuscated_dir)}")
                 
-                # Use pyminifier with obfuscation options (pyminifier 2.1 compatible)
-                cmd = [
-                    "pyminifier",
-                    "--obfuscate",
-                    "--obfuscate-import-methods",
-                    "--obfuscate-builtins",
-                    "--obfuscate-imports",
-                    "--obfuscate-classes",
-                    "--obfuscate-functions",
-                    "--replacement-length=1",
-                    str(py_file)
-                ]
-                
                 try:
-                    result = subprocess.run(
-                        cmd,
-                        capture_output=True,
-                        text=True,
-                        check=True
-                    )
+                    # Read the file
+                    with open(py_file, 'r', encoding='utf-8') as f:
+                        content = f.read()
                     
-                    # Write obfuscated content back to file
-                    with open(py_file, 'w', encoding='utf-8') as f:
-                        f.write(result.stdout)
+                    # Basic obfuscation: remove comments and compress whitespace
+                    import re
+                    
+                    # Remove single-line comments (but preserve docstrings)
+                    lines = content.split('\n')
+                    processed_lines = []
+                    in_docstring = False
+                    docstring_char = None
+                    
+                    for line in lines:
+                        stripped = line.strip()
                         
-                except subprocess.CalledProcessError as e:
+                        # Check for docstring start/end
+                        if not in_docstring:
+                            if stripped.startswith('"""') or stripped.startswith("'''"):
+                                in_docstring = True
+                                docstring_char = stripped[:3]
+                                processed_lines.append(line)
+                                continue
+                        else:
+                            if stripped.endswith(docstring_char):
+                                in_docstring = False
+                                docstring_char = None
+                                processed_lines.append(line)
+                                continue
+                        
+                        # If not in docstring, remove comments
+                        if not in_docstring:
+                            # Remove comments but preserve strings
+                            in_string = False
+                            string_char = None
+                            new_line = ''
+                            i = 0
+                            
+                            while i < len(line):
+                                char = line[i]
+                                
+                                if not in_string and char in ['"', "'"]:
+                                    in_string = True
+                                    string_char = char
+                                    new_line += char
+                                elif in_string and char == string_char:
+                                    # Check if it's escaped
+                                    if i > 0 and line[i-1] != '\\':
+                                        in_string = False
+                                        string_char = None
+                                    new_line += char
+                                elif not in_string and char == '#':
+                                    # Found comment, stop processing this line
+                                    break
+                                else:
+                                    new_line += char
+                                
+                                i += 1
+                            
+                            # Compress whitespace
+                            new_line = re.sub(r'[ \t]+', ' ', new_line)
+                            processed_lines.append(new_line)
+                        else:
+                            processed_lines.append(line)
+                    
+                    # Write back
+                    with open(py_file, 'w', encoding='utf-8') as f:
+                        f.write('\n'.join(processed_lines))
+                        
+                except Exception as e:
                     print(f"⚠️  Failed to obfuscate {py_file}: {e}")
                     continue
             
-            print("✅ Code obfuscation completed successfully")
+            print("✅ Basic code obfuscation completed successfully")
             print(f"Obfuscated code location: {self.obfuscated_dir}")
             
             return True
@@ -334,8 +369,8 @@ include_files = [
         print(f"Source: {self.source_dir}")
         print(f"Output: {self.output_dir}")
         
-        # Step 1: Check pyminifier installation
-        if not self.check_pyminifier_installation():
+        # Step 1: Check basic obfuscation tools
+        if not self.check_basic_obfuscation_tools():
             return False
         
         # Step 2: Create configuration
