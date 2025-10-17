@@ -126,14 +126,18 @@ jobs:
           echo "🔒 Applying basic obfuscation..."
           find . -name "*.py" -type f | while read file; do
             echo "Processing: $file"
-            # Remove comments and compress whitespace using a Python script
-            python3 << 'EOF'
+            # Create a temporary Python script for obfuscation
+            cat > /tmp/obfuscate.py << 'PYTHON_EOF'
 import re
 import sys
 import os
 
-# Get the file path from environment
-file_path = os.environ.get('file', '$file')
+# Get the file path from command line argument
+file_path = sys.argv[1] if len(sys.argv) > 1 else ''
+
+if not file_path:
+    print("Error: No file path provided")
+    sys.exit(1)
 
 # Read the file
 with open(file_path, 'r', encoding='utf-8') as f:
@@ -200,7 +204,13 @@ for line in lines:
 # Write back
 with open(file_path, 'w', encoding='utf-8') as f:
     f.write('\n'.join(processed_lines))
-EOF
+PYTHON_EOF
+            
+            # Run the obfuscation script
+            python3 /tmp/obfuscate.py "$file"
+            
+            # Clean up
+            rm -f /tmp/obfuscate.py
           done
           
           cd ..
