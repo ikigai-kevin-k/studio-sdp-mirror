@@ -126,13 +126,17 @@ jobs:
           echo "🔒 Applying basic obfuscation..."
           find . -name "*.py" -type f | while read file; do
             echo "Processing: $file"
-            # Remove comments and compress whitespace
-            python3 -c "
+            # Remove comments and compress whitespace using a Python script
+            python3 << 'EOF'
 import re
 import sys
+import os
+
+# Get the file path from environment
+file_path = os.environ.get('file', '$file')
 
 # Read the file
-with open('$file', 'r', encoding='utf-8') as f:
+with open(file_path, 'r', encoding='utf-8') as f:
     content = f.read()
 
 # Remove single-line comments (but preserve docstrings)
@@ -146,7 +150,7 @@ for line in lines:
     
     # Check for docstring start/end
     if not in_docstring:
-        if stripped.startswith('\"\"\"') or stripped.startswith(\"'''\"):
+        if stripped.startswith('"""') or stripped.startswith("'''"):
             in_docstring = True
             docstring_char = stripped[:3]
             processed_lines.append(line)
@@ -169,13 +173,13 @@ for line in lines:
         while i < len(line):
             char = line[i]
             
-            if not in_string and char in ['\"', \"'\"]:
+            if not in_string and char in ['"', "'"]:
                 in_string = True
                 string_char = char
                 new_line += char
             elif in_string and char == string_char:
                 # Check if it's escaped
-                if i > 0 and line[i-1] != '\\\\':
+                if i > 0 and line[i-1] != '\\':
                     in_string = False
                     string_char = None
                 new_line += char
@@ -194,9 +198,9 @@ for line in lines:
         processed_lines.append(line)
 
 # Write back
-with open('$file', 'w', encoding='utf-8') as f:
+with open(file_path, 'w', encoding='utf-8') as f:
     f.write('\n'.join(processed_lines))
-"
+EOF
           done
           
           cd ..
