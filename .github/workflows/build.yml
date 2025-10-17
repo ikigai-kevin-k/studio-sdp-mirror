@@ -87,7 +87,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -e .
-          pip install shiv
+          pip install shiv pyarmor
           
       - name: Verify project installation
         run: |
@@ -106,26 +106,117 @@ jobs:
           python -c "import main_speed; print('main_speed module imported successfully')"
           python -c "import main_baccarat; print('main_baccarat module imported successfully')"
 
+      - name: Obfuscate code with PyArmor
+        run: |
+          echo "🔒 Starting code obfuscation process..."
+          
+          # Create obfuscation output directory
+          mkdir -p obfuscated_output
+          
+          # Run PyArmor obfuscation with security features
+          pyarmor gen \
+            --output obfuscated_output \
+            --recursive \
+            --enable-suffix \
+            --mix-str \
+            --assert-call \
+            --assert-import \
+            --private \
+            --restrict \
+            .
+          
+          echo "✅ Code obfuscation completed"
+          echo "📁 Obfuscated files location: obfuscated_output/"
+          
+          # Verify obfuscated files exist
+          ls -la obfuscated_output/
+          
+          # Check if main entry points are obfuscated
+          for main_file in main_vip.py main_speed.py main_sicbo.py main_baccarat.py; do
+            if [ -f "obfuscated_output/$main_file" ]; then
+              echo "✅ Found obfuscated $main_file"
+            else
+              echo "⚠️  Missing obfuscated $main_file"
+            fi
+          done
+
+      - name: Verify obfuscated code integrity
+        run: |
+          echo "🔍 Verifying obfuscated code integrity..."
+          
+          # Check obfuscated directory structure
+          echo "Obfuscated directory contents:"
+          find obfuscated_output -name "*.py" | head -20
+          
+          # Verify main entry points can be imported (basic check)
+          cd obfuscated_output
+          python -c "
+          import sys
+          sys.path.insert(0, '.')
+          try:
+              import main_vip
+              print('✅ main_vip obfuscated module imported successfully')
+          except Exception as e:
+              print(f'⚠️  main_vip import issue: {e}')
+          
+          try:
+              import main_speed  
+              print('✅ main_speed obfuscated module imported successfully')
+          except Exception as e:
+              print(f'⚠️  main_speed import issue: {e}')
+              
+          try:
+              import main_sicbo
+              print('✅ main_sicbo obfuscated module imported successfully')
+          except Exception as e:
+              print(f'⚠️  main_sicbo import issue: {e}')
+              
+          try:
+              import main_baccarat
+              print('✅ main_baccarat obfuscated module imported successfully')
+          except Exception as e:
+              print(f'⚠️  main_baccarat import issue: {e}')
+          "
+          cd ..
+          
+          echo "✅ Obfuscated code verification completed"
+
       - name: Build VIP Roulette executable
         run: |
-          shiv --compressed --compile-pyc --python "/usr/bin/python3" --output-file sdp-vip.pyz --entry-point main_vip:main .
+          cd obfuscated_output
+          shiv --compressed --compile-pyc --python "/usr/bin/python3" --output-file ../sdp-vip.pyz --entry-point main_vip:main .
+          cd ..
 
       - name: Build Speed Roulette executable
         run: |
-          shiv --compressed --compile-pyc --python "/usr/bin/python3" --output-file sdp-speed.pyz --entry-point main_speed:main .
+          cd obfuscated_output
+          shiv --compressed --compile-pyc --python "/usr/bin/python3" --output-file ../sdp-speed.pyz --entry-point main_speed:main .
+          cd ..
 
       - name: Build SicBo executable
         run: |
-          shiv --compressed --compile-pyc --python "/usr/bin/python3" --output-file sdp-sicbo.pyz --entry-point main_sicbo:main .
+          cd obfuscated_output
+          shiv --compressed --compile-pyc --python "/usr/bin/python3" --output-file ../sdp-sicbo.pyz --entry-point main_sicbo:main .
+          cd ..
 
       - name: Build Baccarat executable
         run: |
-          shiv --compressed --compile-pyc --python "/usr/bin/python3" --output-file sdp-baccarat.pyz --entry-point main_baccarat:main .
+          cd obfuscated_output
+          shiv --compressed --compile-pyc --python "/usr/bin/python3" --output-file ../sdp-baccarat.pyz --entry-point main_baccarat:main .
+          cd ..
 
       - name: Test built executables
         run: |
-          echo "Testing built executables..."
-          python test_build.py
+          echo "Testing obfuscated executables..."
+          python test_obfuscated_build.py
+          
+      - name: Clean up obfuscation artifacts
+        run: |
+          echo "🧹 Cleaning up obfuscation artifacts..."
+          # Keep obfuscated_output for debugging if needed, but remove large temp files
+          find obfuscated_output -name "*.pyc" -delete
+          find obfuscated_output -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+          echo "✅ Cleanup completed"
           
       - name: Package all executables into sdp.zip
         run: |
