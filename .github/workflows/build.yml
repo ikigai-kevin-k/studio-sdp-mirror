@@ -121,7 +121,6 @@ jobs:
             --mix-str \
             --assert-call \
             --assert-import \
-            --private \
             --restrict \
             .
           

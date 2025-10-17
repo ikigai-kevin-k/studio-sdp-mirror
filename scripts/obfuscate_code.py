@@ -188,8 +188,7 @@ include_files = [
                 "--mix-str",        # Mix string literals
                 "--assert-call",    # Add assertion calls for integrity
                 "--assert-import",  # Add import assertions
-                "--private",        # Private mode (no external dependencies)
-                "--restrict",       # Restrict mode for better security
+                "--restrict",       # Restrict mode for better security (more secure than private)
                 str(temp_source)
             ]
             
