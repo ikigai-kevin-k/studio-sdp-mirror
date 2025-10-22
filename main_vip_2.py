@@ -10,12 +10,47 @@ import urllib3
 from requests.exceptions import ConnectionError
 
 sys.path.append(".")  # Ensure los_api can be imported
-# Lazy environment-specific imports are performed inside functions based on table['name']
+from table_api.vr.cit_vr_2 import (
+    start_post_v2,
+    deal_post_v2,
+    finish_post_v2,
+    broadcast_post_v2,
+    bet_stop_post,
+)
+from table_api.vr.uat_vr_2 import (
+    start_post_v2 as start_post_v2_uat,
+    deal_post_v2 as deal_post_v2_uat,
+    finish_post_v2 as finish_post_v2_uat,
+    broadcast_post_v2 as broadcast_post_v2_uat,
+    bet_stop_post as bet_stop_post_uat,
+)
+from table_api.vr.stg_vr_2 import (
+    start_post_v2 as start_post_v2_stg,
+    deal_post_v2 as deal_post_v2_stg,
+    finish_post_v2 as finish_post_v2_stg,
+    broadcast_post_v2 as broadcast_post_v2_stg,
+    bet_stop_post as bet_stop_post_stg,
+)
+from table_api.vr.qat_vr_2 import (
+    start_post_v2 as start_post_v2_qat,
+    deal_post_v2 as deal_post_v2_qat,
+    finish_post_v2 as finish_post_v2_qat,
+    broadcast_post_v2 as broadcast_post_v2_qat,
+    bet_stop_post as bet_stop_post_qat,
+)
 from concurrent.futures import ThreadPoolExecutor
 
 # Import Studio Alert Manager
 sys.path.append("studio-alert-manager")
 from studio_alert_manager.alert_manager import AlertManager, AlertLevel
+
+# Import Slack notification module (fallback)
+sys.path.append("slack")  # ensure slack module can be imported
+from slack import send_error_to_slack
+
+# Import WebSocket error signal module
+sys.path.append("studio_api")  # ensure studio_api module can be imported
+from studio_api.ws_err_sig import send_roulette_sensor_stuck_error
 
 # Import network checker
 from networkChecker import networkChecker
@@ -73,158 +108,495 @@ def load_table_config():
         return json.load(f)
 
 
-# Add Alert Manager instance
-alert_manager = None
-
 # Add LOS API related variables
 tables = load_table_config()
 x2_count = 0
-x3_count = 0
-x4_count = 0
 x5_count = 0
+isLaunch = 0
+last_x2_time = 0
+last_x5_time = 0
 start_post_sent = False
 deal_post_sent = False
-finish_post_sent = False
+start_time = 0
+deal_post_time = 0
+finish_post_time = 0
+token = "E5LN4END9Q"
+ws_client = None
+ws_connected = False
+
+# Add Alert Manager instance
+alert_manager = None
+
+# Add Slack notification variables
+sensor_error_sent = False  # Flag to ensure sensor error is only sent once
+
+# Add program termination flag
 terminate_program = False  # Flag to terminate program when *X;6 sensor error is detected
-sensor_error_sent_to_slack = False  # Flag to prevent duplicate Slack notifications
 
-# Global variables for tracking game state
-current_round_id = None
-current_bet_period = 0
-ball_launch_time = None
-start_time = None
-finish_to_start_time = 0.0
-start_to_launch_time = 0.0
-launch_to_deal_time = 0.0
-deal_to_finish_time = 0.0
-finish_post_time = None
-deal_post_time = None
-start_post_time = None
+# Add retry tracking for alert levels
+retry_counts = {}  # Track retry counts for each error type
 
-# Global variables for tracking time intervals
-time_intervals = {
-    "finish_to_start": [],
-    "start_to_launch": [],
-    "launch_to_deal": [],
-    "deal_to_finish": [],
-}
 
-# Function to send sensor error notification using Studio Alert Manager
-def send_sensor_error_alert():
-    """Send sensor error notification using Studio Alert Manager"""
-    global sensor_error_sent_to_slack
+def send_alert_with_retry_level(error_type, message, environment, table_name=None, error_code=None, is_recoverable=True):
+    """
+    Send alert with appropriate level based on retry count and recoverability
     
-    # Check if we already sent this error to avoid spam
-    if sensor_error_sent_to_slack:
-        log_to_file(
-            f"[{get_timestamp()}] Sensor error already sent to Slack, skipping...",
-            "Alert >>>"
-        )
-        return
+    Args:
+        error_type: Unique identifier for this error type
+        message: Alert message
+        environment: Environment name
+        table_name: Table name (optional)
+        error_code: Error code (optional)
+        is_recoverable: Whether this error is recoverable (default: True)
+    """
+    global retry_counts
+    
+    # Initialize retry count for this error type
+    if error_type not in retry_counts:
+        retry_counts[error_type] = 0
+    
+    retry_counts[error_type] += 1
+    
+    # Determine alert level based on recoverability and retry count
+    if not is_recoverable:
+        # Non-recoverable errors are always ERROR level
+        alert_level = AlertLevel.ERROR
+        level_name = "ERROR"
+    elif retry_counts[error_type] == 1:
+        # First occurrence of recoverable error is WARNING
+        alert_level = AlertLevel.WARNING
+        level_name = "WARNING"
+    else:
+        # Subsequent occurrences of recoverable error are ERROR
+        alert_level = AlertLevel.ERROR
+        level_name = "ERROR"
     
     try:
         if alert_manager:
-            success = alert_manager.send_error(
-                error_message="SENSOR ERROR - Detected warning_flag=4 in *X;6 message",
-                environment="CIT-2",
-                table_name="Studio-Roulette-Test",
-                error_code="SENSOR_STUCK"
+            success = alert_manager.send_alert(
+                message=f"{message} (Attempt {retry_counts[error_type]})",
+                environment=environment,
+                alert_level=alert_level,
+                table_name=table_name,
+                error_code=error_code
             )
         else:
-            # Fallback to direct Slack notification if alert manager not available
-            sys.path.append("slack")
-            from slack import send_error_to_slack
+            # Fallback to direct Slack notification
             success = send_error_to_slack(
-                error_message="SENSOR ERROR - Detected warning_flag=4 in *X;6 message",
-                environment="CIT-2",
-                table_name="Studio-Roulette-Test",
-                error_code="SENSOR_STUCK"
+                error_message=f"{message} (Attempt {retry_counts[error_type]})",
+                environment=environment,
+                table_name=table_name,
+                error_code=error_code
             )
         
         if success:
-            sensor_error_sent_to_slack = True
-            log_to_file(
-                f"[{get_timestamp()}] Sensor error notification sent successfully",
-                "Alert >>>"
-            )
-            print(
-                "Sensor error notification sent successfully",
-                "Alert >>>",
-            )
+            print(f"[{get_timestamp()}] {level_name} alert sent: {message}")
+            log_to_file(f"{level_name} alert sent: {message}", "Alert >>>")
         else:
-            log_to_file(
-                f"[{get_timestamp()}] Failed to send sensor error notification",
-                "Alert >>>"
-            )
-            print(
-                "Failed to send sensor error notification",
-                "Alert >>>",
-            )
+            print(f"[{get_timestamp()}] Failed to send {level_name} alert: {message}")
+            log_to_file(f"Failed to send {level_name} alert: {message}", "Alert >>>")
+        
+        return success
+        
     except Exception as e:
-        log_to_file(
-            f"Error sending sensor error notification: {e}", "Alert >>>"
-        )
-        print(f"Error sending sensor error notification: {e}")
-
-
-def check_time_intervals():
-    """Check if time intervals exceed limits and log warnings"""
-    try:
-        # Check launch_to_deal_time
-        if launch_to_deal_time > 20:
-            warning_message = f"launch_to_deal_time ({launch_to_deal_time:.2f}s) > 20s (Round ID: {current_round_id or 'unknown'})"
-            print(f"[{get_timestamp()}] Assertion Error: {warning_message}")
-            print("Time interval exceeds limit, but program continues to run")
-            log_to_file(warning_message, "WARNING >>>")
-            
-            # Send WebSocket error signal
-            try:
-                sys.path.append("studio_api")
-                from studio_api.ws_err_sig import send_roulette_sensor_stuck_error
-                result = asyncio.run(send_roulette_sensor_stuck_error())
-            except Exception as ws_error:
-                print(f"Failed to send WebSocket error signal: {ws_error}")
-                result = False
-                
-    except Exception as e:
-        log_to_file(f"Error checking time intervals: {e}", "ERROR >>>")
-        print(f"Error checking time intervals: {e}")
+        print(f"[{get_timestamp()}] Error sending {level_name} alert: {e}")
+        log_to_file(f"Error sending {level_name} alert: {e}", "Alert >>>")
+        return False
 
 
 async def retry_with_network_check(func, *args, max_retries=5, retry_delay=5):
     """
-    Retry function with network connectivity check
+    Retry a function with network error checking.
+
+    Args:
+        func: The function to retry
+        *args: Arguments to pass to the function
+        max_retries: Maximum number of retries
+        retry_delay: Delay between retries in seconds
+
+    Returns:
+        The result of the function call, or None if all retries failed
     """
-    for attempt in range(max_retries):
+    for attempt in range(max_retries + 1):
         try:
-            # Check network connectivity before making the call
-            if not networkChecker.check_network():
-                print(f"Network check failed on attempt {attempt + 1}, retrying in {retry_delay}s...")
+            # Check network connectivity before attempting
+            if not networkChecker():
+                print(f"[{get_timestamp()}] Network check failed, attempt {attempt + 1}/{max_retries + 1}")
+                if attempt < max_retries:
+                    await asyncio.sleep(retry_delay)
+                    continue
+                else:
+                    print(f"[{get_timestamp()}] Network check failed after {max_retries + 1} attempts")
+                    return None
+
+            # Execute the function
+            result = func(*args)
+            return result
+
+        except ConnectionError as e:
+            print(f"[{get_timestamp()}] Connection error on attempt {attempt + 1}/{max_retries + 1}: {e}")
+            if attempt < max_retries:
                 await asyncio.sleep(retry_delay)
                 continue
-            
-            # Make the API call
-            result = await func(*args)
-            return result
-            
-        except ConnectionError as e:
-            print(f"Connection error on attempt {attempt + 1}: {e}")
-            if attempt < max_retries - 1:
-                print(f"Retrying in {retry_delay}s...")
-                await asyncio.sleep(retry_delay)
             else:
-                print(f"Max retries reached, giving up")
-                raise e
+                print(f"[{get_timestamp()}] Connection error after {max_retries + 1} attempts")
+                return None
+
         except Exception as e:
-            print(f"Unexpected error on attempt {attempt + 1}: {e}")
-            if attempt < max_retries - 1:
-                print(f"Retrying in {retry_delay}s...")
+            print(f"[{get_timestamp()}] Unexpected error on attempt {attempt + 1}/{max_retries + 1}: {e}")
+            if attempt < max_retries:
                 await asyncio.sleep(retry_delay)
+                continue
             else:
-                print(f"Max retries reached, giving up")
-                raise e
-    
+                print(f"[{get_timestamp()}] Unexpected error after {max_retries + 1} attempts")
+                return None
+
     return None
+
+
+# WebSocket connection function
+async def connect_to_recorder(uri="ws://localhost:8765"):
+    """Connect to the stream recorder's WebSocket server"""
+    global ws_client, ws_connected
+    try:
+        ws_client = await websockets.connect(uri)
+        ws_connected = True
+        print(f"[{get_timestamp()}] Connected to stream recorder: {uri}")
+        log_to_file(f"Connected to stream recorder: {uri}", "WebSocket >>>")
+        return True
+    except Exception as e:
+        # print(f"[{get_timestamp()}] Failed to connect to stream recorder: {e}")
+        # log_to_file(f"Failed to connect to stream recorder: {e}", "WebSocket >>>")
+        ws_connected = False
+        return False
+
+
+# Send WebSocket message function
+async def send_to_recorder(message):
+    """Send message to stream recorder"""
+    global ws_connected
+    if not ws_connected or not ws_client:
+        # print(f"[{get_timestamp()}] Not connected to stream recorder, attempting to reconnect...")
+        # log_to_file("Not connected to stream recorder, attempting to reconnect...", "WebSocket >>>")
+        await connect_to_recorder()
+
+    if ws_connected:
+        try:
+            await ws_client.send(message)
+            response = await ws_client.recv()
+            print(f"[{get_timestamp()}] Recorder response: {response}")
+            log_to_file(f"Recorder response: {response}", "WebSocket >>>")
+            return True
+        except Exception as e:
+            print(
+                f"[{get_timestamp()}] Failed to send message to recorder: {e}"
+            )
+            log_to_file(
+                f"Failed to send message to recorder: {e}", "WebSocket >>>"
+            )
+            ws_connected = False
+            return False
+    return False
+
+
+# Start WebSocket connection async function
+async def init_websocket():
+    """Initialize WebSocket connection"""
+    await connect_to_recorder()
+
+
+# Start WebSocket connection in main thread
+def start_websocket():
+    """Start WebSocket connection in main thread"""
+    asyncio.run(init_websocket())
+
+
+# Start WebSocket connection in a separate thread
+websocket_thread = threading.Thread(target=start_websocket)
+websocket_thread.daemon = True
+websocket_thread.start()
+
+
+# Function to send sensor error notification using Alert Manager
+def send_sensor_error_to_slack():
+    """Send sensor error notification using Alert Manager for VIP Roulette table"""
+    global sensor_error_sent
+
+    if sensor_error_sent:
+        print(
+            f"[{get_timestamp()}] Sensor error already sent, skipping..."
+        )
+        return False
+
+    try:
+        if alert_manager:
+            # Use Alert Manager for critical sensor error (non-recoverable)
+            success = alert_manager.send_critical(
+                critical_message="SENSOR ERROR - Detected warning_flag=4 in *X;6 message",
+                environment="CIT-2",
+                table_name="Studio-Roulette-Test",
+                error_code="SENSOR_STUCK"
+            )
+        else:
+            # Fallback to direct Slack notification
+            success = send_error_to_slack(
+                error_message="SENSOR ERROR - Detected warning_flag=4 in *X;6 message",
+                error_code="SENSOR_STUCK",
+                table_name="VIP Roulette",
+                environment="VIP_ROULETTE",
+            )
+
+        if success:
+            sensor_error_sent = True
+            print(
+                f"[{get_timestamp()}] Sensor error notification sent successfully"
+            )
+            log_to_file(
+                "Sensor error notification sent successfully",
+                "Alert >>>",
+            )
+            return True
+        else:
+            print(
+                f"[{get_timestamp()}] Failed to send sensor error notification"
+            )
+            log_to_file(
+                "Failed to send sensor error notification",
+                "Alert >>>",
+            )
+            return False
+
+    except Exception as e:
+        print(
+            f"[{get_timestamp()}] Error sending sensor error notification: {e}"
+        )
+        log_to_file(
+            f"Error sending sensor error notification: {e}", "Alert >>>"
+        )
+        return False
+
+
+# Function to send WebSocket error signal
+def send_websocket_error_signal():
+    """Send WebSocket error signal for VIP Roulette table"""
+    try:
+        print(f"[{get_timestamp()}] Sending WebSocket error signal...")
+        log_to_file("Sending WebSocket error signal...", "WebSocket >>>")
+
+        # Run the async function and wait for completion
+        def send_ws_error():
+            try:
+                result = asyncio.run(send_roulette_sensor_stuck_error())
+                if result:
+                    print(
+                        f"[{get_timestamp()}] WebSocket error signal sent successfully"
+                    )
+                    log_to_file(
+                        "WebSocket error signal sent successfully", "WebSocket >>>"
+                    )
+                else:
+                    print(
+                        f"[{get_timestamp()}] WebSocket error signal failed"
+                    )
+                    log_to_file(
+                        "WebSocket error signal failed", "WebSocket >>>"
+                    )
+                return result
+            except Exception as e:
+                print(
+                    f"[{get_timestamp()}] Failed to send WebSocket error signal: {e}"
+                )
+                log_to_file(
+                    f"Failed to send WebSocket error signal: {e}",
+                    "WebSocket >>>",
+                )
+                return False
+
+        # Start WebSocket error signal in a separate thread and wait for completion
+        ws_thread = threading.Thread(target=send_ws_error)
+        ws_thread.daemon = True
+        ws_thread.start()
+        
+        # Wait for the WebSocket signal to complete (with timeout)
+        ws_thread.join(timeout=10)  # Wait up to 10 seconds
+        
+        if ws_thread.is_alive():
+            print(f"[{get_timestamp()}] WebSocket error signal timeout, proceeding with termination")
+            log_to_file("WebSocket error signal timeout, proceeding with termination", "WebSocket >>>")
+
+        return True
+
+    except Exception as e:
+        print(f"[{get_timestamp()}] Error sending WebSocket error signal: {e}")
+        log_to_file(
+            f"Error sending WebSocket error signal: {e}", "WebSocket >>>"
+        )
+        return False
+
+
+# Function to send start recording message
+def send_start_recording(round_id):
+    """Send start recording message"""
+    asyncio.run(send_to_recorder(f"start_recording:{round_id}"))
+
+
+# Function to send stop recording message
+def send_stop_recording():
+    """Send stop recording message"""
+    # Use a thread to execute async operation, avoid blocking main thread
+    threading.Thread(
+        target=lambda: asyncio.run(send_to_recorder("stop_recording"))
+    ).start()
+
+
+def send_command_and_wait(command, timeout=2):
+    """Send a command and wait for the expected response"""
+    # Check if serial connection is available
+    if ser is None:
+        print("Warning: Serial connection not available, cannot send command")
+        return None
+
+    ser.write((command + "\r\n").encode())
+    log_to_file(command, "Send <<<")
+
+    # Get command type (H, S, T, or R)
+    cmd_type = command[-1].lower()
+
+    # Wait for response
+    start_time = time.time()
+    while (time.time() - start_time) < timeout:
+        if ser is not None and ser.in_waiting > 0:
+            response = ser.readline().decode("utf-8").strip()
+            print("Receive >>>", response)
+            log_to_file(response, "Receive >>>")
+
+            # Check if this is the response we're waiting for
+            if response.startswith(f"*T {cmd_type}"):
+                # Parse the value from response
+                parts = response.split()
+                if len(parts) > 2:  # Make sure we have values after "*T x"
+                    return " ".join(parts[2:])  # Return only the values
+        time.sleep(0.1)
+    return None
+
+
+def get_config():
+    """Get all configuration parameters from terminal"""
+    print("\nGetting configuration parameters...")
+
+    # Store results
+    config_results = {
+        "*T H - GPH": None,
+        "*T S - Wheel Speed": None,
+        "*T T - Deceleration Distance": None,
+        "*T R - In-rim Jet Duration": None,
+    }
+
+    # Define commands and their descriptions
+    commands = [
+        ("*T H", "*T H - GPH"),
+        ("*T S", "*T S - Wheel Speed"),
+        ("*T T", "*T T - Deceleration Distance"),
+        ("*T R", "*T R - In-rim Jet Duration"),
+    ]
+
+    # Execute each command and collect responses
+    for cmd, desc in commands:
+        print(f"\nQuerying {desc}...")
+        value = send_command_and_wait(cmd)
+        if value:
+            config_results[desc] = value  # Store only the value part
+            print(f"Stored value: {desc} = {value}")  # For debugging
+        time.sleep(0.5)  # Add delay between commands
+
+    # Print all results together
+    print("\n=== Configuration Parameters ===")
+    print("-" * 50)
+    for desc, value in config_results.items():
+        if value:
+            print(f"{desc}: {value}")
+        else:
+            print(f"{desc}: No valid response")
+    print("-" * 50)
+
+
+def write_to_serial():
+    """Legacy function - functionality moved to main() for better termination control"""
+    while True:
+        try:
+            text = input("Send <<< ")
+            if text.lower() in [
+                "get_config",
+                "gc",
+            ]:  # Added "gc" as abbreviation
+                get_config()
+            else:
+                # Check if serial connection is available
+                if ser is None:
+                    print(
+                        "Warning: Serial connection not available, cannot send command"
+                    )
+                    continue
+                ser.write((text + "\r\n").encode())
+                log_to_file(text, "Send <<<")
+        except KeyboardInterrupt:
+            break
+
+
+def log_time_intervals(
+    finish_to_start, start_to_launch, launch_to_deal, deal_to_finish
+):
+    """Log time intervals to a separate file"""
+    with open("time_intervals-2api.log", "a", encoding="utf-8") as f:
+        timestamp = get_timestamp()
+        f.write(f"[{timestamp}]\n")
+        f.write(f"finish_to_start_time: {finish_to_start}\n")
+        f.write(f"start_to_launch_time: {start_to_launch}\n")
+        f.write(f"launch_to_deal_time: {launch_to_deal}\n")
+        f.write(f"deal_to_finish_time: {deal_to_finish}\n")
+        f.write("-" * 50 + "\n")
+
+    # Check if time intervals exceed limits
+    try:
+        error_message = None
+        if finish_to_start > 4:
+            error_message = f"Assertion Error: finish_to_start_time ({finish_to_start:.2f}s) > 4s"
+        elif start_to_launch > 20:
+            error_message = f"Assertion Error: start_to_launch_time ({start_to_launch:.2f}s) > 20s"
+        elif launch_to_deal > 20:
+            error_message = f"Assertion Error: launch_to_deal_time ({launch_to_deal:.2f}s) > 20s"
+        elif deal_to_finish > 2:
+            error_message = f"Assertion Error: deal_to_finish_time ({deal_to_finish:.2f}s) > 2s"
+
+        if error_message:
+            # Get current round_id
+            current_round_id = "unknown"
+            if tables and len(tables) > 0 and "round_id" in tables[0]:
+                current_round_id = tables[0]["round_id"]
+
+            # Log error to log file, including round_id
+            with open("assertion_errors.log", "a", encoding="utf-8") as f:
+                timestamp = get_timestamp()
+                f.write(
+                    f"[{timestamp}] Round ID: {current_round_id} - {error_message}\n"
+                )
+
+            # Also log to main log file
+            log_to_file(
+                f"{error_message} (Round ID: {current_round_id})", "ERROR >>>"
+            )
+
+            # Output error message to console, but don't terminate program
+            print(
+                f"\n[{get_timestamp()}] {error_message} (Round ID: {current_round_id})"
+            )
+            print("Time interval exceeds limit, but program continues to run")
+
+            # Removed program termination part
+            # sys.exit(1)
+    except Exception as e:
+        log_to_file(f"Error checking time intervals: {e}", "ERROR >>>")
+        print(f"Error checking time intervals: {e}")
 
 
 async def _execute_finish_post_async(table, token):
@@ -273,9 +645,9 @@ async def _execute_finish_post_async(table, token):
         else:  # CIT-2
             from table_api.vr import cit_vr_2
             result = await retry_with_network_check(cit_vr_2.finish_post_v2, post_url, token)
-
+            
+        print(f"Successfully ended this game round for {table['name']}")
         return result
-
     except Exception as e:
         print(f"Error executing finish_post for {table['name']}: {e}")
         return None
@@ -328,9 +700,9 @@ def execute_finish_post(table, token):
         else:  # CIT-2
             from table_api.vr import cit_vr_2
             result = cit_vr_2.finish_post_v2(post_url, token)
-
+            
+        print(f"Successfully ended this game round for {table['name']}")
         return result
-
     except Exception as e:
         print(f"Error executing finish_post for {table['name']}: {e}")
         return None
@@ -556,9 +928,10 @@ async def _execute_deal_post_async(table, token, win_num):
             result = await retry_with_network_check(
                 cit_vr_2.deal_post_v2, post_url, token, table["round_id"], str(win_num)
             )
-
+        print(
+            f"Successfully sent winning result for {table['name']}: {win_num}"
+        )
         return result
-
     except Exception as e:
         print(f"Error executing deal_post for {table['name']}: {e}")
         return None
@@ -618,9 +991,10 @@ def execute_deal_post(table, token, win_num):
             result = cit_vr_2.deal_post_v2(
                 post_url, token, table["round_id"], str(win_num)
             )
-
+        print(
+            f"Successfully sent winning result for {table['name']}: {win_num}"
+        )
         return result
-
     except Exception as e:
         print(f"Error executing deal_post for {table['name']}: {e}")
         return None
@@ -653,10 +1027,96 @@ async def _execute_broadcast_post_async(table, token):
                 cit_vr_2.broadcast_post_v2, post_url, token, "roulette.relaunch", "players", 20
             )
 
-        return result
+        if result:
+            print(
+                f"Successfully sent broadcast_post (relaunch) for {table['name']}"
+            )
+            log_to_file(
+                f"Successfully sent broadcast_post (relaunch) for {table['name']}",
+                "Broadcast >>>",
+            )
 
+            # Send success notification for successful relaunch
+            try:
+                if alert_manager:
+                    alert_manager.send_info(
+                        info_message="Roulette relaunch notification sent successfully",
+                        environment=table["name"],
+                        table_name=table.get("game_code", "Unknown")
+                    )
+                else:
+                    send_error_to_slack(
+                        error_message="Roulette relaunch notification sent successfully",
+                        environment=table["name"],
+                        table_name=table.get("game_code", "Unknown"),
+                        error_code="ROULETTE_RELAUNCH",
+                    )
+                print(f"Success notification sent for {table['name']} relaunch")
+            except Exception as alert_error:
+                print(f"Failed to send success notification: {alert_error}")
+                log_to_file(
+                    f"Failed to send success notification: {alert_error}",
+                    "Alert >>>",
+                )
+        else:
+            print(
+                f"Failed to send broadcast_post (relaunch) for {table['name']}"
+            )
+            log_to_file(
+                f"Failed to send broadcast_post (relaunch) for {table['name']}",
+                "Broadcast >>>",
+            )
+
+            # Send error notification for failed relaunch
+            try:
+                send_alert_with_retry_level(
+                    error_type=f"broadcast_post_failed_{table['name']}",
+                    message="Failed to send roulette relaunch notification",
+                    environment=table["name"],
+                    table_name=table.get("game_code", "Unknown"),
+                    error_code="ROULETTE_RELAUNCH_FAILED",
+                    is_recoverable=True
+                )
+                print(
+                    f"Error notification sent for {table['name']} relaunch failure"
+                )
+            except Exception as alert_error:
+                print(
+                    f"Failed to send error notification: {alert_error}"
+                )
+                log_to_file(
+                    f"Failed to send error notification: {alert_error}",
+                    "Alert >>>",
+                )
+
+        return result
     except Exception as e:
         print(f"Error executing broadcast_post for {table['name']}: {e}")
+        log_to_file(
+            f"Error executing broadcast_post for {table['name']}: {e}",
+            "Error >>>",
+        )
+
+        # Send exception notification
+        try:
+            send_alert_with_retry_level(
+                error_type=f"broadcast_post_exception_{table['name']}",
+                message=f"Exception during broadcast_post: {str(e)}",
+                environment=table["name"],
+                table_name=table.get("game_code", "Unknown"),
+                error_code="BROADCAST_POST_EXCEPTION",
+                is_recoverable=False
+            )
+            print(f"Exception notification sent for {table['name']}")
+        except Exception as alert_error:
+            print(
+                f"Failed to send exception notification: {alert_error}"
+            )
+            log_to_file(
+                f"Failed to send exception notification: {alert_error}",
+                "Alert >>>",
+            )
+
         return None
 
 
@@ -670,27 +1130,113 @@ def execute_broadcast_post(table, token):
             from table_api.vr import uat_vr_2
             result = uat_vr_2.broadcast_post_v2(
                 post_url, token, "roulette.relaunch", "players", 20
-            )
+            )  # , None)
         elif table["name"] == "STG-2":
             from table_api.vr import stg_vr_2
             result = stg_vr_2.broadcast_post_v2(
                 post_url, token, "roulette.relaunch", "players", 20
-            )
+            )  # , None)
         elif table["name"] == "QAT-2":
             from table_api.vr import qat_vr_2
             result = qat_vr_2.broadcast_post_v2(
                 post_url, token, "roulette.relaunch", "players", 20
-            )
+            )  # , None)
         else:  # CIT-2
             from table_api.vr import cit_vr_2
             result = cit_vr_2.broadcast_post_v2(
                 post_url, token, "roulette.relaunch", "players", 20
+            )  # , None)
+
+        if result:
+            print(
+                f"Successfully sent broadcast_post (relaunch) for {table['name']}"
+            )
+            log_to_file(
+                f"Successfully sent broadcast_post (relaunch) for {table['name']}",
+                "Broadcast >>>",
             )
 
-        return result
+            # Send success notification for successful relaunch
+            try:
+                if alert_manager:
+                    alert_manager.send_info(
+                        info_message="Roulette relaunch notification sent successfully",
+                        environment=table["name"],
+                        table_name=table.get("game_code", "Unknown")
+                    )
+                else:
+                    send_error_to_slack(
+                        error_message="Roulette relaunch notification sent successfully",
+                        environment=table["name"],
+                        table_name=table.get("game_code", "Unknown"),
+                        error_code="ROULETTE_RELAUNCH",
+                    )
+                print(f"Success notification sent for {table['name']} relaunch")
+            except Exception as alert_error:
+                print(f"Failed to send success notification: {alert_error}")
+                log_to_file(
+                    f"Failed to send success notification: {alert_error}",
+                    "Alert >>>",
+                )
+        else:
+            print(
+                f"Failed to send broadcast_post (relaunch) for {table['name']}"
+            )
+            log_to_file(
+                f"Failed to send broadcast_post (relaunch) for {table['name']}",
+                "Broadcast >>>",
+            )
 
+            # Send error notification for failed relaunch
+            try:
+                send_alert_with_retry_level(
+                    error_type=f"broadcast_post_failed_{table['name']}",
+                    message="Failed to send roulette relaunch notification",
+                    environment=table["name"],
+                    table_name=table.get("game_code", "Unknown"),
+                    error_code="ROULETTE_RELAUNCH_FAILED",
+                    is_recoverable=True
+                )
+                print(
+                    f"Error notification sent for {table['name']} relaunch failure"
+                )
+            except Exception as alert_error:
+                print(
+                    f"Failed to send error notification: {alert_error}"
+                )
+                log_to_file(
+                    f"Failed to send error notification: {alert_error}",
+                    "Alert >>>",
+                )
+
+        return result
     except Exception as e:
         print(f"Error executing broadcast_post for {table['name']}: {e}")
+        log_to_file(
+            f"Error executing broadcast_post for {table['name']}: {e}",
+            "Error >>>",
+        )
+
+        # Send exception notification
+        try:
+            send_alert_with_retry_level(
+                error_type=f"broadcast_post_exception_{table['name']}",
+                message=f"Exception during broadcast_post: {str(e)}",
+                environment=table["name"],
+                table_name=table.get("game_code", "Unknown"),
+                error_code="BROADCAST_POST_EXCEPTION",
+                is_recoverable=False
+            )
+            print(f"Exception notification sent for {table['name']}")
+        except Exception as alert_error:
+            print(
+                f"Failed to send exception notification: {alert_error}"
+            )
+            log_to_file(
+                f"Failed to send exception notification: {alert_error}",
+                "Alert >>>",
+            )
+
         return None
 
 
@@ -748,73 +1294,117 @@ def betStop_round_for_table(table, token):
 
 def main():
     """Main function for VIP Roulette Controller"""
-    global terminate_program
+    global terminate_program, alert_manager
 
     # Initialize Alert Manager
     try:
-        # Load configuration from alert_config.yaml
-        import yaml
-        config_path = "studio-alert-manager/config/alert_config.yaml"
-        with open(config_path, 'r') as f:
-            config = yaml.safe_load(f)
-        
-        # Replace environment variables in config
-        import os
-        if 'slack' in config:
-            if 'webhook_url' in config['slack']:
-                config['slack']['webhook_url'] = os.path.expandvars(config['slack']['webhook_url'])
-            if 'bot_token' in config['slack']:
-                config['slack']['bot_token'] = os.path.expandvars(config['slack']['bot_token'])
-        
-        alert_manager = AlertManager(config=config)
-        print(f"[{get_timestamp()}] Alert Manager initialized successfully")
+        # Try to load configuration from alert_config.yaml
+        try:
+            import yaml
+            config_path = "studio-alert-manager/config/alert_config.yaml"
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+            
+            # Replace environment variables in config
+            import os
+            if 'slack' in config:
+                if 'webhook_url' in config['slack']:
+                    config['slack']['webhook_url'] = os.path.expandvars(config['slack']['webhook_url'])
+                if 'bot_token' in config['slack']:
+                    config['slack']['bot_token'] = os.path.expandvars(config['slack']['bot_token'])
+            
+            alert_manager = AlertManager(config=config)
+            print(f"[{get_timestamp()}] Alert Manager initialized successfully with config file")
+        except ImportError:
+            # Fallback: Initialize AlertManager without config file
+            import os
+            alert_manager = AlertManager(
+                webhook_url=os.getenv("SLACK_WEBHOOK_URL"),
+                bot_token=os.getenv("SLACK_BOT_TOKEN"),
+                default_channel="#sdp-alerts"
+            )
+            print(f"[{get_timestamp()}] Alert Manager initialized successfully with environment variables")
     except Exception as e:
         print(f"[{get_timestamp()}] Failed to initialize Alert Manager: {e}")
         alert_manager = None
 
-    # Start serial read thread
-    print(f"[{get_timestamp()}] Serial read thread started, startup time recorded")
-    
-    # Call read_from_serial with global variables and callback functions
-    read_from_serial(
-        ser=ser,
-        tables=tables,
-        token=tables[0]["access_token"] if tables else None,
-        global_vars={
+    # Create a wrapper function for read_from_serial with all required parameters
+    def read_from_serial_wrapper():
+        # Create a dictionary containing all global state variables
+        global_vars = {
             "x2_count": x2_count,
-            "x3_count": x3_count,
-            "x4_count": x4_count,
             "x5_count": x5_count,
+            "last_x2_time": last_x2_time,
+            "last_x5_time": last_x5_time,
             "start_post_sent": start_post_sent,
             "deal_post_sent": deal_post_sent,
-            "finish_post_sent": finish_post_sent,
-            "terminate_program": terminate_program,
-            "sensor_error_sent_to_slack": sensor_error_sent_to_slack,
-            "current_round_id": current_round_id,
-            "current_bet_period": current_bet_period,
-            "ball_launch_time": ball_launch_time,
             "start_time": start_time,
-            "finish_to_start_time": finish_to_start_time,
-            "start_to_launch_time": start_to_launch_time,
-            "launch_to_deal_time": launch_to_deal_time,
-            "deal_to_finish_time": deal_to_finish_time,
-            "finish_post_time": finish_post_time,
             "deal_post_time": deal_post_time,
-            "start_post_time": start_post_time,
-            "time_intervals": time_intervals,
-        },
-        callback_functions={
-            "execute_start_post": execute_start_post,
-            "execute_deal_post": execute_deal_post,
-            "execute_finish_post": execute_finish_post,
-            "execute_broadcast_post": execute_broadcast_post,
-            "betStop_round_for_table": betStop_round_for_table,
-            "check_time_intervals": check_time_intervals,
-            "send_sensor_error_to_slack": send_sensor_error_alert,
-        },
-        get_timestamp=get_timestamp,
-        log_to_file=log_to_file,
-    )
+            "finish_post_time": finish_post_time,
+            "isLaunch": isLaunch,
+            "sensor_error_sent": sensor_error_sent,
+            "terminate_program": terminate_program,
+        }
+
+        read_from_serial(
+            ser=ser,
+            tables=tables,
+            token=token,
+            global_vars=global_vars,
+            # Callback functions
+            get_timestamp=get_timestamp,
+            log_to_file=log_to_file,
+            send_sensor_error_to_slack=send_sensor_error_to_slack,
+            execute_broadcast_post=execute_broadcast_post,
+            execute_start_post=execute_start_post,
+            execute_deal_post=execute_deal_post,
+            execute_finish_post=execute_finish_post,
+            send_start_recording=send_start_recording,
+            send_stop_recording=send_stop_recording,
+            log_time_intervals=log_time_intervals,
+        )
+
+    # Create and start read thread
+    read_thread = threading.Thread(target=read_from_serial_wrapper)
+    read_thread.daemon = True
+    read_thread.start()
+
+    # Main thread handles writing and monitors termination flag
+    try:
+        while not terminate_program:
+            try:
+                # Check for user input with timeout to allow checking termination flag
+                import select
+                import sys
+                
+                if sys.stdin in select.select([sys.stdin], [], [], 0.1)[0]:
+                    text = input("Send <<< ")
+                    if text.lower() in ["get_config", "gc"]:
+                        get_config()
+                    else:
+                        # Check if serial connection is available
+                        if ser is None:
+                            print("Warning: Serial connection not available, cannot send command")
+                            continue
+                        ser.write((text + "\r\n").encode())
+                        log_to_file(text, "Send <<<")
+            except KeyboardInterrupt:
+                break
+            except Exception as e:
+                print(f"Error in main loop: {e}")
+                time.sleep(0.1)
+        
+        # Check if program should terminate due to *X;6 sensor error
+        if terminate_program:
+            print(f"\n[{get_timestamp()}] Program terminating due to *X;6 message detection")
+            log_to_file("Program terminating due to *X;6 message detection", "Terminate >>>")
+            
+    except KeyboardInterrupt:
+        print("\nProgram ended by user")
+    finally:
+        if ser is not None:
+            ser.close()
+        print(f"[{get_timestamp()}] Program terminated")
 
 
 if __name__ == "__main__":
