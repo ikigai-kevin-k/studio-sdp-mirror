@@ -681,7 +681,51 @@ def execute_start_post(table, token):
             return table, round_id, betPeriod
         else:
             print(f"Failed to call start_post for {table['name']}")
-            return table, -1, 0
+            print(f"Attempting to finish current round on {table['name']} before retrying...")
+            
+            # Try to finish the current round
+            try:
+                if table["name"] == "UAT-2":
+                    from table_api.vr import uat_vr_2
+                    uat_vr_2.finish_post_v2(post_url, token)
+                elif table["name"] == "STG-2":
+                    from table_api.vr import stg_vr_2
+                    stg_vr_2.finish_post_v2(post_url, token)
+                elif table["name"] == "QAT-2":
+                    from table_api.vr import qat_vr_2
+                    qat_vr_2.finish_post_v2(post_url, token)
+                else:  # CIT-2
+                    from table_api.vr import cit_vr_2
+                    cit_vr_2.finish_post_v2(post_url, token)
+                
+                print(f"Successfully finished current round on {table['name']}, retrying start_post...")
+                
+                # Retry start_post after finishing
+                if table["name"] == "UAT-2":
+                    from table_api.vr import uat_vr_2
+                    round_id, betPeriod = uat_vr_2.start_post_v2(post_url, token)
+                elif table["name"] == "STG-2":
+                    from table_api.vr import stg_vr_2
+                    round_id, betPeriod = stg_vr_2.start_post_v2(post_url, token)
+                elif table["name"] == "QAT-2":
+                    from table_api.vr import qat_vr_2
+                    round_id, betPeriod = qat_vr_2.start_post_v2(post_url, token)
+                else:  # CIT-2
+                    from table_api.vr import cit_vr_2
+                    round_id, betPeriod = cit_vr_2.start_post_v2(post_url, token)
+                
+                if round_id and round_id != -1:
+                    table["round_id"] = round_id
+                    print(
+                        f"Successfully called start_post after retry for {table['name']}, round_id: {round_id}, betPeriod: {betPeriod}"
+                    )
+                    return table, round_id, betPeriod
+                else:
+                    print(f"Failed to call start_post after retry for {table['name']}")
+                    return table, -1, 0
+            except Exception as retry_error:
+                print(f"Error during finish/retry sequence for {table['name']}: {retry_error}")
+                return table, -1, 0
     except Exception as e:
         print(f"Error executing start_post for {table['name']}: {e}")
         return table, -1, 0
