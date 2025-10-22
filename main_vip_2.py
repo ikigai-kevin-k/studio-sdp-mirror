@@ -10,7 +10,7 @@ import urllib3
 from requests.exceptions import ConnectionError
 
 sys.path.append(".")  # Ensure los_api can be imported
-// Lazy environment-specific imports are performed inside functions based on table['name']
+# Lazy environment-specific imports are performed inside functions based on table['name']
 from concurrent.futures import ThreadPoolExecutor
 
 # Import Slack notification module
