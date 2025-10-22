@@ -3,41 +3,9 @@
     "name": "CIT-2",
     "get_url": "https://crystal-table.iki-cit.cc/v2/service/tables/",
     "post_url": "https://crystal-table.iki-cit.cc/v2/service/tables/",
-    "game_code": "ARO-002",
-    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI4YmY2OTdiMi01ODZjLTRhM2UtOGQ1Ni04MDM0N2M0OTk2OTciLCJnYW1lQ29kZSI6WyJBUk8tMDAyIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NDgyNDIyOTMyODYsImlhdCI6MTc0ODI0MjI5M30.knG6yjA1U_t5Nu2Y5yT0vA1r-WCV5jUKniIrpPhoKoo",
+    "game_code": "Studio-Roulette-Test",
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiJlOGM1ZDdmOC0wZjBiLTQ2NTAtYjY4My1iOTU0ODlhZDE3MTYiLCJnYW1lQ29kZSI6WyJTdHVkaW8tUm91bGV0dGUtVGVzdCJdLCJyb2xlIjoic2RwIiwiY3JlYXRlZEF0IjoxNzYxMTE4MzQ1MjAzLCJpYXQiOjE3NjExMTgzNDV9.3KdnvWP25p_dwlA65gLGr1xoFRVbvwOTFzCmb6egKVI",
     "table_token": "E5LN4END9Q"
-    },
-    {
-    "name": "UAT-2",
-    "get_url": "https://crystal-table.iki-uat.cc/v2/service/table/",
-    "post_url": "https://crystal-table.iki-uat.cc/v2/service/sdp/table/",
-    "game_code": "ARO-002",
-    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiIzODBlZDZkMS0xODk4LTRhYjMtYTk1My0zMjM3NmFkY2IyMDYiLCJnYW1lQ29kZSI6WyJBUk8tMDAyIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NDk3OTIyNzA3ODAsImlhdCI6MTc0OTc5MjI3MH0.pEAeKqh_svk6FH_IL9O-WzN-9gzOdKZJ7wgZFnyVEuA",
-    "table_token": "E5LN4END9Q"
-    },
-    {
-    "name": "PRD-2",
-    "get_url": "https://crystal-table.ikg-game.cc/v2/service/tables/",
-    "post_url": "https://crystal-table.ikg-game.cc/v2/service/tables/",
-    "game_code": "ARO-002",
-    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI2YWFmNjdmMC1lZDcwLTQzY2MtOWRmZi1jZjhlMmY5NTNhMTEiLCJnYW1lQ29kZSI6WyJBUk8tMDAyIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NDk3OTM3OTMyNTAsImlhdCI6MTc0OTc5Mzc5M30.K84ZS_QpxgsmrZMie27q5pxaKrmYDkxN_drOkrNhd9E",
-    "table_token": "E5LN4END9Q"
-    },
-    {
-      "name": "STG-2",
-      "get_url": "https://crystal-table.iki-stg.cc/v2/service/tables/",
-      "post_url": "https://crystal-table.iki-stg.cc/v2/service/tables/",
-      "game_code": "ARO-002",
-      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiIxYmNkNTNkNy1mYTJhLTQzYjAtYTgyNS01YTlhZGZmZGQ3NDIiLCJnYW1lQ29kZSI6WyJBUk8tMDAyIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NTM3NjA1MDE1ODQsImlhdCI6MTc1Mzc2MDUwMX0.EFNTTHjb4X2zs4nXVbmtrJhVDTK-Hux1LwMl5ZJtCM8",
-      "table_token": "E5LN4END9Q"
-    },
-    {
-      "name": "QAT-2",
-      "get_url": "https://crystal-table.iki-qat.cc/v2/service/tables/",
-      "post_url": "https://crystal-table.iki-qat.cc/v2/service/tables/",
-      "game_code": "ARO-002",
-      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiIxY2Q4OGRiNi04MTA1LTRmYzgtYWIyNi1jNWZkNTgwNTRlMDciLCJnYW1lQ29kZSI6WyJBUk8tMDAyIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NTE2MDY0MjcwMDgsImlhdCI6MTc1MTYwNjQyN30.BCFPedJM5Fsmr3xQ-Lel9aTz65AxzDJICyHk2xCd1jk",
-      "table_token": "E5LN4END9Q"
     }
 ]
   
