@@ -608,17 +608,23 @@ async def _execute_start_post_async(table, token):
             
             # Try to finish the current round
             try:
+                # First try to stop betting if the round is still in "opened" state
+                print(f"Attempting to stop betting on {table['name']} before finishing...")
                 if table["name"] == "UAT-2":
                     from table_api.vr import uat_vr_2
+                    await retry_with_network_check(uat_vr_2.bet_stop_post, post_url, token)
                     await retry_with_network_check(uat_vr_2.finish_post_v2, post_url, token)
                 elif table["name"] == "STG-2":
                     from table_api.vr import stg_vr_2
+                    await retry_with_network_check(stg_vr_2.bet_stop_post, post_url, token)
                     await retry_with_network_check(stg_vr_2.finish_post_v2, post_url, token)
                 elif table["name"] == "QAT-2":
                     from table_api.vr import qat_vr_2
+                    await retry_with_network_check(qat_vr_2.bet_stop_post, post_url, token)
                     await retry_with_network_check(qat_vr_2.finish_post_v2, post_url, token)
                 else:  # CIT-2
                     from table_api.vr import cit_vr_2
+                    await retry_with_network_check(cit_vr_2.bet_stop_post, post_url, token)
                     await retry_with_network_check(cit_vr_2.finish_post_v2, post_url, token)
                 
                 print(f"Successfully finished current round on {table['name']}, retrying start_post...")
@@ -685,17 +691,23 @@ def execute_start_post(table, token):
             
             # Try to finish the current round
             try:
+                # First try to stop betting if the round is still in "opened" state
+                print(f"Attempting to stop betting on {table['name']} before finishing...")
                 if table["name"] == "UAT-2":
                     from table_api.vr import uat_vr_2
+                    uat_vr_2.bet_stop_post(post_url, token)
                     uat_vr_2.finish_post_v2(post_url, token)
                 elif table["name"] == "STG-2":
                     from table_api.vr import stg_vr_2
+                    stg_vr_2.bet_stop_post(post_url, token)
                     stg_vr_2.finish_post_v2(post_url, token)
                 elif table["name"] == "QAT-2":
                     from table_api.vr import qat_vr_2
+                    qat_vr_2.bet_stop_post(post_url, token)
                     qat_vr_2.finish_post_v2(post_url, token)
                 else:  # CIT-2
                     from table_api.vr import cit_vr_2
+                    cit_vr_2.bet_stop_post(post_url, token)
                     cit_vr_2.finish_post_v2(post_url, token)
                 
                 print(f"Successfully finished current round on {table['name']}, retrying start_post...")
