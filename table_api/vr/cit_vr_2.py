@@ -40,8 +40,8 @@ if config:
     token = config["table_token"]
 else:
     # Fallback to hardcoded values if config loading fails
-    accessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiJhNDkwZTNlZC0yMjc2LTRmMGQtYWRkNy04ZTk5MjA5MjViYjMiLCJnYW1lQ29kZSI6WyJBUk8tMDAyLTIiXSwicm9sZSI6InNkcCIsImNyZWF0ZWRBdCI6MTc1ODY5NTczNDA3MCwiaWF0IjoxNzU4Njk1NzM0fQ.MhzfWkwcfGyQ-q_Rj2KbFFvF5mY9gPb2mQB3IzlmCww"
-    gameCode = "ARO-002-2"
+    accessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiJlOGM1ZDdmOC0wZjBiLTQ2NTAtYjY4My1iOTU0ODlhZDE3MTYiLCJnYW1lQ29kZSI6WyJTdHVkaW8tUm91bGV0dGUtVGVzdCJdLCJyb2xlIjoic2RwIiwiY3JlYXRlZEF0IjoxNzYxMTE4MzQ1MjAzLCJpYXQiOjE3NjExMTgzNDV9.3KdnvWP25p_dwlA65gLGr1xoFRVbvwOTFzCmb6egKVI"
+    gameCode = "Studio-Roulette-Test"
     get_url = "https://crystal-table.iki-cit.cc/v2/service/tables/" + gameCode
     post_url = "https://crystal-table.iki-cit.cc/v2/service/tables/" + gameCode
     token = "E5LN4END9Q"
