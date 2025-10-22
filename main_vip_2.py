@@ -6,6 +6,8 @@ import sys
 import json
 import asyncio
 import websockets
+import urllib3
+from requests.exceptions import ConnectionError
 
 sys.path.append(".")  # Ensure los_api can be imported
 from table_api.vr.cit_vr_2 import (
@@ -42,6 +44,9 @@ from slack import send_error_to_slack
 sys.path.append("studio_api")  # ensure studio_api module can be imported
 from studio_api.ws_err_sig import send_roulette_sensor_stuck_error
 
+# Import network checker
+from networkChecker import networkChecker
+
 # import sentry_sdk
 
 # sentry_sdk.init(
@@ -57,7 +62,7 @@ from serial_comm.serialIO import read_from_serial
 
 # Load device configuration
 def load_device_config():
-    with open("conf/vr_dev.json", "r") as f:
+    with open("conf/vr-dev.json", "r") as f:
         return json.load(f)
 
 device_config = load_device_config()
@@ -116,6 +121,56 @@ sensor_error_sent = False  # Flag to ensure sensor error is only sent once
 
 # Add program termination flag
 terminate_program = False  # Flag to terminate program when *X;6 sensor error is detected
+
+
+async def retry_with_network_check(func, *args, max_retries=5, retry_delay=5):
+    """
+    Retry a function with network error checking.
+
+    Args:
+        func: The function to retry
+        *args: Arguments to pass to the function
+        max_retries: Maximum number of retries
+        retry_delay: Delay between retries in seconds
+
+    Returns:
+        The result of the function call, or None if all retries failed
+    """
+    for attempt in range(max_retries + 1):
+        try:
+            # Check network connectivity before attempting
+            if not networkChecker():
+                print(f"[{get_timestamp()}] Network check failed, attempt {attempt + 1}/{max_retries + 1}")
+                if attempt < max_retries:
+                    await asyncio.sleep(retry_delay)
+                    continue
+                else:
+                    print(f"[{get_timestamp()}] Network check failed after {max_retries + 1} attempts")
+                    return None
+
+            # Execute the function
+            result = func(*args)
+            return result
+
+        except ConnectionError as e:
+            print(f"[{get_timestamp()}] Connection error on attempt {attempt + 1}/{max_retries + 1}: {e}")
+            if attempt < max_retries:
+                await asyncio.sleep(retry_delay)
+                continue
+            else:
+                print(f"[{get_timestamp()}] Connection error after {max_retries + 1} attempts")
+                return None
+
+        except Exception as e:
+            print(f"[{get_timestamp()}] Unexpected error on attempt {attempt + 1}/{max_retries + 1}: {e}")
+            if attempt < max_retries:
+                await asyncio.sleep(retry_delay)
+                continue
+            else:
+                print(f"[{get_timestamp()}] Unexpected error after {max_retries + 1} attempts")
+                return None
+
+    return None
 
 
 # WebSocket connection function
@@ -455,7 +510,39 @@ def log_time_intervals(
         print(f"Error checking time intervals: {e}")
 
 
+async def _execute_finish_post_async(table, token):
+    """Async version of execute_finish_post with network retry"""
+    try:
+        post_url = f"{table['post_url']}{table['game_code']}"
+        
+        # Check if round_id exists
+        if "round_id" not in table or table["round_id"] is None:
+            print(f"Error: No round_id found for {table['name']}")
+            return None
+        
+        # Import the specific module for this environment
+        if table["name"] == "UAT-2":
+            from table_api.vr import uat_vr_2
+            result = await retry_with_network_check(uat_vr_2.finish_post_v2, post_url, token)
+        elif table["name"] == "STG-2":
+            from table_api.vr import stg_vr_2
+            result = await retry_with_network_check(stg_vr_2.finish_post_v2, post_url, token)
+        elif table["name"] == "QAT-2":
+            from table_api.vr import qat_vr_2
+            result = await retry_with_network_check(qat_vr_2.finish_post_v2, post_url, token)
+        else:  # CIT-2
+            from table_api.vr import cit_vr_2
+            result = await retry_with_network_check(cit_vr_2.finish_post_v2, post_url, token)
+            
+        print(f"Successfully ended this game round for {table['name']}")
+        return result
+    except Exception as e:
+        print(f"Error executing finish_post for {table['name']}: {e}")
+        return None
+
+
 def execute_finish_post(table, token):
+    """Sync wrapper for async finish_post function"""
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
         access_token = table.get('access_token', '')
@@ -486,7 +573,41 @@ def execute_finish_post(table, token):
         return None
 
 
+async def _execute_start_post_async(table, token):
+    """Async version of execute_start_post with network retry"""
+    try:
+        post_url = f"{table['post_url']}{table['game_code']}"
+        
+        # Import the specific module for this environment
+        if table["name"] == "UAT-2":
+            from table_api.vr import uat_vr_2
+            round_id, bet_period = await retry_with_network_check(uat_vr_2.start_post_v2, post_url, token)
+        elif table["name"] == "STG-2":
+            from table_api.vr import stg_vr_2
+            round_id, bet_period = await retry_with_network_check(stg_vr_2.start_post_v2, post_url, token)
+        elif table["name"] == "QAT-2":
+            from table_api.vr import qat_vr_2
+            round_id, bet_period = await retry_with_network_check(qat_vr_2.start_post_v2, post_url, token)
+        else:  # CIT-2
+            from table_api.vr import cit_vr_2
+            round_id, bet_period = await retry_with_network_check(cit_vr_2.start_post_v2, post_url, token)
+
+        if round_id and round_id != -1:
+            table["round_id"] = round_id
+            print(
+                f"Successfully called start_post for {table['name']}, round_id: {round_id}, betPeriod: {bet_period}"
+            )
+            return table, round_id, bet_period
+        else:
+            print(f"Failed to call start_post for {table['name']}")
+            return table, -1, 0
+    except Exception as e:
+        print(f"Error executing start_post for {table['name']}: {e}")
+        return table, -1, 0
+
+
 def execute_start_post(table, token):
+    """Sync wrapper for async start_post function"""
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
         
@@ -518,7 +639,48 @@ def execute_start_post(table, token):
         return table, -1, 0
 
 
+async def _execute_deal_post_async(table, token, win_num):
+    """Async version of execute_deal_post with network retry"""
+    try:
+        post_url = f"{table['post_url']}{table['game_code']}"
+        
+        # Check if round_id exists
+        if "round_id" not in table or table["round_id"] is None:
+            print(f"Error: No round_id found for {table['name']}")
+            return None
+        
+        # Import the specific module for this environment
+        if table["name"] == "UAT-2":
+            from table_api.vr import uat_vr_2
+            result = await retry_with_network_check(
+                uat_vr_2.deal_post_v2, post_url, token, table["round_id"], str(win_num)
+            )
+        elif table["name"] == "STG-2":
+            from table_api.vr import stg_vr_2
+            result = await retry_with_network_check(
+                stg_vr_2.deal_post_v2, post_url, token, table["round_id"], str(win_num)
+            )
+        elif table["name"] == "QAT-2":
+            from table_api.vr import qat_vr_2
+            result = await retry_with_network_check(
+                qat_vr_2.deal_post_v2, post_url, token, table["round_id"], str(win_num)
+            )
+        else:  # CIT-2
+            from table_api.vr import cit_vr_2
+            result = await retry_with_network_check(
+                cit_vr_2.deal_post_v2, post_url, token, table["round_id"], str(win_num)
+            )
+        print(
+            f"Successfully sent winning result for {table['name']}: {win_num}"
+        )
+        return result
+    except Exception as e:
+        print(f"Error executing deal_post for {table['name']}: {e}")
+        return None
+
+
 def execute_deal_post(table, token, win_num):
+    """Sync wrapper for async deal_post function"""
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
         
@@ -557,8 +719,117 @@ def execute_deal_post(table, token, win_num):
         return None
 
 
+async def _execute_broadcast_post_async(table, token):
+    """Async version of execute_broadcast_post with network retry"""
+    try:
+        post_url = f"{table['post_url']}{table['game_code']}"
+        
+        # Import the specific module for this environment
+        if table["name"] == "UAT-2":
+            from table_api.vr import uat_vr_2
+            result = await retry_with_network_check(
+                uat_vr_2.broadcast_post_v2, post_url, token, "roulette.relaunch", "players", 20
+            )
+        elif table["name"] == "STG-2":
+            from table_api.vr import stg_vr_2
+            result = await retry_with_network_check(
+                stg_vr_2.broadcast_post_v2, post_url, token, "roulette.relaunch", "players", 20
+            )
+        elif table["name"] == "QAT-2":
+            from table_api.vr import qat_vr_2
+            result = await retry_with_network_check(
+                qat_vr_2.broadcast_post_v2, post_url, token, "roulette.relaunch", "players", 20
+            )
+        else:  # CIT-2
+            from table_api.vr import cit_vr_2
+            result = await retry_with_network_check(
+                cit_vr_2.broadcast_post_v2, post_url, token, "roulette.relaunch", "players", 20
+            )
+
+        if result:
+            print(
+                f"Successfully sent broadcast_post (relaunch) for {table['name']}"
+            )
+            log_to_file(
+                f"Successfully sent broadcast_post (relaunch) for {table['name']}",
+                "Broadcast >>>",
+            )
+
+            # Send Slack notification for successful relaunch
+            try:
+                send_error_to_slack(
+                    error_message="Roulette relaunch notification sent successfully",
+                    environment=table["name"],
+                    table_name=table.get("game_code", "Unknown"),
+                    error_code="ROULETTE_RELAUNCH",
+                )
+                print(f"Slack notification sent for {table['name']} relaunch")
+            except Exception as slack_error:
+                print(f"Failed to send Slack notification: {slack_error}")
+                log_to_file(
+                    f"Failed to send Slack notification: {slack_error}",
+                    "Slack >>>",
+                )
+        else:
+            print(
+                f"Failed to send broadcast_post (relaunch) for {table['name']}"
+            )
+            log_to_file(
+                f"Failed to send broadcast_post (relaunch) for {table['name']}",
+                "Broadcast >>>",
+            )
+
+            # Send Slack notification for failed relaunch
+            try:
+                send_error_to_slack(
+                    error_message="Failed to send roulette relaunch notification",
+                    environment=table["name"],
+                    table_name=table.get("game_code", "Unknown"),
+                    error_code="ROULETTE_RELAUNCH_FAILED",
+                )
+                print(
+                    f"Slack error notification sent for {table['name']} relaunch failure"
+                )
+            except Exception as slack_error:
+                print(
+                    f"Failed to send Slack error notification: {slack_error}"
+                )
+                log_to_file(
+                    f"Failed to send Slack error notification: {slack_error}",
+                    "Slack >>>",
+                )
+
+        return result
+    except Exception as e:
+        print(f"Error executing broadcast_post for {table['name']}: {e}")
+        log_to_file(
+            f"Error executing broadcast_post for {table['name']}: {e}",
+            "Error >>>",
+        )
+
+        # Send Slack notification for exception
+        try:
+            send_error_to_slack(
+                error_message=f"Exception during broadcast_post: {str(e)}",
+                environment=table["name"],
+                table_name=table.get("game_code", "Unknown"),
+                error_code="BROADCAST_POST_EXCEPTION",
+            )
+            print(f"Slack exception notification sent for {table['name']}")
+        except Exception as slack_error:
+            print(
+                f"Failed to send Slack exception notification: {slack_error}"
+            )
+            log_to_file(
+                f"Failed to send Slack exception notification: {slack_error}",
+                "Slack >>>",
+            )
+
+        return None
+
+
 def execute_broadcast_post(table, token):
-    """Execute broadcast_post to notify relaunch"""
+    """Sync wrapper for async broadcast_post function"""
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
         
@@ -666,8 +937,34 @@ def execute_broadcast_post(table, token):
         return None
 
 
+async def _betStop_round_for_table_async(table, token):
+    """Async version of betStop_round_for_table with network retry"""
+    try:
+        post_url = f"{table['post_url']}{table['game_code']}"
+        
+        # Import the specific module for this environment
+        if table["name"] == "UAT-2":
+            from table_api.vr import uat_vr_2
+            result = await retry_with_network_check(uat_vr_2.bet_stop_post, post_url, token)
+        elif table["name"] == "STG-2":
+            from table_api.vr import stg_vr_2
+            result = await retry_with_network_check(stg_vr_2.bet_stop_post, post_url, token)
+        elif table["name"] == "QAT-2":
+            from table_api.vr import qat_vr_2
+            result = await retry_with_network_check(qat_vr_2.bet_stop_post, post_url, token)
+        else:  # CIT-2
+            from table_api.vr import cit_vr_2
+            result = await retry_with_network_check(cit_vr_2.bet_stop_post, post_url, token)
+
+        return table["name"], result
+
+    except Exception as e:
+        print(f"Error in betStop_round_for_table for {table['name']}: {e}")
+        return table["name"], False
+
+
 def betStop_round_for_table(table, token):
-    """Stop betting for a single table - helper function for thread pool execution"""
+    """Sync wrapper for async betStop_round_for_table function"""
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
         
