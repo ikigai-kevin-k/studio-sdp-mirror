@@ -40,9 +40,16 @@ from table_api.vr.qat_vr_2 import (
 )
 from concurrent.futures import ThreadPoolExecutor
 
-# Import Studio Alert Manager
-sys.path.append("studio-alert-manager")
-from studio_alert_manager.alert_manager import AlertManager, AlertLevel
+# Import Studio Alert Manager (with fallback)
+try:
+    sys.path.append("studio-alert-manager")
+    from studio_alert_manager.alert_manager import AlertManager, AlertLevel
+    ALERT_MANAGER_AVAILABLE = True
+except ImportError as e:
+    print(f"[{get_timestamp()}] Alert Manager not available: {e}")
+    AlertManager = None
+    AlertLevel = None
+    ALERT_MANAGER_AVAILABLE = False
 
 # Import Slack notification module (fallback)
 sys.path.append("slack")  # ensure slack module can be imported
@@ -160,23 +167,34 @@ def send_alert_with_retry_level(error_type, message, environment, table_name=Non
     # Determine alert level based on recoverability and retry count
     if not is_recoverable:
         # Non-recoverable errors are always ERROR level
-        alert_level = AlertLevel.ERROR
+        alert_level = "ERROR"
         level_name = "ERROR"
     elif retry_counts[error_type] == 1:
         # First occurrence of recoverable error is WARNING
-        alert_level = AlertLevel.WARNING
+        alert_level = "WARNING"
         level_name = "WARNING"
     else:
         # Subsequent occurrences of recoverable error are ERROR
-        alert_level = AlertLevel.ERROR
+        alert_level = "ERROR"
         level_name = "ERROR"
     
     try:
-        if alert_manager:
+        if alert_manager and ALERT_MANAGER_AVAILABLE:
+            # Convert string alert level to AlertLevel enum if available
+            if AlertLevel:
+                if alert_level == "WARNING":
+                    level_enum = AlertLevel.WARNING
+                elif alert_level == "ERROR":
+                    level_enum = AlertLevel.ERROR
+                else:
+                    level_enum = AlertLevel.INFO
+            else:
+                level_enum = None
+            
             success = alert_manager.send_alert(
                 message=f"{message} (Attempt {retry_counts[error_type]})",
                 environment=environment,
-                alert_level=alert_level,
+                alert_level=level_enum,
                 table_name=table_name,
                 error_code=error_code
             )
@@ -1297,35 +1315,39 @@ def main():
     global terminate_program, alert_manager
 
     # Initialize Alert Manager
-    try:
-        # Try to load configuration from alert_config.yaml
+    if ALERT_MANAGER_AVAILABLE:
         try:
-            import yaml
-            config_path = "studio-alert-manager/config/alert_config.yaml"
-            with open(config_path, 'r') as f:
-                config = yaml.safe_load(f)
-            
-            # Replace environment variables in config
-            import os
-            if 'slack' in config:
-                if 'webhook_url' in config['slack']:
-                    config['slack']['webhook_url'] = os.path.expandvars(config['slack']['webhook_url'])
-                if 'bot_token' in config['slack']:
-                    config['slack']['bot_token'] = os.path.expandvars(config['slack']['bot_token'])
-            
-            alert_manager = AlertManager(config=config)
-            print(f"[{get_timestamp()}] Alert Manager initialized successfully with config file")
-        except ImportError:
-            # Fallback: Initialize AlertManager without config file
-            import os
-            alert_manager = AlertManager(
-                webhook_url=os.getenv("SLACK_WEBHOOK_URL"),
-                bot_token=os.getenv("SLACK_BOT_TOKEN"),
-                default_channel="#sdp-alerts"
-            )
-            print(f"[{get_timestamp()}] Alert Manager initialized successfully with environment variables")
-    except Exception as e:
-        print(f"[{get_timestamp()}] Failed to initialize Alert Manager: {e}")
+            # Try to load configuration from alert_config.yaml
+            try:
+                import yaml
+                config_path = "studio-alert-manager/config/alert_config.yaml"
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+                
+                # Replace environment variables in config
+                import os
+                if 'slack' in config:
+                    if 'webhook_url' in config['slack']:
+                        config['slack']['webhook_url'] = os.path.expandvars(config['slack']['webhook_url'])
+                    if 'bot_token' in config['slack']:
+                        config['slack']['bot_token'] = os.path.expandvars(config['slack']['bot_token'])
+                
+                alert_manager = AlertManager(config=config)
+                print(f"[{get_timestamp()}] Alert Manager initialized successfully with config file")
+            except ImportError:
+                # Fallback: Initialize AlertManager without config file
+                import os
+                alert_manager = AlertManager(
+                    webhook_url=os.getenv("SLACK_WEBHOOK_URL"),
+                    bot_token=os.getenv("SLACK_BOT_TOKEN"),
+                    default_channel="#sdp-alerts"
+                )
+                print(f"[{get_timestamp()}] Alert Manager initialized successfully with environment variables")
+        except Exception as e:
+            print(f"[{get_timestamp()}] Failed to initialize Alert Manager: {e}")
+            alert_manager = None
+    else:
+        print(f"[{get_timestamp()}] Alert Manager not available, using direct Slack notifications")
         alert_manager = None
 
     # Create a wrapper function for read_from_serial with all required parameters
