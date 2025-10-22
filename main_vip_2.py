@@ -15,24 +15,28 @@ from table_api.vr.cit_vr_2 import (
     deal_post_v2,
     finish_post_v2,
     broadcast_post_v2,
+    bet_stop_post,
 )
 from table_api.vr.uat_vr_2 import (
     start_post_v2 as start_post_v2_uat,
     deal_post_v2 as deal_post_v2_uat,
     finish_post_v2 as finish_post_v2_uat,
     broadcast_post_v2 as broadcast_post_v2_uat,
+    bet_stop_post as bet_stop_post_uat,
 )
 from table_api.vr.stg_vr_2 import (
     start_post_v2 as start_post_v2_stg,
     deal_post_v2 as deal_post_v2_stg,
     finish_post_v2 as finish_post_v2_stg,
     broadcast_post_v2 as broadcast_post_v2_stg,
+    bet_stop_post as bet_stop_post_stg,
 )
 from table_api.vr.qat_vr_2 import (
     start_post_v2 as start_post_v2_qat,
     deal_post_v2 as deal_post_v2_qat,
     finish_post_v2 as finish_post_v2_qat,
     broadcast_post_v2 as broadcast_post_v2_qat,
+    bet_stop_post as bet_stop_post_qat,
 )
 from concurrent.futures import ThreadPoolExecutor
 
