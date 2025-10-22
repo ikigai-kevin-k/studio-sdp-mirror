@@ -46,7 +46,7 @@ try:
     from studio_alert_manager.alert_manager import AlertManager, AlertLevel
     ALERT_MANAGER_AVAILABLE = True
 except ImportError as e:
-    print(f"[{get_timestamp()}] Alert Manager not available: {e}")
+    print(f"Alert Manager not available: {e}")
     AlertManager = None
     AlertLevel = None
     ALERT_MANAGER_AVAILABLE = False
