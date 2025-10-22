@@ -519,10 +519,33 @@ async def _execute_finish_post_async(table, token):
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
         
-        # Check if round_id exists
+        # Check if round_id exists, if not try to get it from table status
         if "round_id" not in table or table["round_id"] is None:
-            print(f"Error: No round_id found for {table['name']}")
-            return None
+            print(f"No round_id found for {table['name']}, attempting to get current round_id from table status...")
+            try:
+                # Try to get current round_id from table status
+                if table["name"] == "UAT-2":
+                    from table_api.vr import uat_vr_2
+                    current_round_id = uat_vr_2.get_roundID(post_url, token)
+                elif table["name"] == "STG-2":
+                    from table_api.vr import stg_vr_2
+                    current_round_id = stg_vr_2.get_roundID(post_url, token)
+                elif table["name"] == "QAT-2":
+                    from table_api.vr import qat_vr_2
+                    current_round_id = qat_vr_2.get_roundID(post_url, token)
+                else:  # CIT-2
+                    from table_api.vr import cit_vr_2
+                    current_round_id = cit_vr_2.get_roundID(post_url, token)
+                
+                if current_round_id:
+                    table["round_id"] = current_round_id
+                    print(f"Retrieved current round_id: {current_round_id}")
+                else:
+                    print(f"Error: No round_id found for {table['name']}")
+                    return None
+            except Exception as e:
+                print(f"Error retrieving round_id for {table['name']}: {e}")
+                return None
         
         # Import the specific module for this environment
         if table["name"] == "UAT-2":
@@ -551,10 +574,33 @@ def execute_finish_post(table, token):
         post_url = f"{table['post_url']}{table['game_code']}"
         access_token = table.get('access_token', '')
         
-        # Check if round_id exists
+        # Check if round_id exists, if not try to get it from table status
         if "round_id" not in table or table["round_id"] is None:
-            print(f"Error: No round_id found for {table['name']}")
-            return None
+            print(f"No round_id found for {table['name']}, attempting to get current round_id from table status...")
+            try:
+                # Try to get current round_id from table status
+                if table["name"] == "UAT-2":
+                    from table_api.vr import uat_vr_2
+                    current_round_id = uat_vr_2.get_roundID(post_url, token)
+                elif table["name"] == "STG-2":
+                    from table_api.vr import stg_vr_2
+                    current_round_id = stg_vr_2.get_roundID(post_url, token)
+                elif table["name"] == "QAT-2":
+                    from table_api.vr import qat_vr_2
+                    current_round_id = qat_vr_2.get_roundID(post_url, token)
+                else:  # CIT-2
+                    from table_api.vr import cit_vr_2
+                    current_round_id = cit_vr_2.get_roundID(post_url, token)
+                
+                if current_round_id:
+                    table["round_id"] = current_round_id
+                    print(f"Retrieved current round_id: {current_round_id}")
+                else:
+                    print(f"Error: No round_id found for {table['name']}")
+                    return None
+            except Exception as e:
+                print(f"Error retrieving round_id for {table['name']}: {e}")
+                return None
         
         # Import the specific module for this environment
         if table["name"] == "UAT-2":
@@ -748,10 +794,33 @@ async def _execute_deal_post_async(table, token, win_num):
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
         
-        # Check if round_id exists
+        # Check if round_id exists, if not try to get it from table status
         if "round_id" not in table or table["round_id"] is None:
-            print(f"Error: No round_id found for {table['name']}")
-            return None
+            print(f"No round_id found for {table['name']}, attempting to get current round_id from table status...")
+            try:
+                # Try to get current round_id from table status
+                if table["name"] == "UAT-2":
+                    from table_api.vr import uat_vr_2
+                    current_round_id = uat_vr_2.get_roundID(post_url, token)
+                elif table["name"] == "STG-2":
+                    from table_api.vr import stg_vr_2
+                    current_round_id = stg_vr_2.get_roundID(post_url, token)
+                elif table["name"] == "QAT-2":
+                    from table_api.vr import qat_vr_2
+                    current_round_id = qat_vr_2.get_roundID(post_url, token)
+                else:  # CIT-2
+                    from table_api.vr import cit_vr_2
+                    current_round_id = cit_vr_2.get_roundID(post_url, token)
+                
+                if current_round_id:
+                    table["round_id"] = current_round_id
+                    print(f"Retrieved current round_id: {current_round_id}")
+                else:
+                    print(f"Error: No round_id found for {table['name']}")
+                    return None
+            except Exception as e:
+                print(f"Error retrieving round_id for {table['name']}: {e}")
+                return None
         
         # Import the specific module for this environment
         if table["name"] == "UAT-2":
@@ -788,10 +857,33 @@ def execute_deal_post(table, token, win_num):
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
         
-        # Check if round_id exists
+        # Check if round_id exists, if not try to get it from table status
         if "round_id" not in table or table["round_id"] is None:
-            print(f"Error: No round_id found for {table['name']}")
-            return None
+            print(f"No round_id found for {table['name']}, attempting to get current round_id from table status...")
+            try:
+                # Try to get current round_id from table status
+                if table["name"] == "UAT-2":
+                    from table_api.vr import uat_vr_2
+                    current_round_id = uat_vr_2.get_roundID(post_url, token)
+                elif table["name"] == "STG-2":
+                    from table_api.vr import stg_vr_2
+                    current_round_id = stg_vr_2.get_roundID(post_url, token)
+                elif table["name"] == "QAT-2":
+                    from table_api.vr import qat_vr_2
+                    current_round_id = qat_vr_2.get_roundID(post_url, token)
+                else:  # CIT-2
+                    from table_api.vr import cit_vr_2
+                    current_round_id = cit_vr_2.get_roundID(post_url, token)
+                
+                if current_round_id:
+                    table["round_id"] = current_round_id
+                    print(f"Retrieved current round_id: {current_round_id}")
+                else:
+                    print(f"Error: No round_id found for {table['name']}")
+                    return None
+            except Exception as e:
+                print(f"Error retrieving round_id for {table['name']}: {e}")
+                return None
         
         # Import the specific module for this environment
         if table["name"] == "UAT-2":
