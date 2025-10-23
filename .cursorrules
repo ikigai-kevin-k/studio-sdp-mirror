@@ -1,0 +1,306 @@
+# Studio SDP Roulette System - Cursor Rules
+# Development rules for casino gaming system to maximize development efficiency and minimize bugs
+
+## Project Overview
+This is a multi-game type casino control system supporting:
+- Roulette - RS232 serial communication + LOS API integration
+- SicBo - MQTT communication + IDP image detection
+- Baccarat - HID barcode scanner integration
+
+## Core Technology Stack
+- Python 3.12+
+- Serial communication (pyserial)
+- MQTT communication (paho-mqtt, asyncio-mqtt)
+- WebSocket communication
+- State machine architecture
+- Docker containerization
+- Slack notification integration
+
+## Code Style and Standards
+
+### 1. Code Formatting
+- Use Black formatter with 79 character line length limit
+- Use flake8 for code linting
+- All comments must be in English
+- Functions and variables use snake_case
+- Classes use PascalCase
+- Constants use UPPER_CASE
+
+### 2. File Structure Standards
+```
+studio-sdp-roulette/
+├── main_*.py              # Main game controllers
+├── mqtt/                  # MQTT communication modules
+├── serial_comm/           # Serial communication modules
+├── studio_api/            # WebSocket API modules
+├── table_api/             # LOS API integration
+├── slack/                 # Slack notification modules
+├── conf/                  # Configuration files
+├── tests/                 # Test files
+└── proto/                 # Communication protocol definitions
+```
+
+### 3. Error Handling Patterns
+- All serial operations must include try-catch
+- MQTT operations must have reconnection mechanisms
+- WebSocket connections must have error handling
+- API calls must have network error checking
+- Use `networkChecker` to check network errors
+
+### 4. Logging Standards
+- Use `get_timestamp()` to get timestamps
+- Use `log_to_file()` to log to files
+- Important operations must be logged
+- Errors must be logged with detailed information
+- Use structured logging format
+
+## Development Best Practices
+
+### 1. Serial Communication Development
+```python
+# ✅ Correct serial reading pattern
+def read_from_serial(ser, callback_func):
+    try:
+        if ser.in_waiting > 0:
+            data = ser.read(ser.in_waiting).decode('utf-8', errors='ignore')
+            # Process data
+            callback_func(data)
+    except Exception as e:
+        log_to_file(f"Serial read error: {e}", "ERROR >>>")
+        # Reconnection logic
+```
+
+### 2. MQTT Communication Development
+```python
+# ✅ Use CompleteMQTTSystem
+from mqtt.complete_system import CompleteMQTTSystem, GameType, Environment
+
+system = CompleteMQTTSystem(
+    game_type=GameType.ROULETTE,
+    environment=Environment.DEVELOPMENT
+)
+await system.initialize()
+```
+
+### 3. State Machine Development
+```python
+# ✅ State machine pattern
+class GameState(Enum):
+    INITIALIZING = "initializing"
+    RUNNING = "running"
+    ERROR = "error"
+    STOPPING = "stopping"
+    STOPPED = "stopped"
+```
+
+### 4. Configuration Management
+```python
+# ✅ Configuration file loading
+def load_config(config_name):
+    possible_paths = [
+        f"conf/{config_name}",
+        os.path.join(os.path.dirname(__file__), "conf", config_name),
+        f"/home/rnd/studio-sdp-roulette/conf/{config_name}"
+    ]
+    # Try multiple paths
+```
+
+## Common Error Prevention
+
+### 1. Serial Communication Errors
+- ❌ Avoid using `ser.readline()` blocking read
+- ✅ Use `ser.read(ser.in_waiting)` non-blocking read
+- ✅ Set appropriate timeout (0.1-0.5 seconds)
+- ✅ Enable hardware flow control (RTS/CTS)
+
+### 2. MQTT Communication Errors
+- ❌ Avoid using paho-mqtt client directly
+- ✅ Use unified CompleteMQTTSystem
+- ✅ Implement automatic reconnection mechanism
+- ✅ Use connection pool management
+
+### 3. WebSocket Communication Errors
+- ❌ Avoid synchronous WebSocket operations
+- ✅ Use asyncio asynchronous operations
+- ✅ Implement connection status checking
+- ✅ Handle connection interruption scenarios
+
+### 4. API Integration Errors
+- ❌ Avoid direct HTTP requests
+- ✅ Use `retry_with_network_check` wrapper
+- ✅ Check network error types
+- ✅ Implement appropriate retry mechanisms
+
+## Testing Standards
+
+### 1. Test File Naming
+- Unit tests: `test_*.py`
+- Integration tests: `test_*_integration.py`
+- Mock tests: `mock_*.py`
+
+### 2. Test Structure
+```python
+# ✅ Test structure
+async def test_functionality():
+    """Test description in English"""
+    logger.info("=" * 60)
+    logger.info("Testing Functionality")
+    logger.info("=" * 60)
+    
+    try:
+        # Test implementation
+        result = await function_under_test()
+        assert result is not None
+        logger.info("✅ Test passed")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Test failed: {e}")
+        return False
+```
+
+### 3. Mock Testing
+- Use `mock_ws_server.py` for WebSocket testing
+- Use `mock_serial` for serial testing
+- Use `mock_mqtt` for MQTT testing
+
+## Deployment and Containerization
+
+### 1. Docker Configuration
+- Use `daemon/Dockerfile` for containerization
+- Use `docker-compose.yml` for service orchestration
+- Set appropriate environment variables
+
+### 2. Configuration Management
+- Use JSON configuration files
+- Support multi-environment configuration (dev, staging, production)
+- Use environment variables to override configuration
+
+## Monitoring and Notifications
+
+### 1. Slack Notifications
+```python
+# ✅ Slack notification pattern
+from slack import send_error_to_slack
+
+send_error_to_slack(
+    error_message="Error description",
+    error_code="ERROR_CODE",
+    table_name="Table Name",
+    environment="Environment"
+)
+```
+
+### 2. Log Monitoring
+- Use structured logging
+- Log critical operation timestamps
+- Implement log rotation
+
+## Performance Optimization
+
+### 1. Asynchronous Processing
+- Use asyncio for asynchronous operations
+- Avoid blocking main thread
+- Use ThreadPoolExecutor for CPU-intensive tasks
+
+### 2. Memory Management
+- Clean up resources promptly
+- Use context managers
+- Avoid memory leaks
+
+### 3. Network Optimization
+- Use connection pools
+- Implement appropriate retry mechanisms
+- Set reasonable timeout values
+
+## Security Considerations
+
+### 1. Sensitive Information
+- Do not hardcode passwords in code
+- Use environment variables to manage sensitive information
+- Implement appropriate access controls
+
+### 2. Communication Security
+- Use TLS/SSL encrypted communication
+- Validate communication protocols
+- Implement appropriate authentication mechanisms
+
+## Debugging Guide
+
+### 1. Common Issues
+- Serial communication blocking: Check hardware connections and drivers
+- MQTT connection failure: Check network and broker settings
+- WebSocket interruption: Check server status and network connectivity
+- API call failure: Check network and authentication information
+
+### 2. Debugging Tools
+- Use `serial_diagnostics.py` to diagnose serial issues
+- Use `networkChecker` to check network errors
+- Use log files to analyze problems
+
+## Code Review Checklist
+
+### 1. Functionality Check
+- [ ] Is error handling complete?
+- [ ] Is logging appropriate?
+- [ ] Is resource cleanup correct?
+- [ ] Are asynchronous operations correct?
+
+### 2. Performance Check
+- [ ] Are there memory leaks?
+- [ ] Are there blocking operations?
+- [ ] Are timeout settings appropriate?
+- [ ] Are retry mechanisms appropriate?
+
+### 3. Security Check
+- [ ] Is there sensitive information leakage?
+- [ ] Are access controls appropriate?
+- [ ] Is input validation appropriate?
+- [ ] Is error handling appropriate?
+
+## Project-Specific Rules
+
+### 1. Game State Management
+- Use state machine pattern to manage game states
+- Implement appropriate state transitions
+- Handle state exception scenarios
+
+### 2. Hardware Integration
+- Implement hardware status monitoring
+- Handle hardware failure scenarios
+- Implement hardware reconnection mechanisms
+
+### 3. Multi-Environment Support
+- Support development, testing, and production environments
+- Use appropriate configuration files
+- Implement environment-specific functionality
+
+## Code Generation Guidelines
+
+When generating code, follow these principles:
+
+1. **Prioritize existing modules and functions**
+   - Use `CompleteMQTTSystem` instead of direct MQTT client
+   - Use `retry_with_network_check` to wrap API calls
+   - Use existing logging and error handling functions
+
+2. **Implement complete error handling**
+   - All operations that may fail must have try-catch
+   - Implement appropriate retry mechanisms
+   - Log detailed error information
+
+3. **Use asynchronous programming**
+   - Prioritize asyncio for asynchronous operations
+   - Avoid blocking main thread
+   - Use appropriate concurrency control
+
+4. **Follow project architecture**
+   - Use existing state machine patterns
+   - Follow existing module structure
+   - Use existing configuration management methods
+
+5. **Implement appropriate testing**
+   - Write tests for new features
+   - Use existing test frameworks
+   - Implement appropriate mock testing
+
+These rules will help you develop and maintain the Studio SDP Roulette system more effectively, reducing bugs and improving code quality.

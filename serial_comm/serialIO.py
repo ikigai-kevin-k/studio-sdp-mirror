@@ -9,6 +9,12 @@ import time
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
+# Import log redirector for separated logging
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from log_redirector import log_mqtt, log_api, log_serial, log_console, get_timestamp
+
 
 def read_from_serial(
     ser,
@@ -41,19 +47,17 @@ def read_from_serial(
 
     # Set startup time for startup condition detection
     read_from_serial.startup_time = time.time()
-    print(f"[{get_timestamp()}] Serial read thread started, startup time recorded")
+    log_serial("Serial read thread started, startup time recorded")
 
     while True:
         # Check if program should terminate
         if global_vars.get("terminate_program", False):
-            print(f"[{get_timestamp()}] Serial read thread terminating due to program termination flag")
+            log_serial("Serial read thread terminating due to program termination flag")
             break
             
         # Check if serial connection is available
         if ser is None:
-            print(
-                "Warning: Serial connection not available, skipping serial read"
-            )
+            log_serial("Warning: Serial connection not available, skipping serial read")
             time.sleep(5)  # Wait 5 seconds before checking again
             continue
 
@@ -74,7 +78,7 @@ def read_from_serial(
                 )
                 line = line.strip()
                 if line:
-                    print("Receive >>>", line)
+                    log_serial(f"Receive >>> {line}")
                     log_to_file(line, "Receive >>>")
                     data = line  # Use the current line for processing
 
@@ -465,7 +469,7 @@ def read_from_serial(
                                     if tables and len(tables) > 0 and "round_id" in tables[0]:
                                         current_round_id = tables[0]["round_id"]
                                     
-                                    print(f"[{get_timestamp()}] Calling Roulette detect after *u 1 command...")
+                                    log_mqtt("Calling Roulette detect after *u 1 command...")
                                     log_to_file("Calling Roulette detect after *u 1 command...", "MQTT >>>")
                                     
                                     # Call detect in a separate thread to avoid blocking
@@ -476,8 +480,11 @@ def read_from_serial(
                                                 input_stream="rtmp://192.168.88.50:1935/live/r10_sr"
                                             )
                                             if success:
-                                                print(f"[{get_timestamp()}] First Roulette detect completed: {result}")
-                                                log_to_file(f"First Roulette detect completed: {result}", "MQTT >>>")
+                                                # Only print result if it's not empty/null
+                                                if result is not None and result != "" and result != []:
+                                                    print(f"[{get_timestamp()}] First Roulette detect completed: {result}")
+                                                    log_to_file(f"First Roulette detect completed: {result}", "MQTT >>>")
+                                                # Don't print anything for empty results to keep terminal clean
                                             else:
                                                 print(f"[{get_timestamp()}] First Roulette detect failed")
                                                 log_to_file("First Roulette detect failed", "MQTT >>>")
@@ -546,7 +553,7 @@ def read_from_serial(
                             if tables and len(tables) > 0 and "round_id" in tables[0]:
                                 current_round_id = tables[0]["round_id"]
                             
-                            print(f"[{get_timestamp()}] Detected *X;4 - Calling second Roulette detect...")
+                            log_mqtt("Detected *X;4 - Calling second Roulette detect...")
                             log_to_file("Detected *X;4 - Calling second Roulette detect...", "MQTT >>>")
                             
                             # Call detect in a separate thread to avoid blocking
@@ -557,8 +564,11 @@ def read_from_serial(
                                         input_stream="rtmp://192.168.88.50:1935/live/r10_sr"
                                     )
                                     if success:
-                                        print(f"[{get_timestamp()}] Second Roulette detect completed: {result}")
-                                        log_to_file(f"Second Roulette detect completed: {result}", "MQTT >>>")
+                                        # Only print result if it's not empty/null
+                                        if result is not None and result != "" and result != []:
+                                            print(f"[{get_timestamp()}] Second Roulette detect completed: {result}")
+                                            log_to_file(f"Second Roulette detect completed: {result}", "MQTT >>>")
+                                        # Don't print anything for empty results to keep terminal clean
                                     else:
                                         print(f"[{get_timestamp()}] Second Roulette detect failed")
                                         log_to_file("Second Roulette detect failed", "MQTT >>>")

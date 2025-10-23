@@ -9,6 +9,9 @@ import websockets
 import urllib3
 from requests.exceptions import ConnectionError
 
+# Import log redirector for separated logging
+from log_redirector import log_mqtt, log_api, log_serial, log_console, get_timestamp
+
 sys.path.append(".")  # Ensure los_api can be imported
 from table_api.sr.api_v2_sr import (
     start_post_v2,
@@ -163,23 +166,24 @@ ser = create_serial_connection(
 )
 
 
-def get_timestamp():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-
+# Use log redirector functions instead of local implementations
+# get_timestamp is imported from log_redirector
 
 def log_to_file(message, direction):
-    try:
-        with open("self-test-2api.log", "a", encoding="utf-8") as f:
-            timestamp = get_timestamp()
-            f.write(f"[{timestamp}] {direction} {message}\n")
-    except PermissionError:
-        # If permission denied, just print to console
-        timestamp = get_timestamp()
-        print(f"[{timestamp}] {direction} {message}")
-    except Exception as e:
-        # If any other error, just print to console
-        timestamp = get_timestamp()
-        print(f"[{timestamp}] {direction} {message}")
+    """
+    Legacy log_to_file function - now redirects to appropriate log type
+    Determines log type based on direction and message content
+    """
+    # Determine log type based on direction and message content
+    if "MQTT" in direction or "mqtt" in message.lower():
+        log_mqtt(message, direction)
+    elif "API" in direction or "api" in message.lower() or "post" in message.lower():
+        log_api(message, direction)
+    elif "Serial" in direction or "serial" in message.lower() or "Receive" in direction or "Send" in direction:
+        log_serial(message, direction)
+    else:
+        # Default to console for important messages
+        log_console(message, direction)
 
 
 # Load table configuration
@@ -476,11 +480,11 @@ def send_command_and_wait(command, timeout=2):
     """Send a command and wait for the expected response"""
     # Check if serial connection is available
     if ser is None:
-        print("Warning: Serial connection not available, cannot send command")
+        log_serial("Warning: Serial connection not available, cannot send command")
         return None
 
     ser.write((command + "\r\n").encode())
-    log_to_file(command, "Send <<<")
+    log_serial(command, "Send <<<")
 
     # Get command type (H, S, T, or R)
     cmd_type = command[-1].lower()
@@ -490,7 +494,7 @@ def send_command_and_wait(command, timeout=2):
     while (time.time() - start_time) < timeout:
         if ser is not None and ser.in_waiting > 0:
             response = ser.readline().decode("utf-8").strip()
-            print("Receive >>>", response)
+            log_serial(f"Receive >>> {response}")
             log_to_file(response, "Receive >>>")
 
             # Check if this is the response we're waiting for
@@ -987,7 +991,7 @@ def main():
     global terminate_program, ws_connected, ws_client
 
     # Initialize Roulette MQTT system
-    print(f"[{get_timestamp()}] Starting Roulette MQTT system initialization...")
+    log_mqtt("Starting Roulette MQTT system initialization...")
     asyncio.run(initialize_roulette_mqtt_system())
 
     # Create a dictionary containing all global state variables
