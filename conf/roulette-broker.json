@@ -1,14 +1,14 @@
 {
     "brokers": [
         {
-            "broker": "192.168.20.10",
+            "broker": "192.168.20.9",
             "port": 1883,
             "username": "PFC",
             "password": "wago",
             "priority": 1
         },
         {
-            "broker": "192.168.20.9",
+            "broker": "192.168.20.10",
             "port": 1883,
             "username": "PFC",
             "password": "wago",
@@ -16,10 +16,10 @@
         }
     ],
     "game_config": {
-        "game_type": "baccarat",
-        "game_code": "BAC-001",
-        "command_topic": "ikg/idp/BAC-001/command",
-        "response_topic": "ikg/idp/BAC-001/response",
+        "game_type": "roulette",
+        "game_code": "ROU-001",
+        "command_topic": "ikg/idp/ROU-001/command",
+        "response_topic": "ikg/idp/ROU-001/response",
         "timeout": 10,
         "retry_count": 3,
         "retry_delay": 1.0

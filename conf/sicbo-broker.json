@@ -19,6 +19,18 @@
         "game_type": "sicbo",
         "game_code": "SBO-001",
         "command_topic": "ikg/idp/SBO-001/command",
-        "response_topic": "ikg/idp/SBO-001/response"
-    }
+        "response_topic": "ikg/idp/SBO-001/response",
+        "shaker_topic": "ikg/sicbo/Billy-III/listens",
+        "status_topic": "ikg/sicbo/Billy-III/says",
+        "timeout": 10,
+        "retry_count": 3,
+        "retry_delay": 1.0
+    },
+    "environment": "development",
+    "log_level": "INFO",
+    "max_history_size": 100,
+    "reconnect_delay": 5.0,
+    "max_connection_attempts": 3,
+    "default_username": "PFC",
+    "default_password": "wago"
 }

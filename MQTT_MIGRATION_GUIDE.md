@@ -224,11 +224,78 @@ python mqtt/demo_unified_client.py
 - [ ] 錯誤處理和重連
 - [ ] 不同遊戲類型的支援
 
+## 第二階段：統一的 MQTT 配置管理類別
+
+### 新增功能
+
+第二個重構階段建立了統一的 MQTT 配置管理系統：
+
+#### 1. **MQTTConfigManager 類別**
+- 集中管理所有 MQTT 配置
+- 支援 JSON 配置檔案載入
+- 環境切換支援 (development, staging, production)
+- 配置驗證和錯誤處理
+
+#### 2. **配置檔案格式**
+```json
+{
+    "brokers": [
+        {
+            "broker": "192.168.20.9",
+            "port": 1883,
+            "username": "PFC",
+            "password": "wago",
+            "priority": 1
+        }
+    ],
+    "game_config": {
+        "game_type": "sicbo",
+        "game_code": "SBO-001",
+        "command_topic": "ikg/idp/SBO-001/command",
+        "response_topic": "ikg/idp/SBO-001/response",
+        "shaker_topic": "ikg/sicbo/Billy-III/listens",
+        "timeout": 10,
+        "retry_count": 3
+    },
+    "environment": "development",
+    "log_level": "INFO"
+}
+```
+
+#### 3. **使用範例**
+```python
+from mqtt.config_manager import get_config, GameType, Environment
+
+# 載入配置
+config = get_config(GameType.SICBO, Environment.DEVELOPMENT)
+
+# 使用配置建立客戶端
+client = UnifiedMQTTClient(
+    client_id=config.client_id,
+    broker_configs=config.brokers,
+    default_username=config.default_username,
+    default_password=config.default_password
+)
+```
+
+#### 4. **統一控制器**
+- `UnifiedGameController` 基礎類別
+- `UnifiedSicboController` Sicbo 控制器
+- `UnifiedBaccaratController` Baccarat 控制器
+- `UnifiedRouletteController` Roulette 控制器
+
+### 新增檔案
+- `mqtt/config_manager.py` - 配置管理類別
+- `mqtt/demo_config_manager.py` - 配置管理器示範
+- `mqtt/unified_controllers.py` - 統一遊戲控制器
+- `conf/roulette-broker.json` - Roulette 配置檔案
+
 ## 後續步驟
 
-1. **第二階段**：建立統一的 MQTT 配置管理類別
-2. **第三階段**：建立統一的 MQTT 訊息處理器
-3. **第四階段**：建立連線管理器
+1. ✅ **第一階段**：統一的 MQTT 基礎客戶端類別 - 已完成
+2. ✅ **第二階段**：統一的 MQTT 配置管理類別 - 已完成
+3. **第三階段**：建立統一的 MQTT 訊息處理器
+4. **第四階段**：建立連線管理器
 
 ## 注意事項
 
