@@ -1,0 +1,3 @@
+#!/bin/bash
+# Simple reload command
+echo "reload" > ~/sdp_hotreload_trigger && echo "🔄 Hot reload triggered!" || echo "❌ Hot reload failed!"

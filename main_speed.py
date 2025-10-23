@@ -9,6 +9,14 @@ import websockets
 import urllib3
 from requests.exceptions import ConnectionError
 
+# Import manual hot reload manager
+try:
+    from manual_hot_reload_manager import start_manual_hot_reload, stop_manual_hot_reload, setup_signal_handlers
+    MANUAL_HOT_RELOAD_AVAILABLE = True
+except ImportError:
+    MANUAL_HOT_RELOAD_AVAILABLE = False
+    print("Warning: Manual hot reload not available.")
+
 # Import log redirector for separated logging
 from log_redirector import log_mqtt, log_api, log_serial, log_console, get_timestamp
 
@@ -992,6 +1000,14 @@ def main():
     """Main function for Speed Roulette Controller"""
     global terminate_program, ws_connected, ws_client
 
+    # Setup manual hot reload if available
+    if MANUAL_HOT_RELOAD_AVAILABLE:
+        setup_signal_handlers()
+        start_manual_hot_reload()
+        log_console("Manual hot reload enabled - use './reload' to reload", "MAIN >>>")
+    else:
+        log_console("Manual hot reload disabled", "MAIN >>>")
+
     # Initialize Roulette MQTT system
     log_mqtt("Starting Roulette MQTT system initialization...")
     asyncio.run(initialize_roulette_mqtt_system())
@@ -1100,6 +1116,10 @@ def main():
         print(f"\n[{get_timestamp()}] Program ended by user")
         log_to_file("Program ended by user", "Terminate >>>")
     finally:
+        # Stop manual hot reload manager
+        if MANUAL_HOT_RELOAD_AVAILABLE:
+            stop_manual_hot_reload()
+            
         # Cleanup Roulette MQTT system
         try:
             print(f"[{get_timestamp()}] Cleaning up Roulette MQTT system...")
