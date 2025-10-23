@@ -290,11 +290,56 @@ client = UnifiedMQTTClient(
 - `mqtt/unified_controllers.py` - 統一遊戲控制器
 - `conf/roulette-broker.json` - Roulette 配置檔案
 
+## 第三階段：統一的 MQTT 訊息處理器
+
+### 新增功能
+
+第三個重構階段建立了統一的 MQTT 訊息處理框架：
+
+#### 1. **UnifiedMessageProcessor 類別**
+- 統一的訊息處理框架
+- 優先級佇列管理
+- 訊息驗證和轉換
+- 錯誤處理和重試機制
+- 訊息歷史和統計
+
+#### 2. **訊息處理管道**
+- 訊息驗證器 (MessageValidator)
+- 訊息轉換器 (MessageTransformer)
+- 訊息處理器 (MessageProcessor)
+- 訊息路由器 (MessageRouter)
+
+#### 3. **整合系統**
+- `IntegratedMQTTSystem` 整合所有組件
+- 統一的 API 介面
+- 自動訊息處理
+- 完整的錯誤處理
+
+#### 4. **使用範例**
+```python
+from mqtt.integrated_system import create_sicbo_system
+
+# 建立 Sicbo 系統
+system = await create_sicbo_system()
+
+# 發送檢測命令
+success, result = await system.detect("round_001")
+
+# 清理資源
+await system.cleanup()
+```
+
+### 新增檔案
+- `mqtt/message_processor.py` - 統一的訊息處理器
+- `mqtt/demo_message_processor.py` - 訊息處理器示範
+- `mqtt/integrated_system.py` - 整合系統
+- `mqtt/demo_integrated_system.py` - 整合系統示範
+
 ## 後續步驟
 
 1. ✅ **第一階段**：統一的 MQTT 基礎客戶端類別 - 已完成
 2. ✅ **第二階段**：統一的 MQTT 配置管理類別 - 已完成
-3. **第三階段**：建立統一的 MQTT 訊息處理器
+3. ✅ **第三階段**：統一的 MQTT 訊息處理器 - 已完成
 4. **第四階段**：建立連線管理器
 
 ## 注意事項
