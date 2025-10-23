@@ -1,0 +1,22 @@
+version: '3.12'
+
+services:
+  mock-sbo-daemon:
+    build:
+      context: .
+      dockerfile: Dockerfile.simple
+    container_name: kevin-sdp-daemon
+    volumes:
+      # Mount host directories for logs and PID files
+      - ./logs:/var/log
+      - ./run:/var/run
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    # Health check to ensure daemon is running
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "mock_SBO_001_1.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

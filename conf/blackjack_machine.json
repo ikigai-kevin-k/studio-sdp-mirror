@@ -1,0 +1,24 @@
+{
+    "game_type": "blackjack",
+    "room": {
+        "id": "blackjack_001",
+        "name": "Blackjack Table"
+    },
+    "broker": {
+        "host": "localhost",
+        "port": 1883
+    },
+    "barcode_scanner": {
+        "device_name": "Barcode Scanner",
+        "timeout": 30
+    },
+    "game_rules": {
+        "dealer_stand_on_soft_17": true,
+        "blackjack_payout": 1.5,
+        "max_splits": 3
+    },
+    "enable_logging": true,
+    "log_dir": "logs",
+    "round_timeout": 300,
+    "bet_time": 30
+}

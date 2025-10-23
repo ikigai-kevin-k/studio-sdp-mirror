@@ -1,0 +1,34 @@
+[
+  {
+    "name": "CIT-2",
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiJhNDkwZTNlZC0yMjc2LTRmMGQtYWRkNy04ZTk5MjA5MjViYjMiLCJnYW1lQ29kZSI6WyJBUk8tMDAyLTIiXSwicm9sZSI6InNkcCIsImNyZWF0ZWRBdCI6MTc1ODY5NTczNDA3MCwiaWF0IjoxNzU4Njk1NzM0fQ.MhzfWkwcfGyQ-q_Rj2KbFFvF5mY9gPb2mQB3IzlmCww",
+    "game_code": "ARO-002-2",
+    "get_url": "https://crystal-table.iki-cit.cc/v2/service/tables/",
+    "post_url": "https://crystal-table.iki-cit.cc/v2/service/tables/",
+    "table_token": "E5LN4END9Q"
+  },
+  {
+    "name": "UAT-2",
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiJjMDc0YTA4YS03MTkzLTQ1NzktODE5Ni00NzlkOWIxMjJjYmUiLCJnYW1lQ29kZSI6WyJBUk8tMDAyLTIiXSwicm9sZSI6InNkcCIsImNyZWF0ZWRBdCI6MTc1ODY5NTczODUxNSwiaWF0IjoxNzU4Njk1NzM4fQ.n5qClEXT8nqdXGF9x654L26uFNyErguanDhOeES39wM",
+    "game_code": "ARO-002-2",
+    "get_url": "https://crystal-table.iki-uat.cc/v2/service/tables/",
+    "post_url": "https://crystal-table.iki-uat.cc/v2/service/tables/",
+    "table_token": "E5LN4END9Q"
+  },
+  {
+    "name": "QAT-2",
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiJlZjUxN2FiNS04OTc3LTRlNmQtOGU1NC01NGVjNTFkY2EzMmUiLCJnYW1lQ29kZSI6WyJBUk8tMDAyLTIiXSwicm9sZSI6InNkcCIsImNyZWF0ZWRBdCI6MTc1ODY5NTc0OTgyNiwiaWF0IjoxNzU4Njk1NzQ5fQ.tKNnDIkZNECysdelSgBJc89P8zcxxoi8dzYWWGKO44U",
+    "game_code": "ARO-002-2",
+    "get_url": "https://crystal-table.iki-qat.cc/v2/service/tables/",
+    "post_url": "https://crystal-table.iki-qat.cc/v2/service/tables/",
+    "table_token": "E5LN4END9Q"
+  },
+  {
+    "name": "STG-2",
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI5N2U4NWQ3My03ZWI5LTQ4ZGItODFiNS1lMjE5MzMwMTJhMTAiLCJnYW1lQ29kZSI6WyJBUk8tMDAyLTIiXSwicm9sZSI6InNkcCIsImNyZWF0ZWRBdCI6MTc1ODY5NTc2NTUwNSwiaWF0IjoxNzU4Njk1NzY1fQ.dJ4PB2Aag4fVFsrAuwhneGKYbIIAsAi86RFZSKZ0zmU",
+    "game_code": "ARO-002-2",
+    "get_url": "https://crystal-table.iki-stg.cc/v2/service/tables/",
+    "post_url": "https://crystal-table.iki-stg.cc/v2/service/tables/",
+    "table_token": "E5LN4END9Q"
+  }
+]

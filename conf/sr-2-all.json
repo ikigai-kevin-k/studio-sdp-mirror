@@ -1,0 +1,34 @@
+[
+  {
+    "name": "CIT-2",
+    "get_url": "https://crystal-table.iki-cit.cc/v2/service/tables/",
+    "post_url": "https://crystal-table.iki-cit.cc/v2/service/tables/",
+    "game_code": "ARO-001-2",
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiIwYjI2ZmY5Mi1hOGU4LTQwYzMtYjQ1YS05M2RlNDYyY2EwYjMiLCJnYW1lQ29kZSI6WyJBUk8tMDAxLTIiXSwicm9sZSI6InNkcCIsImNyZWF0ZWRBdCI6MTc1ODU5MzM1NTI0NywiaWF0IjoxNzU4NTkzMzU1fQ.oj8eDPQxx_CJvfo6C-O7rF4XPdGGRg1Bw7if8NMijFw",
+    "table_token": "E5LN4END9Q"
+  },
+  {
+    "name": "UAT-2",
+    "get_url": "https://crystal-table.iki-uat.cc/v2/service/tables/",
+    "post_url": "https://crystal-table.iki-uat.cc/v2/service/tables/",
+    "game_code": "ARO-001-2",
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiJiMDMwNGIwMi05ZjExLTRkMzctOTM4OS02NmFmNWNjYjkzNGMiLCJnYW1lQ29kZSI6WyJBUk8tMDAxLTIiXSwicm9sZSI6InNkcCIsImNyZWF0ZWRBdCI6MTc1ODU5NTIyNDE1NSwiaWF0IjoxNzU4NTk1MjI0fQ.BIBzppOoZyD0nXHR1U2V_HxjfjGr9gwe3Pd09mVuzTM",
+    "table_token": "E5LN4END9Q"
+  },
+  {
+    "name": "QAT-2",
+    "get_url": "https://crystal-table.iki-qat.cc/v2/service/tables/",
+    "post_url": "https://crystal-table.iki-qat.cc/v2/service/tables/",
+    "game_code": "ARO-001-2",
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiJlZjQ4ODVlNy0zZDAzLTRmN2ItYjY3ZC01NzdmMjE4ODRmYzUiLCJnYW1lQ29kZSI6WyJBUk8tMDAxLTIiXSwicm9sZSI6InNkcCIsImNyZWF0ZWRBdCI6MTc1ODU5NTIzMDQ0NSwiaWF0IjoxNzU4NTk1MjMwfQ.hPCiPAXtp2JJVrqObwrWmTNtf2p340U04HkmlvZ7E2w",
+    "table_token": "E5LN4END9Q"
+  },
+  {
+    "name": "STG-2",
+    "get_url": "https://crystal-table.iki-stg.cc/v2/service/tables/",
+    "post_url": "https://crystal-table.iki-stg.cc/v2/service/tables/",
+    "game_code": "ARO-001-2",
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI2MDdlNTg3OS00YTY5LTQ2NTYtYmE1Yy1hOWUyYzNiZmEzODQiLCJnYW1lQ29kZSI6WyJBUk8tMDAxLTIiXSwicm9sZSI6InNkcCIsImNyZWF0ZWRBdCI6MTc1ODU5NTIzNTQ3NSwiaWF0IjoxNzU4NTk1MjM1fQ.YzQ2RW9ISV-JzP5AjW_LYmL0rWF2zjekii8uSQtmffY",
+    "table_token": "E5LN4END9Q"
+  }
+]

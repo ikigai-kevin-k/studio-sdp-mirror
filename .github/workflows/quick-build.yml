@@ -1,0 +1,103 @@
+name: Quick Build - Single Game Controller
+
+on:
+  # DISABLED: This workflow is disabled in favor of the main "Build and Test SDP Roulette System"
+  # push:
+  #   branches: [ gitaction ]
+  
+  # Only allow manual trigger for emergency use
+  workflow_dispatch:
+    inputs:
+      emergency_override:
+        description: 'Emergency override to enable this workflow'
+        required: true
+        default: false
+        type: boolean
+      game_type:
+        description: 'Game controller to build'
+        required: true
+        default: 'vip'
+        type: choice
+        options:
+          - vip
+          - speed
+          - sicbo
+          - baccarat
+      python_version:
+        description: 'Python version to use'
+        required: false
+        default: '3.12'
+        type: string
+
+env:
+  PYTHON_VERSION: ${{ github.event.inputs.python_version || '3.12' }}
+
+jobs:
+  quick-build:
+    name: Quick Build ${{ github.event.inputs.game_type || 'vip' }}
+    runs-on: ubuntu-24.04
+    if: ${{ github.event.inputs.emergency_override == true }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          pip install shiv
+
+      - name: Build ${{ github.event.inputs.game_type || 'vip' }} executable
+        run: |
+          # Set default game type for push events, use input for workflow_dispatch
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            GAME_TYPE="${{ github.event.inputs.game_type }}"
+          else
+            GAME_TYPE="vip"  # Default for push events
+          fi
+          
+          echo "Building game type: $GAME_TYPE"
+          
+          case $GAME_TYPE in
+            "vip")
+              PYTHONPATH=. shiv --compressed --compile-pyc -o roulette-vip.pyz -e main_vip:main .
+              ;;
+            "speed")
+              PYTHONPATH=. shiv --compressed --compile-pyc -o roulette-speed.pyz -e main_speed:main .
+              ;;
+            "sicbo")
+              PYTHONPATH=. shiv --compressed --compile-pyc -o roulette-sicbo.pyz -e main_sicbo:main .
+              ;;
+            "baccarat")
+              PYTHONPATH=. shiv --compressed --compile-pyc -o roulette-baccarat.pyz -e main_baccarat:main .
+              ;;
+            *)
+              echo "Unknown game type: $GAME_TYPE, defaulting to vip"
+              PYTHONPATH=. shiv --compressed --compile-pyc -o roulette-vip.pyz -e main_vip:main .
+              ;;
+          esac
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event.inputs.game_type || 'vip' }}-executable
+          path: roulette-${{ github.event.inputs.game_type || 'vip' }}.pyz
+          retention-days: 7
+
+      - name: Basic validation
+        run: |
+          # Set default game type for push events, use input for workflow_dispatch
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            GAME_TYPE="${{ github.event.inputs.game_type }}"
+          else
+            GAME_TYPE="vip"  # Default for push events
+          fi
+          
+          echo "Validating $GAME_TYPE executable..."
+          python -c "import zipimport; z = zipimport.zipimporter('roulette-$GAME_TYPE.pyz'); print('Executable validation successful')"

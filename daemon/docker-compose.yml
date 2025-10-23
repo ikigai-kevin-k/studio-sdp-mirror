@@ -1,0 +1,29 @@
+version: '3.12'
+
+services:
+  mock-sbo-daemon:
+    build: .
+    container_name: kevin-sdp-daemon
+    privileged: true  # Required for systemd
+    volumes:
+      # Mount host directories for logs and PID files
+      - ./logs:/var/log
+      - ./run:/var/run
+      # Mount systemd directories
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    # Use host network mode for better system integration
+    network_mode: host
+    # Add labels for easy identification
+    labels:
+      - "com.example.service=mock-sbo-001"
+      - "com.example.type=daemon"
+    # Health check to ensure service is running
+    healthcheck:
+      test: ["CMD", "systemctl", "is-active", "mock-sbo-001.service"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
