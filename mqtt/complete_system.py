@@ -171,6 +171,7 @@ class CompleteMQTTSystem:
             
             # Setup MQTT message handler
             self.primary_client.add_message_handler(
+                self.config.game_config.response_topic,
                 self._handle_mqtt_message,
                 f"{self.game_type.value} MQTT message handler"
             )
@@ -248,14 +249,29 @@ class CompleteMQTTSystem:
 
     def _determine_message_priority(self, data: Dict[str, Any]) -> MessagePriority:
         """Determine message priority from content"""
-        if "error" in data or "failed" in str(data).lower():
-            return MessagePriority.CRITICAL
-        elif "result" in data:
-            return MessagePriority.HIGH
-        elif "status" in data:
+        try:
+            if isinstance(data, dict):
+                if "error" in data or "failed" in str(data).lower():
+                    return MessagePriority.CRITICAL
+                elif "result" in data:
+                    return MessagePriority.HIGH
+                elif "status" in data:
+                    return MessagePriority.NORMAL
+                else:
+                    return MessagePriority.LOW
+            else:
+                # If data is not a dict, check the string representation
+                data_str = str(data).lower()
+                if "error" in data_str or "failed" in data_str:
+                    return MessagePriority.CRITICAL
+                elif "result" in data_str:
+                    return MessagePriority.HIGH
+                elif "status" in data_str:
+                    return MessagePriority.NORMAL
+                else:
+                    return MessagePriority.LOW
+        except Exception:
             return MessagePriority.NORMAL
-        else:
-            return MessagePriority.LOW
 
     async def send_command(
         self,
