@@ -655,12 +655,12 @@ async def _execute_finish_post_async(table, token):
         else:
             return None
 
-        print(f"Successfully ended this game round for {table['name']}")
+        log_api(f"Successfully ended this game round for {table['name']}", "API >>>")
         return table["name"], True
 
     except Exception as e:
         error_msg = str(e)
-        print(f"Error executing finish_post for {table['name']}: {error_msg}")
+        log_api(f"Error executing finish_post for {table['name']}: {error_msg}", "API >>>")
         return table["name"], False
 
 
@@ -722,15 +722,16 @@ async def _execute_start_post_async(table, token):
 
         if round_id != -1:
             table["round_id"] = round_id
-            print(
-                f"Successfully called start_post for {table['name']}, round_id: {round_id}, bet_period: {bet_period}"
+            log_api(
+                f"Successfully called start_post for {table['name']}, round_id: {round_id}, bet_period: {bet_period}",
+                "API >>>"
             )
             return table, round_id, bet_period
         else:
-            print(f"Failed to call start_post for {table['name']}")
+            log_api(f"Failed to call start_post for {table['name']}", "API >>>")
             return None, None
     except Exception as e:
-        print(f"Error executing start_post for {table['name']}: {e}")
+        log_api(f"Error executing start_post for {table['name']}: {e}", "API >>>")
         return None, None
 
 
@@ -790,14 +791,15 @@ async def _execute_deal_post_async(table, token, win_num):
         else:
             return None
 
-        print(
-            f"Successfully sent winning result for {table['name']}: {win_num}"
+        log_api(
+            f"Successfully sent winning result for {table['name']}: {win_num}",
+            "API >>>"
         )
         return table["name"], True
 
     except Exception as e:
         error_msg = str(e)
-        print(f"Error executing deal_post for {table['name']}: {error_msg}")
+        log_api(f"Error executing deal_post for {table['name']}: {error_msg}", "API >>>")
         return table["name"], False
 
 
