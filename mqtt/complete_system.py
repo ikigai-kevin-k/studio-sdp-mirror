@@ -409,7 +409,7 @@ class CompleteMQTTSystem:
                 "command": "detect",
                 "arg": {
                     "round_id": round_id,
-                    "input_stream": kwargs.get("input_stream", "rtmp://192.168.20.10:1935/live/r111_roulette")
+                    "input": kwargs.get("input_stream", "rtmp://192.168.88.50:1935/live/r10_sr")
                 }
             }
         else:

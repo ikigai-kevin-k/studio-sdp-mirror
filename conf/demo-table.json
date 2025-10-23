@@ -1,0 +1,37 @@
+{
+    "PRD-VR-2": {
+        "get_url": "https://crystal-table.ikg-game.cc/v2/service/tables/",
+        "post_url": "https://crystal-table.ikg-game.cc/v2/service/tables/",
+        "game_code": "ARO-003",
+        "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI5Y2E3ZTk4NS1kYzBmLTQ3MGUtYjdjNi00ODNiM2QyMTlmOTciLCJnYW1lQ29kZSI6WyJBUk8tMDAzIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NjAxMDAxNzk5MDAsImlhdCI6MTc2MDEwMDE3OX0.r8GSIsavrxVUq87Ku_IPMUltB6kNBkRnx1vEZTRk-TU",
+        "table_token": "E5LN4END9Q"
+    },
+    "PRD-VR-3": {
+        "get_url": "https://crystal-table.ikg-game.cc/v2/service/tables/",
+        "post_url": "https://crystal-table.ikg-game.cc/v2/service/tables/",
+        "game_code": "ARO-004",
+        "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI2NjM0NzYxYS0yY2ZhLTQ4OWEtYWYzNi0wZGZlYTVlOTY0ODIiLCJnYW1lQ29kZSI6WyJBUk8tMDA0Il0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NjAxMDA0ODY0NDMsImlhdCI6MTc2MDEwMDQ4Nn0.z-XAtFVaVc4YeDbkdyaD4TKmZ0HZBLIpri84ctHLp00",
+        "table_token": "E5LN4END9Q"
+    },
+    "PRD-SR-2": {
+        "get_url": "https://crystal-table.ikg-game.cc/v2/service/tables/",
+        "post_url": "https://crystal-table.ikg-game.cc/v2/service/tables/",
+        "game_code": "ARO-005",
+        "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiJmODE1ZjY0OC0yMzJjLTQ1OGQtYjMwZC01YzY2N2E3Y2Y5YTEiLCJnYW1lQ29kZSI6WyJBUk8tMDA1Il0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NjAxMDA1MjM1NjQsImlhdCI6MTc2MDEwMDUyM30.Y7pQ9dQ88UUbU_nix9-j9HvbjGnjVLHX44KUv9wF6Sc",
+        "table_token": "E5LN4END9Q"
+    },
+    "PRD-SR-3": {
+        "get_url": "https://crystal-table.ikg-game.cc/v2/service/tables/",
+        "post_url": "https://crystal-table.ikg-game.cc/v2/service/tables/",
+        "game_code": "ARO-006",
+        "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI3MGU5N2IzMC04NTFlLTRkZmUtYWVmNS01N2ZlN2U5NmQzNzYiLCJnYW1lQ29kZSI6WyJBUk8tMDA2Il0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NjAxMDA1NDY5NzksImlhdCI6MTc2MDEwMDU0Nn0.BHVxu-yak8fPblva7UHW1YW9ZUVrvbsTjWH1DdK9_cQ",
+        "table_token": "E5LN4END9Q"
+    },
+    "PRD-SR-4": {
+        "get_url": "https://crystal-table.ikg-game.cc/v2/service/tables/",
+        "post_url": "https://crystal-table.ikg-game.cc/v2/service/tables/",
+        "game_code": "ARO-007",
+        "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiJiZTI3MjViOS00YjMxLTRjODUtOGFmZC0xMzIzY2I5NWY2ZjIiLCJnYW1lQ29kZSI6WyJBUk8tMDA3Il0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NjAxMDA1ODI5ODAsImlhdCI6MTc2MDEwMDU4Mn0.1k59Us1qFhPAYjsjcgvyhctA0ivrHt_kWmakzjixwqc",
+        "table_token": "E5LN4END9Q"
+    }
+}

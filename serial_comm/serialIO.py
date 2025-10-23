@@ -455,6 +455,43 @@ def read_from_serial(
                                         "Warning: Serial connection not available, cannot send *u 1 command"
                                     )
 
+                                # Call Roulette detect immediately after *u 1 command
+                                try:
+                                    # Import the roulette detect function from independent module
+                                    from roulette_mqtt_detect import call_roulette_detect_async
+                                    
+                                    # Get current round_id for detect call
+                                    current_round_id = None
+                                    if tables and len(tables) > 0 and "round_id" in tables[0]:
+                                        current_round_id = tables[0]["round_id"]
+                                    
+                                    print(f"[{get_timestamp()}] Calling Roulette detect after *u 1 command...")
+                                    log_to_file("Calling Roulette detect after *u 1 command...", "MQTT >>>")
+                                    
+                                    # Call detect in a separate thread to avoid blocking
+                                    def call_detect_async():
+                                        try:
+                                            success, result = call_roulette_detect_async(
+                                                round_id=current_round_id,
+                                                input_stream="rtmp://192.168.88.50:1935/live/r10_sr"
+                                            )
+                                            if success:
+                                                print(f"[{get_timestamp()}] First Roulette detect completed: {result}")
+                                                log_to_file(f"First Roulette detect completed: {result}", "MQTT >>>")
+                                            else:
+                                                print(f"[{get_timestamp()}] First Roulette detect failed")
+                                                log_to_file("First Roulette detect failed", "MQTT >>>")
+                                        except Exception as e:
+                                            print(f"[{get_timestamp()}] Error in first Roulette detect: {e}")
+                                            log_to_file(f"Error in first Roulette detect: {e}", "MQTT >>>")
+                                    
+                                    # Start detect call in separate thread
+                                    threading.Thread(target=call_detect_async, daemon=True).start()
+                                    
+                                except Exception as e:
+                                    print(f"[{get_timestamp()}] Error calling Roulette detect after *u 1: {e}")
+                                    log_to_file(f"Error calling Roulette detect after *u 1: {e}", "MQTT >>>")
+
                                 # Start recording two seconds after sending *u 1 command
                                 if (
                                     tables
@@ -497,6 +534,44 @@ def read_from_serial(
                         )
 
                         # Removed code that starts recording when ball launches, as it now starts two seconds after *u 1 command
+
+                    # Handle *X;4 - Call second Roulette detect
+                    elif "*X;4" in data:
+                        try:
+                            # Import the roulette detect function from independent module
+                            from roulette_mqtt_detect import call_roulette_detect_async
+                            
+                            # Get current round_id for detect call
+                            current_round_id = None
+                            if tables and len(tables) > 0 and "round_id" in tables[0]:
+                                current_round_id = tables[0]["round_id"]
+                            
+                            print(f"[{get_timestamp()}] Detected *X;4 - Calling second Roulette detect...")
+                            log_to_file("Detected *X;4 - Calling second Roulette detect...", "MQTT >>>")
+                            
+                            # Call detect in a separate thread to avoid blocking
+                            def call_second_detect_async():
+                                try:
+                                    success, result = call_roulette_detect_async(
+                                        round_id=current_round_id,
+                                        input_stream="rtmp://192.168.88.50:1935/live/r10_sr"
+                                    )
+                                    if success:
+                                        print(f"[{get_timestamp()}] Second Roulette detect completed: {result}")
+                                        log_to_file(f"Second Roulette detect completed: {result}", "MQTT >>>")
+                                    else:
+                                        print(f"[{get_timestamp()}] Second Roulette detect failed")
+                                        log_to_file("Second Roulette detect failed", "MQTT >>>")
+                                except Exception as e:
+                                    print(f"[{get_timestamp()}] Error in second Roulette detect: {e}")
+                                    log_to_file(f"Error in second Roulette detect: {e}", "MQTT >>>")
+                            
+                            # Start detect call in separate thread
+                            threading.Thread(target=call_second_detect_async, daemon=True).start()
+                            
+                        except Exception as e:
+                            print(f"[{get_timestamp()}] Error calling Roulette detect after *X;4: {e}")
+                            log_to_file(f"Error calling Roulette detect after *X;4: {e}", "MQTT >>>")
 
                     # Handle *X;5 count
                     elif "*X;5" in data and not global_vars["deal_post_sent"]:

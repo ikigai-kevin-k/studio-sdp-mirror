@@ -100,6 +100,14 @@ from studio_api.ws_err_sig import send_roulette_sensor_stuck_error
 # Import network checker
 from networkChecker import networkChecker
 
+# Import Roulette MQTT detect functionality
+from roulette_mqtt_detect import (
+    initialize_roulette_mqtt_system,
+    roulette_detect_result,
+    cleanup_roulette_mqtt_system,
+    call_roulette_detect_async
+)
+
 # import sentry_sdk
 
 # sentry_sdk.init(
@@ -160,9 +168,18 @@ def get_timestamp():
 
 
 def log_to_file(message, direction):
-    with open("self-test-2api.log", "a", encoding="utf-8") as f:
+    try:
+        with open("self-test-2api.log", "a", encoding="utf-8") as f:
+            timestamp = get_timestamp()
+            f.write(f"[{timestamp}] {direction} {message}\n")
+    except PermissionError:
+        # If permission denied, just print to console
         timestamp = get_timestamp()
-        f.write(f"[{timestamp}] {direction} {message}\n")
+        print(f"[{timestamp}] {direction} {message}")
+    except Exception as e:
+        # If any other error, just print to console
+        timestamp = get_timestamp()
+        print(f"[{timestamp}] {direction} {message}")
 
 
 # Load table configuration
@@ -210,7 +227,6 @@ sensor_error_sent = False  # Flag to ensure sensor error is only sent once
 
 # Add program termination flag
 terminate_program = False  # Flag to terminate program when *X;6 sensor error is detected
-
 
 async def retry_with_network_check(func, *args, max_retries=5, retry_delay=5):
     """
@@ -970,6 +986,10 @@ def main():
     """Main function for Speed Roulette Controller"""
     global terminate_program, ws_connected, ws_client
 
+    # Initialize Roulette MQTT system
+    print(f"[{get_timestamp()}] Starting Roulette MQTT system initialization...")
+    asyncio.run(initialize_roulette_mqtt_system())
+
     # Create a dictionary containing all global state variables
     global_vars = {
         "x2_count": x2_count,
@@ -1074,6 +1094,13 @@ def main():
         print(f"\n[{get_timestamp()}] Program ended by user")
         log_to_file("Program ended by user", "Terminate >>>")
     finally:
+        # Cleanup Roulette MQTT system
+        try:
+            print(f"[{get_timestamp()}] Cleaning up Roulette MQTT system...")
+            asyncio.run(cleanup_roulette_mqtt_system())
+        except Exception as e:
+            print(f"[{get_timestamp()}] Error cleaning up Roulette MQTT system: {e}")
+        
         # Ensure connections are closed even if not terminated gracefully
         if ser is not None:
             try:
