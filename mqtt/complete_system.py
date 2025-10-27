@@ -209,6 +209,30 @@ class CompleteMQTTSystem:
         try:
             self.logger.info(f"Handling MQTT message on {topic}: {payload}")
             
+            # Direct IDP result logging for comparison - bypass complex detection logic
+            if "ikg/idp/ARO-001/response" in topic and self.game_type.value == "roulette":
+                try:
+                    import json
+                    from result_compare_logger import log_idp_result
+                    
+                    # Parse the payload directly
+                    mqtt_data = json.loads(payload)
+                    if (mqtt_data.get("response") == "result" and 
+                        "arg" in mqtt_data and 
+                        "round_id" in mqtt_data["arg"] and 
+                        "res" in mqtt_data["arg"]):
+                        
+                        round_id = mqtt_data["arg"]["round_id"]
+                        result = mqtt_data["arg"]["res"]
+                        
+                        # Log IDP result directly to comparison log
+                        log_idp_result(round_id, result)
+                        self.logger.info(f"✅ Direct IDP result logged: Round={round_id}, Result={result}")
+                        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ✅ Direct IDP result logged: Round={round_id}, Result={result}")
+                        
+                except Exception as e:
+                    self.logger.error(f"Error in direct IDP result logging: {e}")
+            
             # Determine message type and priority
             message_type = self._determine_message_type(topic)
             priority = self._determine_message_priority(data)
@@ -369,7 +393,7 @@ class CompleteMQTTSystem:
                     history = self.message_processor.get_message_history(100)
                     
                     # Log the current state for debugging
-                    self.logger.debug(f"Checking {len(history)} messages in history")
+                    self.logger.debug(f"Checking {len(history)} messages in history for round_id: {round_id}")
                     
                     for message in reversed(history):  # Check newest messages first
                         self.logger.debug(f"Checking message {message.id}: type={message.message_type.value}, status={message.processing_status.value}")
@@ -381,24 +405,33 @@ class CompleteMQTTSystem:
                                 self.logger.debug(f"Message payload: {message.payload}")
                                 
                                 if "response" in data and data["response"] == "result":
-                                    if "arg" in data and "res" in data["arg"]:
-                                        result = data["arg"]["res"]
-                                        
-                                        # For roulette, validate the result
-                                        if self.game_type.value == "roulette":
-                                            # Check if result is valid (non-empty and not null)
-                                            if (isinstance(result, int) and 0 <= result <= 36) or \
-                                               (isinstance(result, str) and result.strip() != "" and result != "null") or \
-                                               (isinstance(result, list) and len(result) > 0 and str(result[0]).strip() != ""):
-                                                self.logger.info(f"Received valid {self.game_type.value} result: {result}")
-                                                return True, result
-                                            else:
-                                                self.logger.warning(f"Received invalid {self.game_type.value} result: {result}")
-                                                continue
+                                    if "arg" in data:
+                                        # Check if this message is for our round_id
+                                        message_round_id = data["arg"].get("round_id", "")
+                                        if message_round_id == round_id:
+                                            self.logger.info(f"Found matching round_id {round_id} in message")
+                                            
+                                            if "res" in data["arg"]:
+                                                result = data["arg"]["res"]
+                                                
+                                                # For roulette, validate the result
+                                                if self.game_type.value == "roulette":
+                                                    # Check if result is valid (non-empty and not null)
+                                                    if (isinstance(result, int) and 0 <= result <= 36) or \
+                                                       (isinstance(result, str) and result.strip() != "" and result != "null") or \
+                                                       (isinstance(result, list) and len(result) > 0 and str(result[0]).strip() != ""):
+                                                        self.logger.info(f"Received valid {self.game_type.value} result for round {round_id}: {result}")
+                                                        return True, result
+                                                    else:
+                                                        self.logger.warning(f"Received invalid {self.game_type.value} result for round {round_id}: {result}")
+                                                        # Don't continue, return this result anyway as it's for our round
+                                                        return True, result
+                                                else:
+                                                    # For other game types, use the existing logic
+                                                    self.logger.info(f"Received {self.game_type.value} result for round {round_id}: {result}")
+                                                    return True, result
                                         else:
-                                            # For other game types, use the existing logic
-                                            self.logger.info(f"Received {self.game_type.value} result: {result}")
-                                            return True, result
+                                            self.logger.debug(f"Message round_id {message_round_id} does not match target {round_id}")
                                             
                             except Exception as e:
                                 self.logger.error(f"Error parsing message {message.id}: {e}")
@@ -411,6 +444,36 @@ class CompleteMQTTSystem:
         except Exception as e:
             self.logger.error(f"Error in detect: {e}")
             return False, None
+
+    async def send_timeout_command(self) -> bool:
+        """
+        Send timeout command to stop current detection in IDP
+        
+        Returns:
+            bool: True if command sent successfully, False otherwise
+        """
+        try:
+            # Create timeout command according to idp_cmd.md specification
+            timeout_command = {
+                "command": "timeout",
+                "arg": {}
+            }
+            
+            self.logger.info(f"Sending timeout command to stop current IDP detection")
+            
+            # Send timeout command with high priority
+            success = await self.send_command(timeout_command, MessagePriority.HIGH)
+            
+            if success:
+                self.logger.info("✅ Timeout command sent successfully to IDP")
+            else:
+                self.logger.error("❌ Failed to send timeout command to IDP")
+            
+            return success
+            
+        except Exception as e:
+            self.logger.error(f"Error sending timeout command: {e}")
+            return False
 
     def _create_detect_command(self, round_id: str, **kwargs) -> Dict[str, Any]:
         """Create detect command based on game type"""

@@ -9,6 +9,9 @@ import time
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
+# Global lock for detection scheduling to prevent race conditions
+_detection_scheduling_lock = threading.Lock()
+
 # Import log redirector for separated logging
 import sys
 import os
@@ -531,12 +534,26 @@ def read_from_serial(
                         # Use deal_post_sent as detection_sent flag (reset on new round)
                         detection_key = f"roulette_detection_{current_round_id}"
                         
-                        # Check if detection already started for this round
-                        if not hasattr(global_vars, 'roulette_detection_sent') or global_vars.get('roulette_detection_sent') != current_round_id:
-                            try:
-                                # Mark detection as sent for this round
+                        # Thread-safe check for detection scheduling
+                        with _detection_scheduling_lock:
+                            detection_status = global_vars.get('roulette_detection_sent', None)
+                            
+                            print(f"[{get_timestamp()}] Checking detection status for round {current_round_id}: current_status={detection_status}")
+                            log_mqtt(f"Checking detection status for round {current_round_id}: current_status={detection_status}")
+                            
+                            if detection_status != current_round_id:
+                                # Mark detection as scheduled immediately to prevent duplicates
                                 global_vars['roulette_detection_sent'] = current_round_id
-                                
+                                should_schedule = True
+                                print(f"[{get_timestamp()}] SCHEDULING detection for round {current_round_id}")
+                                log_mqtt(f"SCHEDULING detection for round {current_round_id}")
+                            else:
+                                should_schedule = False
+                                print(f"[{get_timestamp()}] SKIPPING duplicate detection for round {current_round_id}")
+                                log_mqtt(f"⚠️ SKIPPING duplicate detection for round {current_round_id} (already scheduled)")
+                        
+                        if should_schedule:
+                            try:
                                 # Import the roulette detect function from independent module
                                 from roulette_mqtt_detect import call_roulette_detect_async
                                 
@@ -551,7 +568,22 @@ def read_from_serial(
                                         log_mqtt("Waiting 15 seconds before second Roulette detect...")
                                         log_to_file("Waiting 15 seconds before second Roulette detect...", "MQTT >>>")
                                         
-                                        time.sleep(15)
+                                        # Check every second if *X;5 has started (deal post phase)
+                                        for i in range(15):
+                                            time.sleep(1)
+                                            # If *X;5 has started, cancel the detect command
+                                            if global_vars.get('x5_started', False):
+                                                print(f"[{get_timestamp()}] *X;5 detected - Cancelling delayed Roulette detect")
+                                                log_mqtt("🛑 *X;5 detected - Cancelling delayed Roulette detect (round ended)")
+                                                log_to_file("*X;5 detected - Cancelling delayed Roulette detect", "MQTT >>>")
+                                                return
+                                        
+                                        # Double check before executing detect
+                                        if global_vars.get('x5_started', False):
+                                            print(f"[{get_timestamp()}] *X;5 already started - Skipping delayed Roulette detect")
+                                            log_mqtt("🛑 *X;5 already started - Skipping delayed Roulette detect")
+                                            log_to_file("*X;5 already started - Skipping delayed Roulette detect", "MQTT >>>")
+                                            return
                                         
                                         print(f"[{get_timestamp()}] Starting SINGLE second Roulette detect...")
                                         log_mqtt("Starting SINGLE second Roulette detect...")
@@ -601,11 +633,16 @@ def read_from_serial(
                                 log_to_file(f"Error scheduling delayed Roulette detect after *X;4: {e}", "MQTT >>>")
                         else:
                             # Detection already scheduled for this round - skip duplicate
-                            log_mqtt(f"⚠️ *X;4 duplicate detected - Roulette detection already scheduled for round {current_round_id}")
-                            log_to_file(f"*X;4 duplicate detected - Roulette detection already scheduled for round {current_round_id}", "MQTT >>>")
+                            # Note: This message is already logged in the lock section above
+                            pass
 
                     # Handle *X;5 count
                     elif "*X;5" in data and not global_vars["deal_post_sent"]:
+                        # Set flag to indicate *X;5 has started - this will cancel any pending detect commands
+                        global_vars['x5_started'] = True
+                        log_mqtt("🔥 *X;5 detected - Setting flag to cancel any pending detect commands")
+                        log_to_file("*X;5 detected - Setting flag to cancel pending detects", "MQTT >>>")
+                        
                         current_time = time.time()
                         if current_time - global_vars["last_x5_time"] > 5:
                             global_vars["x5_count"] = 1
@@ -621,6 +658,26 @@ def read_from_serial(
                                     print(
                                         f"Winning number for this round: {win_num}"
                                     )
+                                    
+                                    # Log serial result for comparison with IDP result
+                                    try:
+                                        from result_compare_logger import log_serial_result
+                                        
+                                        # Get current round_id from tables
+                                        current_round_id = None
+                                        if tables and len(tables) > 0 and "round_id" in tables[0]:
+                                            current_round_id = tables[0]["round_id"]
+                                        else:
+                                            # Fallback: create a round_id based on timestamp
+                                            current_round_id = f"ARO-001-serial-{int(time.time())}"
+                                        
+                                        # Log the serial port result
+                                        log_serial_result(current_round_id, win_num)
+                                        log_to_file(f"Serial result logged for comparison: Round={current_round_id}, Result={win_num}", "COMPARE >>>")
+                                        
+                                    except Exception as e:
+                                        print(f"[{get_timestamp()}] Error logging serial result for comparison: {e}")
+                                        log_to_file(f"Error logging serial result for comparison: {e}", "ERROR >>>")
 
                                     print(
                                         "\n================Deal================"
@@ -684,29 +741,10 @@ def read_from_serial(
                                         "======================================\n"
                                     )
 
-                                    # Wait for IDP roulette detection result before finish post
-                                    print(f"[{get_timestamp()}] Waiting for IDP roulette detection result...")
-                                    log_mqtt("Waiting for IDP roulette detection result before finish post")
-                                    log_to_file("Waiting for IDP roulette detection result before finish post", "MQTT >>>")
-                                    
-                                    # Wait up to 5 seconds for detection result
-                                    wait_start = time.time()
-                                    max_wait_time = 5  # seconds
-                                    detection_received = False
-                                    
-                                    while (time.time() - wait_start) < max_wait_time:
-                                        # Check if we have received detection result
-                                        # This is a placeholder - in real implementation you would check
-                                        # the actual MQTT result status
-                                        time.sleep(0.1)  # Check every 100ms
-                                        
-                                        # For now, we'll just wait the full time to ensure detection completes
-                                        # In future implementation, you can add actual result checking here
-                                    
-                                    elapsed_wait = time.time() - wait_start
-                                    print(f"[{get_timestamp()}] Waited {elapsed_wait:.2f}s for detection result")
-                                    log_mqtt(f"Waited {elapsed_wait:.2f}s for detection result")
-                                    log_to_file(f"Waited {elapsed_wait:.2f}s for detection result", "MQTT >>>")
+                                    # No longer wait for detection results in *X;5 - proceed immediately to finish post
+                                    print(f"[{get_timestamp()}] *X;5 received - Proceeding to finish post without waiting for detection")
+                                    log_mqtt("⚡ *X;5 - Proceeding to finish post immediately (no detection wait)")
+                                    log_to_file("*X;5 - Proceeding to finish post immediately", "MQTT >>>")
 
                                     print(
                                         "\n================Finish================"
@@ -781,11 +819,18 @@ def read_from_serial(
                                         global_vars["x2_count"] = 0
                                         global_vars["x5_count"] = 0
                                         global_vars["isLaunch"] = 0
-                                        # Reset roulette detection flag for next round
+                                        
+                                        # Reset roulette detection flags for next round
                                         if 'roulette_detection_sent' in global_vars:
                                             global_vars['roulette_detection_sent'] = None
                                             log_mqtt("Reset roulette detection flag for new round")
                                             log_to_file("Reset roulette detection flag for new round", "MQTT >>>")
+                                        
+                                        # Reset *X;5 flag for next round
+                                        global_vars['x5_started'] = False
+                                        log_mqtt("Reset *X;5 flag for new round")
+                                        log_to_file("Reset *X;5 flag for new round", "MQTT >>>")
+                                        
                                     except Exception as e:
                                         print(f"finish_post error: {e}")
                                     print(

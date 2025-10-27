@@ -111,21 +111,76 @@ async def roulette_detect_result(round_id: Optional[str] = None, input_stream: O
                 # Valid result received (not empty, not dict, not null)
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Roulette detect successful: {result}")
                 log_mqtt(f"🎯 IDP Detection SUCCESS: {result}")
+                
+                # Log IDP result for comparison with serial result
+                try:
+                    from result_compare_logger import log_idp_result
+                    log_idp_result(round_id, result)
+                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] IDP result logged for comparison: Round={round_id}, Result={result}")
+                except Exception as e:
+                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Error logging IDP result for comparison: {e}")
+                
+                # Send timeout command to stop IDP detection for current round
+                try:
+                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Sending timeout command to IDP...")
+                    log_mqtt("⏱️ Sending timeout command to IDP (stop current detection)")
+                    timeout_success = await _roulette_mqtt_system.send_timeout_command()
+                    if timeout_success:
+                        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Timeout command sent successfully")
+                        log_mqtt("✅ Timeout command sent - IDP detection stopped")
+                    else:
+                        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Failed to send timeout command")
+                        log_mqtt("❌ Failed to send timeout command to IDP")
+                except Exception as e:
+                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Error sending timeout command: {e}")
+                    log_mqtt(f"❌ Error sending timeout command: {e}")
             elif result == [''] or result == []:
                 # Empty result - likely ball still moving
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Roulette detect completed but result is empty list")
                 log_mqtt("⚠️ IDP Detection: Empty result (ball likely still moving)")
+                
+                # Log empty IDP result for comparison
+                try:
+                    from result_compare_logger import log_idp_result
+                    log_idp_result(round_id, result)
+                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] IDP empty result logged for comparison: Round={round_id}, Result={result}")
+                except Exception as e:
+                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Error logging IDP empty result: {e}")
             elif result is None or result == "null":
                 # Null result - detection timing or confidence issue
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Roulette detect completed but result is null")
                 log_mqtt("⚠️ IDP Detection: Null result (detection timing/confidence issue)")
+                
+                # Log null IDP result for comparison
+                try:
+                    from result_compare_logger import log_idp_result
+                    log_idp_result(round_id, result)
+                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] IDP null result logged for comparison: Round={round_id}, Result={result}")
+                except Exception as e:
+                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Error logging IDP null result: {e}")
             else:
                 # Unknown result format
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Roulette detect completed with unexpected result: {result}")
                 log_mqtt(f"⚠️ IDP Detection: Unexpected result format: {result}")
+                
+                # Log unexpected IDP result for comparison
+                try:
+                    from result_compare_logger import log_idp_result
+                    log_idp_result(round_id, result)
+                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] IDP unexpected result logged for comparison: Round={round_id}, Result={result}")
+                except Exception as e:
+                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Error logging IDP unexpected result: {e}")
         else:
             print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Roulette detect failed")
             log_mqtt("❌ IDP Detection FAILED (MQTT communication error)")
+            
+            # Log failed IDP result for comparison
+            try:
+                from result_compare_logger import log_idp_result
+                log_idp_result(round_id, "DETECTION_FAILED")
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] IDP detection failure logged for comparison: Round={round_id}")
+            except Exception as e:
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Error logging IDP detection failure: {e}")
         
         return success, result
         
