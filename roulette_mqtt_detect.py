@@ -11,6 +11,16 @@ from typing import Optional, Tuple, Any
 from mqtt.complete_system import CompleteMQTTSystem
 from mqtt.config_manager import GameType, Environment, BrokerConfig
 
+# Import MQTT logging function
+try:
+    from log_redirector import log_mqtt
+    MQTT_LOGGING_AVAILABLE = True
+except ImportError:
+    MQTT_LOGGING_AVAILABLE = False
+    def log_mqtt(message):
+        # Fallback if log_mqtt is not available
+        print(f"[MQTT] {message}")
+
 
 # Global MQTT system instance
 _roulette_mqtt_system: Optional[CompleteMQTTSystem] = None
@@ -84,6 +94,7 @@ async def roulette_detect_result(round_id: Optional[str] = None, input_stream: O
             input_stream = "rtmp://192.168.88.50:1935/live/r10_sr"
         
         print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Calling Roulette detect (attempt #{_detect_count})")
+        log_mqtt(f"Calling Roulette detect (attempt #{_detect_count})")
         print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Round ID: {round_id}")
         print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Input Stream: {input_stream}")
         
@@ -94,17 +105,33 @@ async def roulette_detect_result(round_id: Optional[str] = None, input_stream: O
         )
         
         if success:
-            if result is not None:
+            # Detailed result analysis
+            if (result is not None and result != "" and result != [] and result != [''] and 
+                not isinstance(result, dict) and str(result) != "null"):
+                # Valid result received (not empty, not dict, not null)
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Roulette detect successful: {result}")
-            else:
+                log_mqtt(f"🎯 IDP Detection SUCCESS: {result}")
+            elif result == [''] or result == []:
+                # Empty result - likely ball still moving
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Roulette detect completed but result is empty list")
+                log_mqtt("⚠️ IDP Detection: Empty result (ball likely still moving)")
+            elif result is None or result == "null":
+                # Null result - detection timing or confidence issue
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Roulette detect completed but result is null")
+                log_mqtt("⚠️ IDP Detection: Null result (detection timing/confidence issue)")
+            else:
+                # Unknown result format
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Roulette detect completed with unexpected result: {result}")
+                log_mqtt(f"⚠️ IDP Detection: Unexpected result format: {result}")
         else:
             print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Roulette detect failed")
+            log_mqtt("❌ IDP Detection FAILED (MQTT communication error)")
         
         return success, result
         
     except Exception as e:
         print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Error in Roulette detect: {e}")
+        log_mqtt(f"❌ Error in Roulette detect: {e}")
         return False, None
 
 
@@ -129,4 +156,6 @@ def call_roulette_detect_async(round_id: Optional[str] = None, input_stream: Opt
         return success, result
     except Exception as e:
         print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Error in async detect call: {e}")
+        log_mqtt(f"❌ Error in async detect call: {e}")
         return False, None
+

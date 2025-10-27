@@ -27,6 +27,14 @@ class ManualHotReloadManager:
             'log_redirector',
             'serial_comm.serialUtils',
             'serial_comm.serialIO',
+            # MQTT modules (in dependency order)
+            'mqtt.config_manager',
+            'mqtt.base_client', 
+            'mqtt.message_processor',
+            'mqtt.connection_manager',
+            'mqtt.complete_system',
+            'roulette_mqtt_detect',
+            # Table API modules
             'table_api.sr.api_v2_sr',
             'table_api.sr.api_v2_uat_sr',
             'table_api.sr.api_v2_prd_sr',
@@ -38,6 +46,7 @@ class ManualHotReloadManager:
             'table_api.sr.api_v2_prd_sr_5',
             'table_api.sr.api_v2_prd_sr_6',
             'table_api.sr.api_v2_prd_sr_7',
+            # Main controller (loaded last)
             'main_speed'
         ]
         

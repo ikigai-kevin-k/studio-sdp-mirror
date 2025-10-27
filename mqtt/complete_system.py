@@ -207,6 +207,8 @@ class CompleteMQTTSystem:
     def _handle_mqtt_message(self, topic: str, payload: str, data: Dict[str, Any]):
         """Handle incoming MQTT messages"""
         try:
+            self.logger.info(f"Handling MQTT message on {topic}: {payload}")
+            
             # Determine message type and priority
             message_type = self._determine_message_type(topic)
             priority = self._determine_message_priority(data)
@@ -225,12 +227,17 @@ class CompleteMQTTSystem:
                 }
             )
             
+            self.logger.debug(f"Created message {message.id} with type {message_type.value} and priority {priority.value}")
+            
             # Process message if enabled
             if self.message_processor:
-                self.message_processor.enqueue_message(message)
+                success = self.message_processor.enqueue_message(message)
+                self.logger.debug(f"Message {message.id} enqueue result: {success}")
+            else:
+                self.logger.warning("Message processor not available, message not processed")
             
         except Exception as e:
-            self.logger.error(f"Error handling MQTT message: {e}")
+            self.logger.error(f"Error handling MQTT message: {e}", exc_info=True)
 
     def _determine_message_type(self, topic: str) -> MessageType:
         """Determine message type from topic"""
@@ -359,22 +366,42 @@ class CompleteMQTTSystem:
             while time.time() - start_time < timeout:
                 # Check for completed messages
                 if self.message_processor:
-                    history = self.message_processor.get_message_history(50)
+                    history = self.message_processor.get_message_history(100)
                     
-                    for message in history:
-                        if (message.message_type == MessageType.RESPONSE and
-                            message.processing_status.value == "completed"):
-                            
-                            # Extract result from message
+                    # Log the current state for debugging
+                    self.logger.debug(f"Checking {len(history)} messages in history")
+                    
+                    for message in reversed(history):  # Check newest messages first
+                        self.logger.debug(f"Checking message {message.id}: type={message.message_type.value}, status={message.processing_status.value}")
+                        
+                        if message.message_type == MessageType.RESPONSE:
+                            # Extract result from message, regardless of processing status
                             try:
                                 data = json.loads(message.payload)
+                                self.logger.debug(f"Message payload: {message.payload}")
+                                
                                 if "response" in data and data["response"] == "result":
                                     if "arg" in data and "res" in data["arg"]:
                                         result = data["arg"]["res"]
-                                        self.logger.info(f"Received {self.game_type.value} result: {result}")
-                                        return True, result
+                                        
+                                        # For roulette, validate the result
+                                        if self.game_type.value == "roulette":
+                                            # Check if result is valid (non-empty and not null)
+                                            if (isinstance(result, int) and 0 <= result <= 36) or \
+                                               (isinstance(result, str) and result.strip() != "" and result != "null") or \
+                                               (isinstance(result, list) and len(result) > 0 and str(result[0]).strip() != ""):
+                                                self.logger.info(f"Received valid {self.game_type.value} result: {result}")
+                                                return True, result
+                                            else:
+                                                self.logger.warning(f"Received invalid {self.game_type.value} result: {result}")
+                                                continue
+                                        else:
+                                            # For other game types, use the existing logic
+                                            self.logger.info(f"Received {self.game_type.value} result: {result}")
+                                            return True, result
+                                            
                             except Exception as e:
-                                self.logger.error(f"Error parsing result: {e}")
+                                self.logger.error(f"Error parsing message {message.id}: {e}")
                 
                 await asyncio.sleep(0.1)
             
