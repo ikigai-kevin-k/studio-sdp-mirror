@@ -9,13 +9,13 @@ import os
 
 # Load configuration from JSON file
 def load_config():
-    """Load configuration from vr-2-test.json"""
+    """Load configuration from vr-2.json"""
     config_path = os.path.join(
         os.path.dirname(__file__),
         "..",
         "..",
         "conf",
-        "vr-2-test.json",
+        "vr-2.json",
     )
     try:
         with open(config_path, "r") as f:

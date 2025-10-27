@@ -397,6 +397,8 @@ def read_from_serial(
                                             main_module = 'main_speed_2'
                                         elif 'main_speed' in sys.modules:
                                             main_module = 'main_speed'
+                                        elif 'main_vip_2' in sys.modules:
+                                            main_module = 'main_vip_2'
                                         else:
                                             # Check the main script name
                                             main_script = sys.argv[0] if sys.argv else ''
@@ -404,6 +406,8 @@ def read_from_serial(
                                                 main_module = 'main_speed_2'
                                             elif 'main_speed' in main_script:
                                                 main_module = 'main_speed'
+                                            elif 'main_vip_2' in main_script or 'main_vip' in main_script:
+                                                main_module = 'main_vip_2'
                                         
                                         # Import the appropriate betStop_round_for_table function
                                         betStop_round_for_table = None
@@ -421,18 +425,29 @@ def read_from_serial(
                                             except ImportError as e:
                                                 print(f"[{get_timestamp()}] Error importing from main_speed: {e}")
                                                 betStop_round_for_table = None
-                                        else:
-                                            # Fallback: try both modules
+                                        elif main_module == 'main_vip_2':
                                             try:
-                                                from main_speed_2 import betStop_round_for_table
-                                                print(f"[{get_timestamp()}] Fallback: Using betStop_round_for_table from main_speed_2")
+                                                from main_vip_2 import betStop_round_for_table
+                                                print(f"[{get_timestamp()}] Using betStop_round_for_table from main_vip_2")
+                                            except ImportError as e:
+                                                print(f"[{get_timestamp()}] Error importing from main_vip_2: {e}")
+                                                betStop_round_for_table = None
+                                        else:
+                                            # Fallback: try all modules
+                                            try:
+                                                from main_vip_2 import betStop_round_for_table
+                                                print(f"[{get_timestamp()}] Fallback: Using betStop_round_for_table from main_vip_2")
                                             except ImportError:
                                                 try:
-                                                    from main_speed import betStop_round_for_table
-                                                    print(f"[{get_timestamp()}] Fallback: Using betStop_round_for_table from main_speed")
+                                                    from main_speed_2 import betStop_round_for_table
+                                                    print(f"[{get_timestamp()}] Fallback: Using betStop_round_for_table from main_speed_2")
                                                 except ImportError:
-                                                    print(f"[{get_timestamp()}] Error: Could not import betStop_round_for_table from either module")
-                                                    continue
+                                                    try:
+                                                        from main_speed import betStop_round_for_table
+                                                        print(f"[{get_timestamp()}] Fallback: Using betStop_round_for_table from main_speed")
+                                                    except ImportError:
+                                                        print(f"[{get_timestamp()}] Error: Could not import betStop_round_for_table from any module")
+                                                        continue
                                         
                                         if betStop_round_for_table is None:
                                             print(f"[{get_timestamp()}] Error: betStop_round_for_table function not available")
