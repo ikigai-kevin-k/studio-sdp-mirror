@@ -210,6 +210,29 @@ class IDPResultExtractor:
         except (FileNotFoundError, IndexError):
             logged_uuids_from_file = set()
         
+        # Get the latest timestamp from sdp.log to filter IDP results
+        try:
+            with open("logs/sdp.log", 'r') as f:
+                sdp_lines = [line.strip() for line in f.readlines() if line.strip() and not line.startswith('#')]
+                if sdp_lines:
+                    # Extract timestamp from last serial log entry
+                    last_sdp_line = sdp_lines[-1]
+                    # Format: [2025-10-28 08:02:25.982] Receive >>> 26
+                    sdp_timestamp_match = re.search(r'\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\]', last_sdp_line)
+                    if sdp_timestamp_match:
+                        sdp_timestamp_str = sdp_timestamp_match.group(1)
+                        # Convert to datetime for comparison (change format from 07:49:28.026 to 07:49:28,026)
+                        sdp_timestamp_for_comparison = sdp_timestamp_str.replace('.', ',')
+                        print(f"Latest sdp.log timestamp: {sdp_timestamp_for_comparison}")
+                    else:
+                        sdp_timestamp_for_comparison = None
+                        print("No timestamp found in sdp.log")
+                else:
+                    sdp_timestamp_for_comparison = None
+        except (FileNotFoundError, IndexError) as e:
+            sdp_timestamp_for_comparison = None
+            print(f"No sdp.log to compare against: {e}")
+        
         # Pattern to match: "res": <0-36 number>, "err": 0
         valid_result_pattern = re.compile(r'"res":\s*(\d{1,2}),\s*"err":\s*0')
         
@@ -239,14 +262,24 @@ class IDPResultExtractor:
             timestamp_match = re.search(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3})', context)
             timestamp = timestamp_match.group(1) if timestamp_match else datetime.now().strftime('%Y-%m-%d %H:%M:%S,000')
             
+            # Filter by timestamp: only include results AFTER last sdp.log entry
+            timestamp_ok = True
+            if sdp_timestamp_for_comparison:
+                # Compare timestamps (format: 2025-10-28 07:49:28,026)
+                idp_timestamp = timestamp
+                if idp_timestamp < sdp_timestamp_for_comparison:
+                    timestamp_ok = False
+                    print(f"⚠️  Skipping old IDP result: {idp_timestamp} (before {sdp_timestamp_for_comparison})")
+            
             # Check deduplication and if already in log file
             current_time = time.time()
             identifier = f"idp_{result_value}_{round_id}"
             
-            # Only add if not already in log file AND not a duplicate in current run
+            # Only add if not already in log file AND not a duplicate in current run AND timestamp is OK
             if (self.deduplicator.should_record(identifier, current_time) and 
                 round_id != "UNKNOWN" and
-                round_id not in logged_uuids_from_file):
+                round_id not in logged_uuids_from_file and
+                timestamp_ok):
                 found_results.append({
                     "round_id": round_id,
                     "result": result_value,
