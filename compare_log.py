@@ -192,8 +192,24 @@ class IDPResultExtractor:
             print("⚠️  No output from tmux window 'dp:idp'")
             return
         
-        # Simple regex extraction: find all valid IDP results
+        # Simple regex extraction: find only NEW valid IDP results (not in log yet)
         import re
+        
+        # Read existing logs to know what's already been logged
+        try:
+            with open(self.log_file, 'r') as f:
+                existing_lines = [line.strip() for line in f.readlines() if line.strip() and not line.startswith('#')]
+                last_10_lines = existing_lines[-10:] if len(existing_lines) > 0 else []
+                logged_uuids_from_file = set()
+                for line in last_10_lines:
+                    if 'Round:' in line:
+                        parts = line.split('Round: ')
+                        if len(parts) > 1:
+                            uuid_part = parts[1].split(' | ')[0].strip()
+                            logged_uuids_from_file.add(uuid_part)
+        except (FileNotFoundError, IndexError):
+            logged_uuids_from_file = set()
+        
         # Pattern to match: "res": <0-36 number>, "err": 0
         valid_result_pattern = re.compile(r'"res":\s*(\d{1,2}),\s*"err":\s*0')
         
@@ -223,69 +239,36 @@ class IDPResultExtractor:
             timestamp_match = re.search(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3})', context)
             timestamp = timestamp_match.group(1) if timestamp_match else datetime.now().strftime('%Y-%m-%d %H:%M:%S,000')
             
-            # Check deduplication
+            # Check deduplication and if already in log file
             current_time = time.time()
             identifier = f"idp_{result_value}_{round_id}"
-            if self.deduplicator.should_record(identifier, current_time) and round_id != "UNKNOWN":
+            
+            # Only add if not already in log file AND not a duplicate in current run
+            if (self.deduplicator.should_record(identifier, current_time) and 
+                round_id != "UNKNOWN" and
+                round_id not in logged_uuids_from_file):
                 found_results.append({
                     "round_id": round_id,
                     "result": result_value,
                     "timestamp": timestamp
                 })
         
-        print(f"Found {len(found_results)} valid IDP results")
+        print(f"Found {len(found_results)} new valid IDP results to log")
         
-        recent_results = found_results
-        
-        # Log new results (only if UUID not found in last 10 logged entries)
-        if recent_results:
-            # Read existing logs to check last 10 entries for UUIDs
-            try:
-                with open(self.log_file, 'r') as f:
-                    existing_lines = [line.strip() for line in f.readlines() if line.strip() and not line.startswith('#')]
-                    # Get last 10 entries
-                    last_10_lines = existing_lines[-10:] if len(existing_lines) > 0 else []
-                    
-                    # Extract all UUIDs from last 10 lines
-                    logged_uuids = set()
-                    for line in last_10_lines:
-                        # Extract round_id/UUID from log entry
-                        if 'Round:' in line:
-                            # Format: [timestamp] Round: UUID | Result: X
-                            parts = line.split('Round: ')
-                            if len(parts) > 1:
-                                uuid_part = parts[1].split(' | ')[0].strip()
-                                logged_uuids.add(uuid_part)
-                    
-                    print(f"Found {len(logged_uuids)} unique UUIDs in last 10 entries: {list(logged_uuids)[:3]}")
-            except (FileNotFoundError, IndexError):
-                logged_uuids = set()
-            
-            new_to_log = []
-            for result in recent_results:
-                round_id = result['round_id']
-                
-                # Check if this UUID was already logged in last 10 entries
-                if round_id not in logged_uuids:
+        # Log new results (already filtered to only include new ones)
+        if found_results:
+            with open(self.log_file, 'a') as f:
+                for result in found_results:
                     log_entry = (
                         f"[{result['timestamp']}] "
                         f"Round: {result['round_id']} | "
-                        f"Result: {result['result']}"
+                        f"Result: {result['result']}\n"
                     )
-                    new_to_log.append((log_entry, result))
-                    logged_uuids.add(round_id)  # Add to set to avoid duplicates in same run
-                else:
-                    print(f"⚠️  Skipping duplicate UUID: {round_id} (already in last 10 entries)")
-            
-            if new_to_log:
-                with open(self.log_file, 'a') as f:
-                    for log_entry, result in new_to_log:
-                        f.write(log_entry + '\n')
-                        print(f"✅ IDP logged: Round={result['round_id']}, Result={result['result']}")
-            else:
-                print("⚠️  No new results to log (all UUIDs already in last 10 entries)")
+                    f.write(log_entry)
+                    print(f"✅ IDP logged: Round={result['round_id']}, Result={result['result']}")
+            print(f"✅ {len(found_results)} new IDP results logged")
         else:
-            print("⚠️  No valid IDP results found to log")
+            print("⚠️  No new valid IDP results to log (all already in log)")
 
 
 class SerialResultExtractor:
@@ -366,6 +349,28 @@ class SerialResultExtractor:
         if not output:
             return
         
+        # Read existing logs first to know what's already been logged
+        try:
+            with open(self.log_file, 'r') as f:
+                existing_lines = [line.strip() for line in f.readlines() if line.strip() and not line.startswith('#')]
+                # Get last 10 entries
+                last_10_lines = existing_lines[-10:] if len(existing_lines) > 0 else []
+                
+                # Extract all results from last 10 lines
+                logged_results = set()
+                for line in last_10_lines:
+                    # Extract result number from log entry
+                    if 'Receive >>>' in line:
+                        # Format: [timestamp] Receive >>> X
+                        parts = line.split('Receive >>> ')
+                        if len(parts) > 1:
+                            result_num = parts[1].strip()
+                            logged_results.add(result_num)
+                
+                print(f"Found {len(logged_results)} unique results already in last 10 entries: {list(logged_results)}")
+        except (FileNotFoundError, IndexError):
+            logged_results = set()
+        
         lines = output.split('\n')
         recent_results = []
         
@@ -373,53 +378,22 @@ class SerialResultExtractor:
             if 'Receive >>>' in line:
                 parsed = self.parse_serial_line(line)
                 if parsed:
-                    recent_results.append(parsed)
+                    # Filter out results already in log file
+                    if str(parsed['result']) not in logged_results:
+                        recent_results.append(parsed)
+                    else:
+                        print(f"⚠️  Skipping already logged serial result: {parsed['result']}")
         
-        # Log new results (only if different from last 10 logged entries)
+        # Log new results
         if recent_results:
-            # Read existing logs to check last 10 entries
-            try:
-                with open(self.log_file, 'r') as f:
-                    existing_lines = [line.strip() for line in f.readlines() if line.strip() and not line.startswith('#')]
-                    # Get last 10 entries
-                    last_10_lines = existing_lines[-10:] if len(existing_lines) > 0 else []
-                    
-                    # Extract all results from last 10 lines
-                    logged_results = set()
-                    for line in last_10_lines:
-                        # Extract result number from log entry
-                        if 'Receive >>>' in line:
-                            # Format: [timestamp] Receive >>> X
-                            parts = line.split('Receive >>> ')
-                            if len(parts) > 1:
-                                result_num = parts[1].strip()
-                                logged_results.add(result_num)
-                    
-                    print(f"Found {len(logged_results)} unique results in last 10 entries: {list(logged_results)}")
-            except (FileNotFoundError, IndexError):
-                logged_results = set()
-            
-            new_to_log = []
-            for result in recent_results:
-                result_str = str(result['result'])
-                
-                # Check if this result was already logged in last 10 entries
-                if result_str not in logged_results:
-                    log_entry = f"[{result['timestamp']}] Receive >>> {result['result']}"
-                    new_to_log.append((log_entry, result))
-                    logged_results.add(result_str)  # Add to set to avoid duplicates in same run
-                else:
-                    print(f"⚠️  Skipping duplicate serial result: {result_str} (already in last 10 entries)")
-            
-            if new_to_log:
-                with open(self.log_file, 'a') as f:
-                    for log_entry, result in new_to_log:
-                        f.write(log_entry + '\n')
-                        print(f"✅ Serial logged: Result={result['result']}")
-            else:
-                print("⚠️  No new serial results to log (all results already in last 10 entries)")
+            with open(self.log_file, 'a') as f:
+                for result in recent_results:
+                    log_entry = f"[{result['timestamp']}] Receive >>> {result['result']}\n"
+                    f.write(log_entry)
+                    print(f"✅ Serial logged: Result={result['result']}")
+            print(f"✅ {len(recent_results)} new serial results logged")
         else:
-            print("⚠️  No serial results found to log")
+            print("⚠️  No new serial results to log (all already in log)")
 
 
 def main():
