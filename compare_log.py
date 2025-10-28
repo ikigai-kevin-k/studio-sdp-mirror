@@ -237,29 +237,43 @@ class IDPResultExtractor:
         
         recent_results = found_results
         
-        # Log new results (only if we have new results to avoid duplicates)
+        # Log new results (only if different from last logged entry)
         if recent_results:
-            with open(self.log_file, 'r') as f:
-                existing_logs = f.read()
+            # Read existing logs to check the last entry
+            try:
+                with open(self.log_file, 'r') as f:
+                    existing_lines = [line.strip() for line in f.readlines() if line.strip() and not line.startswith('#')]
+                last_logged = existing_lines[-1] if existing_lines else ""
+                print(f"Last logged entry: {last_logged[:100]}...")
+            except (FileNotFoundError, IndexError):
+                last_logged = ""
             
             new_to_log = []
             for result in recent_results:
-                # Check if this result was already logged
-                if f"Round: {result['round_id']}" not in existing_logs:
-                    new_to_log.append(result)
+                log_entry = (
+                    f"[{result['timestamp']}] "
+                    f"Round: {result['round_id']} | "
+                    f"Result: {result['result']}"
+                )
+                
+                # Check if this exact entry already exists (excluding timestamp)
+                entry_content = f"Round: {result['round_id']} | Result: {result['result']}"
+                last_entry_content = last_logged.split('] ', 1)[-1] if '] ' in last_logged else last_logged
+                
+                # Only add if different from last logged entry
+                if entry_content != last_entry_content:
+                    new_to_log.append((log_entry, result))
+                    last_logged = log_entry  # Update for next iteration
+                else:
+                    print(f"⚠️  Skipping duplicate: {entry_content}")
             
             if new_to_log:
                 with open(self.log_file, 'a') as f:
-                    for result in new_to_log:
-                        log_entry = (
-                            f"[{result['timestamp']}] "
-                            f"Round: {result['round_id']} | "
-                            f"Result: {result['result']}\n"
-                        )
-                        f.write(log_entry)
+                    for log_entry, result in new_to_log:
+                        f.write(log_entry + '\n')
                         print(f"✅ IDP logged: Round={result['round_id']}, Result={result['result']}")
             else:
-                print("⚠️  All results already logged")
+                print("⚠️  No new results to log (already logged)")
         else:
             print("⚠️  No valid IDP results found to log")
 
@@ -351,13 +365,40 @@ class SerialResultExtractor:
                 if parsed:
                     recent_results.append(parsed)
         
-        # Log new results
+        # Log new results (only if different from last logged entry)
         if recent_results:
-            with open(self.log_file, 'a') as f:
-                for result in recent_results:
-                    log_entry = f"[{result['timestamp']}] Receive >>> {result['result']}\n"
-                    f.write(log_entry)
-                    print(f"✅ Serial logged: Result={result['result']}")
+            # Read existing logs to check the last entry
+            try:
+                with open(self.log_file, 'r') as f:
+                    existing_lines = [line.strip() for line in f.readlines() if line.strip() and not line.startswith('#')]
+                last_logged = existing_lines[-1] if existing_lines else ""
+            except (FileNotFoundError, IndexError):
+                last_logged = ""
+            
+            new_to_log = []
+            for result in recent_results:
+                log_entry = f"[{result['timestamp']}] Receive >>> {result['result']}"
+                
+                # Check if this exact entry already exists (excluding timestamp)
+                entry_content = f"Receive >>> {result['result']}"
+                last_entry_content = last_logged.split('] ', 1)[-1] if '] ' in last_logged else last_logged
+                
+                # Only add if different from last logged entry
+                if entry_content != last_entry_content:
+                    new_to_log.append((log_entry, result))
+                    last_logged = log_entry  # Update for next iteration
+                else:
+                    print(f"⚠️  Skipping duplicate serial result: {entry_content}")
+            
+            if new_to_log:
+                with open(self.log_file, 'a') as f:
+                    for log_entry, result in new_to_log:
+                        f.write(log_entry + '\n')
+                        print(f"✅ Serial logged: Result={result['result']}")
+            else:
+                print("⚠️  No new serial results to log (already logged)")
+        else:
+            print("⚠️  No serial results found to log")
 
 
 def main():
