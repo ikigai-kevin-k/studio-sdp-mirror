@@ -131,6 +131,8 @@ self-test-*.log
 .env.local
 .env.production
 .env.staging
+.last_metrics.json
+.last_position.json
 
 # Configuration files with sensitive data
 conf/*.local.json
