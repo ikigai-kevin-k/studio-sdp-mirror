@@ -16,6 +16,12 @@ try:
 except ImportError:
     send_sicbo_no_shake_error = None
 
+# Import resolved status update function
+try:
+    from resolved_status_update import send_resolved_status_update
+except ImportError:
+    send_resolved_status_update = None
+
 
 class IDPController(Controller):
     """Controls IDP (Image Detection Processing) operations"""
@@ -38,6 +44,8 @@ class IDPController(Controller):
         self._error_signal_task = None  # Track async error signal task
         self._error_signal_sent_for_current_cycle = False  # Track if error signal sent for current shake cycle
         self._error_signal_count = 0  # Track error signal send count (0 = not sent, 1 = first (warn), 2 = second (error))
+        self._previous_cycle_warn_sent = False  # Track if warn signal was sent in previous cycle
+        self._previous_cycle_error_sent = False  # Track if error signal was sent in previous cycle
 
     async def initialize(self):
         """Initialize IDP controller"""
@@ -130,10 +138,101 @@ class IDPController(Controller):
             self.logger.error(f"Error processing message: {e}")
 
     def reset_error_signal_flag(self):
-        """Reset error signal flag at the start of a new shake cycle"""
+        """Reset error signal flag at the start of a new shake cycle
+        
+        Also checks if previous cycle had a warn signal that was resolved
+        (i.e., warn was sent but error was not sent), and sends resolved status update.
+        """
+        # Save current cycle state before resetting
+        current_cycle_warn_sent = (self._error_signal_count >= 1)
+        current_cycle_error_sent = (self._error_signal_count >= 2)
+        
+        # Check if previous cycle had warn signal that was resolved
+        if self._previous_cycle_warn_sent and not self._previous_cycle_error_sent:
+            # Previous cycle sent warn but not error, meaning issue was resolved
+            self.logger.info(
+                "Previous shake cycle had warn signal that was resolved, "
+                "sending resolved status update (UP)..."
+            )
+            
+            # Send resolved status update
+            if send_resolved_status_update is not None:
+                try:
+                    # Get device name from config
+                    # Map room_id to device_name format
+                    room_id = getattr(self.config, "room_id", "SBO-001")
+                    device_name_mapping = {
+                        "SBO-001": "ASB-001-1",  # Sicbo
+                        "ARO-001": "ARO-001-1",  # Speed Roulette
+                        "ARO-002": "ARO-002-2",  # VIP Roulette
+                    }
+                    device_name = device_name_mapping.get(room_id, f"{room_id}-1")
+                    
+                    # Send resolved status update asynchronously
+                    def _send_resolved_async():
+                        try:
+                            asyncio.run(
+                                send_resolved_status_update(
+                                    device_name=device_name,
+                                    table_id=self.config.room_id,
+                                )
+                            )
+                            self.logger.info(
+                                f"✅ Resolved status update (UP) sent successfully for {device_name}"
+                            )
+                        except Exception as e:
+                            self.logger.error(
+                                f"Failed to send resolved status update: {e}"
+                            )
+                    
+                    # Try to get running loop first
+                    try:
+                        loop = asyncio.get_running_loop()
+                        # If loop is running, we need to schedule the coroutine
+                        import threading
+                        if threading.current_thread() is threading.main_thread():
+                            # We're in the main thread with running loop
+                            asyncio.create_task(
+                                send_resolved_status_update(
+                                    device_name=device_name,
+                                    table_id=self.config.room_id,
+                                )
+                            )
+                        else:
+                            # We're in a different thread, use run_coroutine_threadsafe
+                            asyncio.run_coroutine_threadsafe(
+                                send_resolved_status_update(
+                                    device_name=device_name,
+                                    table_id=self.config.room_id,
+                                ),
+                                loop,
+                            )
+                    except RuntimeError:
+                        # No running loop, run in new thread to avoid blocking
+                        import threading
+                        thread = threading.Thread(target=_send_resolved_async, daemon=True)
+                        thread.start()
+                except Exception as e:
+                    self.logger.error(
+                        f"Failed to send resolved status update: {e}"
+                    )
+            else:
+                self.logger.warning(
+                    "send_resolved_status_update function not available, "
+                    "skipping resolved status update"
+                )
+        
+        # Update previous cycle state with current cycle state before resetting
+        self._previous_cycle_warn_sent = current_cycle_warn_sent
+        self._previous_cycle_error_sent = current_cycle_error_sent
+        
+        # Reset for new cycle
         self._error_signal_sent_for_current_cycle = False
         self._error_signal_count = 0
-        self.logger.debug("Reset error signal flag and count for new shake cycle")
+        self.logger.debug(
+            f"Reset error signal flag and count for new shake cycle "
+            f"(saved previous cycle: warn={self._previous_cycle_warn_sent}, error={self._previous_cycle_error_sent})"
+        )
 
     def _send_no_shake_error_signal(self):
         """Send SICBO_NO_SHAKE error signal to WebSocket server
