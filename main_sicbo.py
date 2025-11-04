@@ -896,6 +896,9 @@ class SDPGame:
                         f"start_recording:{first_round_id}"
                     )
 
+                # Reset error signal flag for new shake cycle
+                self.idp_controller.reset_error_signal_flag()
+
                 # Shake command
                 self.logger.info(
                     f"Shake command with round ID: {first_round_id}"
@@ -1234,6 +1237,8 @@ class SDPGame:
                                     {"afterSeconds": 4},
                                 )
                                 # sentry_sdk.capture_message("[SBO-001][QAT][ERR_RESHAKE]: Issue detected. Reshake ball.")
+                        # Reset error signal flag for reshake cycle
+                        self.idp_controller.reset_error_signal_flag()
                         await self.shaker_controller.shake(first_round_id)
                         retry_count += 1
                         if retry_count >= max_retries:

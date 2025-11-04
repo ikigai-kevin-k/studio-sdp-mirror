@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Test script for sending error signals to Roulette Game (ARO-001 table).
+Test script for sending error signals to Roulette Game (ARO-002 table).
 Based on new WebSocket server API with error signal support.
+For CIT environment.
 """
 
 import asyncio
@@ -9,9 +10,9 @@ import json
 import logging
 import os
 import sys
-import uuid
 from typing import Dict, Any, Optional
 from datetime import datetime
+from enum import Enum
 
 # Add the current directory to Python path to import ws_client
 sys.path.append(os.path.dirname(__file__))
@@ -21,6 +22,53 @@ from ws_client import (
     StudioServiceStatusEnum,
     StudioMaintenanceStatusEnum,
 )
+
+
+class ErrorMsgId(Enum):
+    """Error message ID constants for exception signals."""
+    
+    # Roulette errors
+    ROULETTE_NO_BALL_DETECT = "ROULETTE_NO_BALL_DETECT"
+    ROULETTE_NO_WIN_NUM = "ROULETTE_NO_WIN_NUM"
+    ROULETTE_NO_REACH_POS = "ROULETTE_NO_REACH_POS"
+    ROULETTE_INVALID_AFTER_RELAUNCH = "ROULETTE_INVALID_AFTER_RELAUNCH"
+    ROULETTE_SENSOR_STUCK = "ROULETTE_SENSOR_STUCK"
+    ROUELTTE_WRONG_BALL_DIR = "ROUELTTE_WRONG_BALL_DIR"
+    ROULETTE_WRONG_WHEEL_DIR = "ROULETTE_WRONG_WHEEL_DIR"
+    ROULETTE_LAUNCH_FAIL = "ROULETTE_LAUNCH_FAIL"
+    ROULETTE_ENCODER_FAIL = "ROULETTE_ENCODER_FAIL"
+    ROULETTE_BALL_DROP_FAIL = "ROULETTE_BALL_DROP_FAIL"
+    ROULETTE_COMPRESSOR_LEAK = "ROULETTE_COMPRESSOR_LEAK"
+    ROULETTE_STUCK_NMB = "ROULETTE_STUCK_NMB"
+    
+    # Sicbo errors
+    SICBO_INVALID_RESULT = "SICBO_INVALID_RESULT"
+    SICBO_NO_SHAKE = "SICBO_NO_SHAKE"
+    SICBO_INVALID_AFTER_RESHAKE = "SICBO_INVALID_AFTER_RESHAKE"
+    
+    # Baccarat errors
+    BACCARAT_INVALID_RESULT = "BACCARAT_INVALID_RESULT"
+    BACCARAT_WRONG_CARD_DEAL_POS = "BACCARAT_WRONG_CARD_DEAL_POS"
+    BACCARAT_INVALID_AFTER_REDEAL = "BACCARAT_INVALID_AFTER_REDEAL"
+    BACCARAT_DEAL_EXTRA_CARD = "BACCARAT_DEAL_EXTRA_CARD"
+    
+    # Service errors
+    STREAM_DOWN = "STREAM_DOWN"
+    IDP_DOWN = "IDP_DOWN"
+    SDP_DOWN = "SDP_DOWN"
+    ZCAM_DOWN = "ZCAM_DOWN"
+    BROKER_DOWN = "BROKER_DOWN"
+    ROULETTE_DOWN = "ROULETTE_DOWN"
+    SHAKER_DOWN = "SHAKER_DOWN"
+    BARCODE_SCANNER_DOWN = "BARCODE_SCANNER_DOWN"
+    PC_DOWN = "PC_DOWN"
+    
+    # Game flow errors
+    NO_START = "NO_START"
+    NO_BETSTOP = "NO_BETSTOP"
+    NO_DEAL = "NO_DEAL"
+    NO_FINISH = "NO_FINISH"
+    JSON_PARSE_ERR = "JSON_PARSE_ERR"
 
 # Configure logging with timestamp format
 logging.basicConfig(
@@ -53,15 +101,10 @@ class ErrorSignalClient:
         try:
             import websockets
 
-            # Create connection URL according to spec: ?id=ARO-001_dealerPC&token=MY_TOKEN&gameCode=ARO-001
-            # Extract game code from table_id (e.g., ARO-002 -> ARO-002, ARO-002-2 -> ARO-002)
-            if '-' in self.table_id:
-                # For ARO-002-2, take ARO-002; for ARO-002, take ARO-002
-                parts = self.table_id.split('-')
-                game_code = f"{parts[0]}-{parts[1]}" if len(parts) >= 2 else self.table_id
-            else:
-                game_code = self.table_id
-            connection_url = f"{self.server_url}?id={self.table_id}-{self.device_name}&token={self.token}&gameCode={game_code}"
+            # Create connection URL according to CIT spec:
+            # wss://studio-api.iki-cit.cc/v1/ws?id=ARO-002-2&token=0000
+            # For CIT, the id format is: device_name
+            connection_url = f"{self.server_url}?id={self.device_name}&token={self.token}"
 
             logger.info(f"Connecting to {connection_url}")
             self.websocket = await websockets.connect(connection_url)
@@ -146,51 +189,32 @@ class ErrorSignalClient:
 
 
 async def send_roulette_sensor_stuck_error(
-    table_id: str = "ARO-001-1",
-    device_id: str = "ARO-001-1",
+    table_id: str = "ARO-002",
+    device_id: str = "ARO-002-2",
     signal_type: str = "warn",
 ) -> bool:
     """
-    Send roulette sensor stuck error signal for ARO-001 table.
+    Send roulette sensor stuck error signal for ARO-002 table.
 
     Args:
-        table_id: Table ID for the Roulette game (default: ARO-001)
-        device_id: Device ID for the connection (default: ARO-001-1)
+        table_id: Table ID for the Roulette game (default: ARO-002)
+        device_id: Device ID for the connection (default: ARO-002-2)
         signal_type: Signal type, 'warn' for first time, 'error' for second time (default: 'warn')
 
     Returns:
         bool: True if error signal sent successfully, False otherwise
     """
 
-    # Load configuration from ws.json
-    config_path = os.path.join(
-        os.path.dirname(__file__), "..", "conf", "ws.json"
-    )
-    try:
-        with open(config_path, "r", encoding="utf-8") as f:
-            config = json.load(f)
+    # CIT environment configuration
+    SERVER_URL = "wss://studio-api.iki-cit.cc/v1/ws"
+    TOKEN = "0000"
 
-        SERVER_URL = config["server_url"]
-        DEVICE_NAME = config["device_name"]
-        TOKEN = config["token"]
-
-        logger.info(f"📋 Loaded configuration from {config_path}")
-        logger.info(f"   - Server: {SERVER_URL}")
-        logger.info(f"   - Device: {DEVICE_NAME}")
-        logger.info(f"   - Table: {table_id}")
-
-    except FileNotFoundError:
-        logger.error(f"❌ Configuration file not found: {config_path}")
-        return False
-    except json.JSONDecodeError as e:
-        logger.error(f"❌ Invalid JSON in configuration file: {e}")
-        return False
-    except KeyError as e:
-        logger.error(f"❌ Missing required configuration key: {e}")
-        return False
+    logger.info(f"📋 Using CIT configuration")
+    logger.info(f"   - Server: {SERVER_URL}")
+    logger.info(f"   - Device: {device_id}")
+    logger.info(f"   - Table: {table_id}")
 
     # Create error signal client
-    # Use device_id parameter instead of DEVICE_NAME from config
     client = ErrorSignalClient(SERVER_URL, table_id, device_id, TOKEN)
 
     try:
@@ -205,7 +229,7 @@ async def send_roulette_sensor_stuck_error(
         # Create roulette sensor stuck error signal according to spec
         # signalType: 'warn' for first time, 'error' for second time
         signal_data = {
-            "msgId": str(uuid.uuid4()),
+            "msgId": ErrorMsgId.ROULETTE_SENSOR_STUCK.value,
             "content": "Sensor broken causes roulette machine idle",
             "metadata": {
                 "title": "SENSOR STUCK",
@@ -248,21 +272,115 @@ async def send_roulette_sensor_stuck_error(
             logger.error(f"❌ Error disconnecting from {table_id}: {e}")
 
 
+async def send_roulette_wrong_ball_dir_error(
+    table_id: str = "ARO-002",
+    device_id: str = "ARO-002-2",
+    signal_type: str = "warn",
+) -> bool:
+    """
+    Send roulette wrong ball direction error signal for ARO-002 table.
+
+    Args:
+        table_id: Table ID for the Roulette game (default: ARO-002)
+        device_id: Device ID for the connection (default: ARO-002-2)
+        signal_type: Signal type, 'warn' for first time, 'error' for second time (default: 'warn')
+
+    Returns:
+        bool: True if error signal sent successfully, False otherwise
+    """
+
+    # CIT environment configuration
+    SERVER_URL = "wss://studio-api.iki-cit.cc/v1/ws"
+    TOKEN = "0000"
+
+    logger.info(f"📋 Using CIT configuration")
+    logger.info(f"   - Server: {SERVER_URL}")
+    logger.info(f"   - Device: {device_id}")
+    logger.info(f"   - Table: {table_id}")
+
+    # Create error signal client
+    client = ErrorSignalClient(SERVER_URL, table_id, device_id, TOKEN)
+
+    try:
+        # Connect to the table
+        logger.info(f"🔗 Connecting to {table_id}...")
+        if not await client.connect():
+            logger.error(f"❌ Failed to connect to {table_id}")
+            return False
+
+        logger.info(f"✅ Successfully connected to {table_id}")
+
+        # Create roulette wrong ball direction error signal according to spec
+        # signalType: 'warn' for first time, 'error' for second time
+        signal_data = {
+            "msgId": ErrorMsgId.ROUELTTE_WRONG_BALL_DIR.value,
+            "content": "ball is recognized spinning toward the wrong direction in the rim",
+            "metadata": {
+                "title": "WRONG BALL DIRECTION",
+                "description": "ball is recognized spinning toward the wrong direction in the rim",
+                "code": "ARE.4",
+                "suggestion": "Check the sensor, it usually is due to sensor mis-recognize the direction",
+                "signalType": signal_type,  # 'warn' or 'error'
+            },
+        }
+
+        # Send the error signal
+        logger.info(
+            f"📤 Sending roulette wrong ball direction error signal to {table_id}..."
+        )
+        logger.info(f"   - Signal: {signal_data}")
+
+        success = await client.send_error_signal(signal_data)
+
+        if success:
+            logger.info(
+                "🎯 Roulette wrong ball direction error signal sent successfully!"
+            )
+        else:
+            logger.error(
+                "❌ Failed to send roulette wrong ball direction error signal"
+            )
+
+        return success
+
+    except Exception as e:
+        logger.error(f"❌ Error during error signal sending: {e}")
+        return False
+
+    finally:
+        # Disconnect from server
+        try:
+            await client.disconnect()
+            logger.info(f"✅ Disconnected from {table_id}")
+        except Exception as e:
+            logger.error(f"❌ Error disconnecting from {table_id}: {e}")
+
+
 async def main():
     """Main function for testing error signal functionality."""
 
-    logger.info("🎰 Roulette Game Error Signal Test")
+    logger.info("🎰 Roulette Game Error Signal Test (CIT)")
     logger.info("=" * 50)
 
     # Test 1: Send single roulette sensor stuck error
-    logger.info("\n📤 Test: Sending roulette sensor stuck error signal...")
+    logger.info("\n📤 Test 1: Sending roulette sensor stuck error signal...")
     success1 = await send_roulette_sensor_stuck_error()
 
     if success1:
-        logger.info("✅ Single error signal test completed successfully")
+        logger.info("✅ Sensor stuck error signal test completed successfully")
     else:
-        logger.error("❌ Single error signal test failed")
+        logger.error("❌ Sensor stuck error signal test failed")
+
+    # Test 2: Send wrong ball direction error
+    logger.info("\n📤 Test 2: Sending roulette wrong ball direction error signal...")
+    success2 = await send_roulette_wrong_ball_dir_error()
+
+    if success2:
+        logger.info("✅ Wrong ball direction error signal test completed successfully")
+    else:
+        logger.error("❌ Wrong ball direction error signal test failed")
 
 
 if __name__ == "__main__":
     asyncio.run(main())
+

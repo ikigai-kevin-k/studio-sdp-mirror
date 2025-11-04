@@ -37,6 +37,7 @@ class IDPController(Controller):
         self.mqtt_client.client.username_pw_set("PFC", "wago")
         self._error_signal_task = None  # Track async error signal task
         self._error_signal_sent_for_current_cycle = False  # Track if error signal sent for current shake cycle
+        self._error_signal_count = 0  # Track error signal send count (0 = not sent, 1 = first (warn), 2 = second (error))
 
     async def initialize(self):
         """Initialize IDP controller"""
@@ -131,14 +132,25 @@ class IDPController(Controller):
     def reset_error_signal_flag(self):
         """Reset error signal flag at the start of a new shake cycle"""
         self._error_signal_sent_for_current_cycle = False
-        self.logger.debug("Reset error signal flag for new shake cycle")
+        self._error_signal_count = 0
+        self.logger.debug("Reset error signal flag and count for new shake cycle")
 
     def _send_no_shake_error_signal(self):
-        """Send SICBO_NO_SHAKE error signal to WebSocket server"""
-        # Check if error signal has already been sent for this shake cycle
-        if self._error_signal_sent_for_current_cycle:
+        """Send SICBO_NO_SHAKE error signal to WebSocket server
+        
+        First time sends with signalType='warn', second time sends with signalType='error'
+        """
+        # Determine signal type based on send count
+        if self._error_signal_count == 0:
+            signal_type = "warn"  # First time
+            self._error_signal_count = 1
+        elif self._error_signal_count == 1:
+            signal_type = "error"  # Second time
+            self._error_signal_count = 2
+        else:
+            # Already sent twice, skip
             self.logger.info(
-                "Error signal already sent for this shake cycle, skipping"
+                f"Error signal already sent twice for this shake cycle, skipping"
             )
             return
 
@@ -151,9 +163,11 @@ class IDPController(Controller):
         def _run_async_signal():
             """Run async error signal in a separate thread"""
             try:
-                # Run the async function in a new event loop
-                asyncio.run(send_sicbo_no_shake_error())
-                self.logger.info("Sent SICBO_NO_SHAKE error signal")
+                # Run the async function in a new event loop with signal_type
+                asyncio.run(send_sicbo_no_shake_error(signal_type=signal_type))
+                self.logger.info(
+                    f"Sent SICBO_NO_SHAKE error signal with signalType={signal_type}"
+                )
             except Exception as e:
                 self.logger.error(
                     f"Failed to send SICBO_NO_SHAKE error signal: {e}"
@@ -170,21 +184,21 @@ class IDPController(Controller):
                 if threading.current_thread() is threading.main_thread():
                     # We're in the main thread with running loop
                     self._error_signal_task = asyncio.create_task(
-                        send_sicbo_no_shake_error()
+                        send_sicbo_no_shake_error(signal_type=signal_type)
                     )
                     self._error_signal_sent_for_current_cycle = True
                     self.logger.info(
-                        "Scheduled SICBO_NO_SHAKE error signal to be sent"
+                        f"Scheduled SICBO_NO_SHAKE error signal to be sent with signalType={signal_type}"
                     )
                 else:
                     # We're in a different thread (MQTT callback thread), use run_coroutine_threadsafe
                     future = asyncio.run_coroutine_threadsafe(
-                        send_sicbo_no_shake_error(), loop
+                        send_sicbo_no_shake_error(signal_type=signal_type), loop
                     )
                     self._error_signal_task = future
                     self._error_signal_sent_for_current_cycle = True
                     self.logger.info(
-                        "Scheduled SICBO_NO_SHAKE error signal to be sent (threadsafe)"
+                        f"Scheduled SICBO_NO_SHAKE error signal to be sent (threadsafe) with signalType={signal_type}"
                     )
             except RuntimeError:
                 # No running loop, run in new thread to avoid blocking
@@ -193,7 +207,7 @@ class IDPController(Controller):
                 thread.start()
                 self._error_signal_sent_for_current_cycle = True
                 self.logger.info(
-                    "Started thread to send SICBO_NO_SHAKE error signal"
+                    f"Started thread to send SICBO_NO_SHAKE error signal with signalType={signal_type}"
                 )
         except Exception as e:
             self.logger.error(

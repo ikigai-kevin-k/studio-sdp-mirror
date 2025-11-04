@@ -192,7 +192,9 @@ class ErrorSignalClient:
 
 
 async def send_sicbo_no_shake_error(
-    table_id: str = "SBO-001", device_id: str = "ASB-001-1"
+    table_id: str = "SBO-001",
+    device_id: str = "ASB-001-1",
+    signal_type: str = "warn",
 ) -> bool:
     """
     Send Sicbo no shake error signal for SBO-001 table.
@@ -200,6 +202,7 @@ async def send_sicbo_no_shake_error(
     Args:
         table_id: Table ID for the Sicbo game (default: SBO-001)
         device_id: Device ID for the connection (default: ASB-001-1)
+        signal_type: Signal type, 'warn' for first time, 'error' for second time (default: 'warn')
 
     Returns:
         bool: True if error signal sent successfully, False otherwise
@@ -227,13 +230,16 @@ async def send_sicbo_no_shake_error(
         logger.info(f"✅ Successfully connected to {table_id}")
 
         # Create Sicbo no shake error signal according to spec
+        # signalType: 'warn' for first time, 'error' for second time
         signal_data = {
             "msgId": ErrorMsgId.SICBO_NO_SHAKE.value,
+            "content": "Shaker failed to shake dice",
             "metadata": {
                 "title": "NO SHAKE",
                 "description": "Shaker failed to shake dice",
                 "code": "ASE.1",
                 "suggestion": "Check the shaker, it may need to be rebooted by GE staff",
+                "signalType": signal_type,  # 'warn' or 'error'
             },
         }
 
