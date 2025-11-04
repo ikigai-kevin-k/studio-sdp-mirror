@@ -10,11 +10,12 @@ import logging
 import os
 import sys
 from typing import Optional
+import websockets
 
 # Add the current directory to Python path to import WebSocket client
 sys.path.append(os.path.dirname(__file__))
 
-from ws_client import SmartStudioWebSocketClient, StudioDeviceStatusEnum
+from ws_client import StudioDeviceStatusEnum
 
 # Configure logging
 logging.basicConfig(
@@ -46,28 +47,18 @@ async def send_resolved_status_update(
     Returns:
         True if status update sent successfully, False otherwise
     """
+    websocket = None
     try:
         # Create WebSocket connection URL according to spec
-        # Format: wss://studio-api.iki-cit.cc/v1/ws?id={device_name}&token={token}
-        connection_url = f"{server_url}?id={device_name}&token={token}"
+        # Format: wss://studio-api.iki-cit.cc/v1/ws?token={token}&id={device_name}
+        connection_url = f"{server_url}?token={token}&id={device_name}"
         
-        # Create WebSocket client
-        client = SmartStudioWebSocketClient(
-            server_url=server_url,
-            table_id=table_id,
-            device_name=device_name,
-            token=token,
-            fast_connect=True,
-        )
-        
-        # Connect to the server
+        # Connect to the server directly using websockets
         logger.info(f"Connecting to {table_id} for resolved status update...")
         logger.info(f"   - Connection URL: {connection_url}")
-        if not await client.connect():
-            logger.error(f"Failed to connect to {table_id}")
-            return False
         
-        logger.info(f"Successfully connected to {table_id}")
+        websocket = await websockets.connect(connection_url)
+        logger.info(f"✅ Successfully connected to {table_id}")
         
         # Create status update message according to spec
         # Format: { event: 'status', data: { status: 'up' } }
@@ -84,17 +75,15 @@ async def send_resolved_status_update(
         )
         logger.info(f"   - Message: {json.dumps(status_message, indent=2)}")
         
-        # Send status update using the client's send_status_update method
-        # The status_message already has the correct format: { event: 'status', data: { status: 'up' } }
         try:
             # Send the status message directly via websocket
-            await client.websocket.send(json.dumps(status_message))
+            await websocket.send(json.dumps(status_message))
             logger.info("✅ Resolved status update sent successfully")
             
             # Wait briefly for response
             try:
                 response = await asyncio.wait_for(
-                    client.websocket.recv(), timeout=2.0
+                    websocket.recv(), timeout=2.0
                 )
                 logger.info(f"📥 Server response: {response}")
             except asyncio.TimeoutError:
@@ -113,8 +102,8 @@ async def send_resolved_status_update(
     finally:
         # Disconnect from server
         try:
-            if client and client.websocket:
-                await client.disconnect()
+            if websocket:
+                await websocket.close()
                 logger.info(f"✅ Disconnected from {table_id}")
         except Exception as e:
             logger.error(f"❌ Error disconnecting from {table_id}: {e}")
