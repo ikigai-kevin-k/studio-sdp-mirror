@@ -137,6 +137,11 @@ import os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "studio_api"))
 from ws_sb_update import update_sicbo_game_status
+from table_api_error_signal import (
+    send_table_api_error_signal,
+    reset_error_signal_count,
+    reset_all_error_signal_counts,
+)
 
 # import sentry_sdk
 
@@ -264,9 +269,29 @@ async def start_round_for_table(table, token):
         elif table["name"] == "PRD":
             try:
                 round_id, bet_period = await retry_with_network_check(
-                    start_post_v2_prd, post_url, token
+                    start_post_v2_prd,
+                    post_url,
+                    token,
+                    max_retries=5,
+                    error_type="NO_START",
+                    table_name="PRD",
                 )
                 if round_id == -1:
+                    # Send error signal for PRD start post failure (returned -1)
+                    # This is the first failure, send warn signal
+                    try:
+                        await send_table_api_error_signal(
+                            error_type="NO_START",
+                            retry_count=0,
+                            max_retries=5,
+                            table_id="SBO-001",
+                            device_id="ASB-001-1",
+                        )
+                    except Exception as signal_error:
+                        logger.error(
+                            f"Failed to send NO_START error signal: {signal_error}"
+                        )
+                    
                     # Send Slack error notification for PRD start post failure
                     # Only send if we haven't sent one recently
                     if should_send_error_notification("PRD"):
@@ -286,6 +311,7 @@ async def start_round_for_table(table, token):
                         )
             except Exception as e:
                 logger.error(f"PRD start_post_v2_prd failed: {e}")
+                # Error signal already sent in retry_with_network_check if max retries reached
                 # Send Slack error notification for PRD start post failure
                 # Only send if we haven't sent one recently
                 if should_send_error_notification("PRD"):
@@ -375,9 +401,23 @@ async def deal_round_for_table(table, token, round_id, dice_result):
                 deal_post_v2_uat, post_url, token, round_id, dice_result
             )
         elif table["name"] == "PRD":
-            await retry_with_network_check(
-                deal_post_v2_prd, post_url, token, round_id, dice_result
-            )
+            try:
+                await retry_with_network_check(
+                    deal_post_v2_prd,
+                    post_url,
+                    token,
+                    round_id,
+                    dice_result,
+                    max_retries=5,
+                    error_type="NO_DEAL",
+                    table_name="PRD",
+                )
+            except Exception as e:
+                logger.error(
+                    f"PRD deal_post_v2_prd failed after retries: {e}"
+                )
+                # Error signal already sent in retry_with_network_check
+                raise
         elif table["name"] == "STG":
             await retry_with_network_check(
                 deal_post_v2_stg, post_url, token, round_id, dice_result
@@ -436,7 +476,21 @@ async def finish_round_for_table(table, token):
         elif table["name"] == "UAT":
             await retry_with_network_check(finish_post_v2_uat, post_url, token)
         elif table["name"] == "PRD":
-            await retry_with_network_check(finish_post_v2_prd, post_url, token)
+            try:
+                await retry_with_network_check(
+                    finish_post_v2_prd,
+                    post_url,
+                    token,
+                    max_retries=5,
+                    error_type="NO_FINISH",
+                    table_name="PRD",
+                )
+            except Exception as e:
+                logger.error(
+                    f"PRD finish_post_v2_prd failed after retries: {e}"
+                )
+                # Error signal already sent in retry_with_network_check
+                raise
         elif table["name"] == "STG":
             await retry_with_network_check(finish_post_v2_stg, post_url, token)
         elif table["name"] == "QAT":
@@ -488,7 +542,21 @@ async def betStop_round_for_table(table, token):
         elif table["name"] == "UAT":
             await retry_with_network_check(bet_stop_post_uat, post_url, token)
         elif table["name"] == "PRD":
-            await retry_with_network_check(bet_stop_post_prd, post_url, token)
+            try:
+                await retry_with_network_check(
+                    bet_stop_post_prd,
+                    post_url,
+                    token,
+                    max_retries=5,
+                    error_type="NO_BETSTOP",
+                    table_name="PRD",
+                )
+            except Exception as e:
+                logger.error(
+                    f"PRD bet_stop_post_prd failed after retries: {e}"
+                )
+                # Error signal already sent in retry_with_network_check
+                raise
         elif table["name"] == "STG":
             await retry_with_network_check(bet_stop_post_stg, post_url, token)
         elif table["name"] == "QAT":
@@ -504,21 +572,33 @@ async def betStop_round_for_table(table, token):
         return table["name"], False
 
 
-async def retry_with_network_check(func, *args, max_retries=5, retry_delay=5):
-    # async def retry_with_network_check(func, *args, max_retries=5, retry_delay=5):
+async def retry_with_network_check(
+    func,
+    *args,
+    max_retries=5,
+    retry_delay=5,
+    error_type=None,
+    table_name=None,
+    environment=None,
+):
     """
-    Retry a function with network error checking.
+    Retry a function with network error checking and optional error signal sending.
 
     Args:
         func: The function to retry
         *args: Arguments to pass to the function
         max_retries: Maximum number of retries
         retry_delay: Delay between retries in seconds
+        error_type: Error type for error signal ("NO_START", "NO_BETSTOP", "NO_DEAL", "NO_FINISH")
+        table_name: Table name (e.g., "PRD", "STG") - only send error signal for PRD
+        environment: Environment name (optional, for compatibility)
 
     Returns:
         The result of the function if successful
     """
     retry_count = 0
+    last_exception = None
+    
     while retry_count < max_retries:
         try:
             return (
@@ -535,13 +615,85 @@ async def retry_with_network_check(func, *args, max_retries=5, retry_delay=5):
             if is_network_error:
                 logger.error(f"Network error occurred: {error_message}")
                 logger.info(f"Waiting {retry_delay} seconds before retry...")
+                
+                # Send error signal for PRD environment if error_type is provided
+                # Send warn signal during retry (retry_count < max_retries)
+                if error_type is not None and table_name == "PRD":
+                    try:
+                        await send_table_api_error_signal(
+                            error_type=error_type,
+                            retry_count=retry_count,
+                            max_retries=max_retries,
+                            table_id="SBO-001",
+                            device_id="ASB-001-1",
+                        )
+                    except Exception as signal_error:
+                        logger.error(
+                            f"Failed to send error signal: {signal_error}"
+                        )
+                
                 await asyncio.sleep(retry_delay)
                 retry_count += 1
+                last_exception = e
                 continue
+            # Not a network error, re-raise
+            last_exception = e
             raise
+        except Exception as e:
+            # Handle non-network errors (e.g., API errors, validation errors)
+            # For PRD environment, send error signal if error_type is provided
+            # Send warn signal during retry (retry_count < max_retries)
+            if error_type is not None and table_name == "PRD":
+                try:
+                    await send_table_api_error_signal(
+                        error_type=error_type,
+                        retry_count=retry_count,
+                        max_retries=max_retries,
+                        table_id="SBO-001",
+                        device_id="ASB-001-1",
+                    )
+                except Exception as signal_error:
+                    logger.error(f"Failed to send error signal: {signal_error}")
+            
+            # If we've exhausted retries, send final error signal and raise
+            if retry_count >= max_retries - 1:
+                if error_type is not None and table_name == "PRD":
+                    try:
+                        # Send error signal when max_retries exceeded
+                        await send_table_api_error_signal(
+                            error_type=error_type,
+                            retry_count=max_retries,
+                            max_retries=max_retries,
+                            table_id="SBO-001",
+                            device_id="ASB-001-1",
+                        )
+                    except Exception as signal_error:
+                        logger.error(f"Failed to send final error signal: {signal_error}")
+                raise Exception(
+                    f"Max retries ({max_retries}) reached while attempting to execute {func.__name__}: {e}"
+                )
+            
+            retry_count += 1
+            last_exception = e
+            await asyncio.sleep(retry_delay)
+            continue
+    
+    # All retries exhausted - send error signal if applicable
+    if error_type is not None and table_name == "PRD":
+        try:
+            await send_table_api_error_signal(
+                error_type=error_type,
+                retry_count=max_retries,
+                max_retries=max_retries,
+                table_id="SBO-001",
+                device_id="ASB-001-1",
+            )
+        except Exception as signal_error:
+            logger.error(f"Failed to send final error signal: {signal_error}")
+    
     raise Exception(
         f"Max retries ({max_retries}) reached while attempting to execute {func.__name__}"
-    )
+    ) from last_exception
 
 
 class SDPGame:
@@ -804,6 +956,9 @@ class SDPGame:
                 # start new round
                 self.logger.info("Starting new round...")
                 round_start_time = time.time()
+                
+                # Reset all table API error signal counts for new round
+                reset_all_error_signal_counts(table_id="SBO-001", device_id="ASB-001-1")
 
                 # Update Sicbo game status before starting rounds (using fast mode)
                 self.logger.info("Updating Sicbo game device status...")
