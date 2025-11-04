@@ -36,6 +36,7 @@ class IDPController(Controller):
         self.dice_result = None
         self.mqtt_client.client.username_pw_set("PFC", "wago")
         self._error_signal_task = None  # Track async error signal task
+        self._error_signal_sent_for_current_cycle = False  # Track if error signal sent for current shake cycle
 
     async def initialize(self):
         """Initialize IDP controller"""
@@ -127,8 +128,20 @@ class IDPController(Controller):
         except Exception as e:
             self.logger.error(f"Error processing message: {e}")
 
+    def reset_error_signal_flag(self):
+        """Reset error signal flag at the start of a new shake cycle"""
+        self._error_signal_sent_for_current_cycle = False
+        self.logger.debug("Reset error signal flag for new shake cycle")
+
     def _send_no_shake_error_signal(self):
         """Send SICBO_NO_SHAKE error signal to WebSocket server"""
+        # Check if error signal has already been sent for this shake cycle
+        if self._error_signal_sent_for_current_cycle:
+            self.logger.info(
+                "Error signal already sent for this shake cycle, skipping"
+            )
+            return
+
         if send_sicbo_no_shake_error is None:
             self.logger.warning(
                 "send_sicbo_no_shake_error function not available, skipping error signal"
@@ -159,6 +172,7 @@ class IDPController(Controller):
                     self._error_signal_task = asyncio.create_task(
                         send_sicbo_no_shake_error()
                     )
+                    self._error_signal_sent_for_current_cycle = True
                     self.logger.info(
                         "Scheduled SICBO_NO_SHAKE error signal to be sent"
                     )
@@ -168,6 +182,7 @@ class IDPController(Controller):
                         send_sicbo_no_shake_error(), loop
                     )
                     self._error_signal_task = future
+                    self._error_signal_sent_for_current_cycle = True
                     self.logger.info(
                         "Scheduled SICBO_NO_SHAKE error signal to be sent (threadsafe)"
                     )
@@ -176,6 +191,7 @@ class IDPController(Controller):
                 import threading
                 thread = threading.Thread(target=_run_async_signal, daemon=True)
                 thread.start()
+                self._error_signal_sent_for_current_cycle = True
                 self.logger.info(
                     "Started thread to send SICBO_NO_SHAKE error signal"
                 )
@@ -382,7 +398,7 @@ class ShakerController(Controller):
         timeout = 10  # 10 seconds timeout
         start_time = time.time()
         while not self.state_received and (time.time() - start_time) < timeout:
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.2)  # Increased from 0.1 to 0.2 to reduce message frequency
 
         if not self.state_received:
             self.logger.warning("Did not receive initial state response")
@@ -462,7 +478,7 @@ class ShakerController(Controller):
                     "No state response received, sending state request..."
                 )
                 self.mqtt_client.publish(topic, "/state")
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.2)  # Increased from 0.1 to 0.2 to reduce message frequency
 
             # if shake duration exceeded, actively check state
             if (
@@ -473,7 +489,7 @@ class ShakerController(Controller):
                     f"Shake duration ({expected_shake_duration}s) exceeded, actively checking state..."
                 )
                 self.mqtt_client.publish(topic, "/state")
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.2)  # Increased from 0.1 to 0.2 to reduce message frequency
 
             await asyncio.sleep(0.05)  # check frequency
 
@@ -556,7 +572,7 @@ class ShakerController(Controller):
             "Sending state request to check current shaker state..."
         )
         self.mqtt_client.publish("ikg/sicbo/Billy-III/listens", "/state")
-        await asyncio.sleep(0.1)  # minimal wait time for faster response
+        await asyncio.sleep(0.2)  # Increased from 0.1 to 0.2 to reduce message frequency
 
         # check if S0 state is received
         if self.shaker_state == "S0":
@@ -604,7 +620,7 @@ class ShakerController(Controller):
                 self.mqtt_client.publish(
                     "ikg/sicbo/Billy-III/listens", "/state"
                 )
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.2)  # Increased from 0.1 to 0.2 to reduce message frequency
 
             await asyncio.sleep(0.02)  # check frequency
 
