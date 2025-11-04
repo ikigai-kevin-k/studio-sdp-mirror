@@ -1,11 +1,20 @@
 import logging
 import json
 import asyncio
+import sys
+import os
 from typing import Optional, Tuple, List
 from dataclasses import dataclass
 import time
 from mqtt.mqtt_wrapper import MQTTLogger
 from controller import Controller, GameConfig
+
+# Import send_sicbo_no_shake_error from ws_err_sig_sbe
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "studio_api"))
+try:
+    from ws_err_sig_sbe import send_sicbo_no_shake_error
+except ImportError:
+    send_sicbo_no_shake_error = None
 
 
 class IDPController(Controller):
@@ -26,6 +35,7 @@ class IDPController(Controller):
         self.last_response = None
         self.dice_result = None
         self.mqtt_client.client.username_pw_set("PFC", "wago")
+        self._error_signal_task = None  # Track async error signal task
 
     async def initialize(self):
         """Initialize IDP controller"""
@@ -78,9 +88,20 @@ class IDPController(Controller):
                         and "res" in response_data["arg"]
                     ):
                         dice_result = response_data["arg"]["res"]
+                        error_code = response_data["arg"].get("err", 0)
+                        
+                        # Check if error code is -3 (NO SHAKE error)
+                        if error_code == -3:
+                            self.logger.warning(
+                                f"Received error code -3 (NO SHAKE) from IDP response"
+                            )
+                            # Send error signal to WebSocket server
+                            self._send_no_shake_error_signal()
+                        
                         # check if the dice result is valid (three numbers)
                         if (
-                            isinstance(dice_result, list)
+                            error_code == 0
+                            and isinstance(dice_result, list)
                             and len(dice_result) == 3
                             and all(isinstance(x, int) for x in dice_result)
                         ):
@@ -92,14 +113,76 @@ class IDPController(Controller):
                             )
                             return  # return immediately, don't wait for more results
                         else:
-                            self.logger.info(
-                                f"Received invalid result: {dice_result}, continuing to wait..."
-                            )
+                            if error_code != 0:
+                                self.logger.info(
+                                    f"Received error code {error_code}, continuing to wait..."
+                                )
+                            else:
+                                self.logger.info(
+                                    f"Received invalid result: {dice_result}, continuing to wait..."
+                                )
 
         except json.JSONDecodeError as e:
             self.logger.error(f"Failed to parse message JSON: {e}")
         except Exception as e:
             self.logger.error(f"Error processing message: {e}")
+
+    def _send_no_shake_error_signal(self):
+        """Send SICBO_NO_SHAKE error signal to WebSocket server"""
+        if send_sicbo_no_shake_error is None:
+            self.logger.warning(
+                "send_sicbo_no_shake_error function not available, skipping error signal"
+            )
+            return
+        
+        def _run_async_signal():
+            """Run async error signal in a separate thread"""
+            try:
+                # Run the async function in a new event loop
+                asyncio.run(send_sicbo_no_shake_error())
+                self.logger.info("Sent SICBO_NO_SHAKE error signal")
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to send SICBO_NO_SHAKE error signal: {e}"
+                )
+        
+        try:
+            # Try to get running loop first
+            try:
+                loop = asyncio.get_running_loop()
+                # If loop is running, we need to schedule the coroutine
+                # Use run_coroutine_threadsafe if we're in a different thread
+                # Otherwise, create a task
+                import threading
+                if threading.current_thread() is threading.main_thread():
+                    # We're in the main thread with running loop
+                    self._error_signal_task = asyncio.create_task(
+                        send_sicbo_no_shake_error()
+                    )
+                    self.logger.info(
+                        "Scheduled SICBO_NO_SHAKE error signal to be sent"
+                    )
+                else:
+                    # We're in a different thread (MQTT callback thread), use run_coroutine_threadsafe
+                    future = asyncio.run_coroutine_threadsafe(
+                        send_sicbo_no_shake_error(), loop
+                    )
+                    self._error_signal_task = future
+                    self.logger.info(
+                        "Scheduled SICBO_NO_SHAKE error signal to be sent (threadsafe)"
+                    )
+            except RuntimeError:
+                # No running loop, run in new thread to avoid blocking
+                import threading
+                thread = threading.Thread(target=_run_async_signal, daemon=True)
+                thread.start()
+                self.logger.info(
+                    "Started thread to send SICBO_NO_SHAKE error signal"
+                )
+        except Exception as e:
+            self.logger.error(
+                f"Failed to send SICBO_NO_SHAKE error signal: {e}"
+            )
 
     async def detect(self, round_id: str) -> Tuple[bool, Optional[list]]:
         """Send detect command and wait for response"""
@@ -113,7 +196,7 @@ class IDPController(Controller):
                 "command": "detect",
                 "arg": {
                     "round_id": round_id,
-                    "input": "rtmp://192.168.88.54:1935/live/r14_asb0011",
+                    "input": "rtmp://192.168.88.54:1935/live/r14_sb",
                     "output": "https://pull-tc.stream.iki-utl.cc/live/r456_dice.flv",
                 },
             }
