@@ -325,10 +325,10 @@ def send_websocket_error_signal():
         def send_ws_error():
             try:
                 # Send error signal specifically for ARO-002 VIP Roulette table
-                # Server will convert ARO-002-1 to ARO-002-2 for backup device
+                # Use ARO-002-1 for primary device
                 result = asyncio.run(send_roulette_sensor_stuck_error(
                     table_id="ARO-002", 
-                    device_id="1"
+                    device_id="ARO-002-1"
                 ))
                 if result:
                     print(

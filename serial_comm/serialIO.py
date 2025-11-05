@@ -36,6 +36,8 @@ def read_from_serial(
     send_start_recording,
     send_stop_recording,
     log_time_intervals,
+    send_websocket_error_signal=None,  # Optional callback for WebSocket error signal (sensor stuck)
+    send_websocket_wrong_ball_dir_error_signal=None,  # Optional callback for WebSocket wrong ball direction error signal
 ):
     """
     Read and process serial data with non-blocking approach
@@ -124,29 +126,27 @@ def read_from_serial(
                                 "Receive >>>",
                             )
 
-                            # Import and call functions directly
+                            # Use callback functions if provided, otherwise try to import
                             try:
-                                import sys
-                                import os
-
-                                # Add parent directory to path to import main_speed
-                                sys.path.append(
-                                    os.path.dirname(
-                                        os.path.dirname(
-                                            os.path.abspath(__file__)
-                                        )
-                                    )
-                                )
-                                from main_speed import (
-                                    send_sensor_error_to_slack,
-                                    send_websocket_error_signal,
-                                )
-
-                                # Send sensor error notification to Slack
+                                # Send sensor error notification to Slack (already passed as callback)
                                 send_sensor_error_to_slack()
 
-                                # Send WebSocket error signal
-                                send_websocket_error_signal()
+                                # Send WebSocket error signal (use callback if provided)
+                                if send_websocket_error_signal is not None:
+                                    send_websocket_error_signal()
+                                else:
+                                    # Fallback: try to import from main_speed (for backward compatibility)
+                                    import sys
+                                    import os
+                                    sys.path.append(
+                                        os.path.dirname(
+                                            os.path.dirname(
+                                                os.path.abspath(__file__)
+                                            )
+                                        )
+                                    )
+                                    from main_speed import send_websocket_error_signal as fallback_send_ws_error
+                                    fallback_send_ws_error()
 
                                 # Set global flag to terminate the program
                                 global_vars["terminate_program"] = True
@@ -225,29 +225,53 @@ def read_from_serial(
                                         "Receive >>>",
                                     )
 
-                                    # Import and call error signal functions
+                                    # Use callback functions if provided, otherwise try to import
+                                    # Choose error signal based on warning_flag
                                     try:
-                                        import sys
-                                        import os
-
-                                        # Add parent directory to path to import main_speed
-                                        sys.path.append(
-                                            os.path.dirname(
-                                                os.path.dirname(
-                                                    os.path.abspath(__file__)
-                                                )
-                                            )
-                                        )
-                                        from main_speed import (
-                                            send_sensor_error_to_slack,
-                                            send_websocket_error_signal,
-                                        )
-
-                                        # Send sensor error notification to Slack
+                                        # Send sensor error notification to Slack (already passed as callback)
                                         send_sensor_error_to_slack()
 
-                                        # Send WebSocket error signal
-                                        send_websocket_error_signal()
+                                        # Send WebSocket error signal based on warning_flag
+                                        # warning_flag == 2: Wrong ball direction error
+                                        # warning_flag == 4: Sensor stuck error
+                                        # Other: Use sensor stuck error (default)
+                                        if warning_flag == "2":
+                                            # Send wrong ball direction error signal
+                                            if send_websocket_wrong_ball_dir_error_signal is not None:
+                                                send_websocket_wrong_ball_dir_error_signal()
+                                            elif send_websocket_error_signal is not None:
+                                                # Fallback to sensor stuck if wrong ball dir not available
+                                                send_websocket_error_signal()
+                                            else:
+                                                # Fallback: try to import from main_speed (for backward compatibility)
+                                                import sys
+                                                import os
+                                                sys.path.append(
+                                                    os.path.dirname(
+                                                        os.path.dirname(
+                                                            os.path.abspath(__file__)
+                                                        )
+                                                    )
+                                                )
+                                                from main_speed import send_websocket_error_signal as fallback_send_ws_error
+                                                fallback_send_ws_error()
+                                        else:
+                                            # Send sensor stuck error signal (default for warning_flag 4 and others)
+                                            if send_websocket_error_signal is not None:
+                                                send_websocket_error_signal()
+                                            else:
+                                                # Fallback: try to import from main_speed (for backward compatibility)
+                                                import sys
+                                                import os
+                                                sys.path.append(
+                                                    os.path.dirname(
+                                                        os.path.dirname(
+                                                            os.path.abspath(__file__)
+                                                        )
+                                                    )
+                                                )
+                                                from main_speed import send_websocket_error_signal as fallback_send_ws_error
+                                                fallback_send_ws_error()
 
                                         print(
                                             f"[{get_timestamp()}] Error signal sent for *X;2 warning_flag: {warning_flag}"

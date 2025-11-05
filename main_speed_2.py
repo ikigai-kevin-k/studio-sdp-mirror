@@ -40,7 +40,10 @@ from slack import send_error_to_slack
 
 # Import WebSocket error signal module
 sys.path.append("studio_api")  # ensure studio_api module can be imported
-from studio_api.ws_err_sig import send_roulette_sensor_stuck_error
+from studio_api.ws_err_sig import (
+    send_roulette_sensor_stuck_error,
+    send_roulette_wrong_ball_dir_error,
+)
 
 # import sentry_sdk
 
@@ -232,9 +235,71 @@ def send_sensor_error_to_slack():
         return False
 
 
-# Function to send WebSocket error signal
+# Function to send WebSocket wrong ball direction error signal
+def send_websocket_wrong_ball_dir_error_signal():
+    """Send WebSocket wrong ball direction error signal for Speed Roulette table"""
+    try:
+        print(f"[{get_timestamp()}] Sending WebSocket error signal (wrong ball direction)...")
+        log_to_file("Sending WebSocket error signal (wrong ball direction)...", "WebSocket >>>")
+
+        # Run the async function and wait for completion
+        def send_ws_error():
+            try:
+                # Send wrong ball direction error signal for Speed Roulette table (ARO-001-2 for backup device)
+                result = asyncio.run(send_roulette_wrong_ball_dir_error(
+                    table_id="ARO-001",
+                    device_id="ARO-001-2"
+                ))
+                if result:
+                    print(
+                        f"[{get_timestamp()}] WebSocket wrong ball direction error signal sent successfully"
+                    )
+                    log_to_file(
+                        "WebSocket wrong ball direction error signal sent successfully", "WebSocket >>>"
+                    )
+                else:
+                    print(
+                        f"[{get_timestamp()}] WebSocket wrong ball direction error signal failed"
+                    )
+                    log_to_file(
+                        "WebSocket wrong ball direction error signal failed", "WebSocket >>>"
+                    )
+                return result
+            except Exception as e:
+                print(
+                    f"[{get_timestamp()}] Failed to send WebSocket wrong ball direction error signal: {e}"
+                )
+                log_to_file(
+                    f"Failed to send WebSocket wrong ball direction error signal: {e}",
+                    "WebSocket >>>",
+                )
+                return False
+
+        # Start WebSocket error signal in a separate thread and wait for completion
+        ws_thread = threading.Thread(target=send_ws_error)
+        ws_thread.daemon = True
+        ws_thread.start()
+        
+        # Wait for the WebSocket signal to complete (with timeout)
+        ws_thread.join(timeout=10)  # Wait up to 10 seconds
+        
+        if ws_thread.is_alive():
+            print(f"[{get_timestamp()}] WebSocket wrong ball direction error signal timeout, proceeding with termination")
+            log_to_file("WebSocket wrong ball direction error signal timeout, proceeding with termination", "WebSocket >>>")
+
+        return True
+
+    except Exception as e:
+        print(f"[{get_timestamp()}] Error sending WebSocket wrong ball direction error signal: {e}")
+        log_to_file(
+            f"Error sending WebSocket wrong ball direction error signal: {e}", "WebSocket >>>"
+        )
+        return False
+
+
+# Function to send WebSocket error signal (sensor stuck)
 def send_websocket_error_signal():
-    """Send WebSocket error signal for Speed Roulette table"""
+    """Send WebSocket error signal for Speed Roulette table (sensor stuck)"""
     try:
         print(f"[{get_timestamp()}] Sending WebSocket error signal...")
         log_to_file("Sending WebSocket error signal...", "WebSocket >>>")
@@ -242,7 +307,11 @@ def send_websocket_error_signal():
         # Run the async function and wait for completion
         def send_ws_error():
             try:
-                result = asyncio.run(send_roulette_sensor_stuck_error())
+                # Send error signal for Speed Roulette table (ARO-001-2 for backup device)
+                result = asyncio.run(send_roulette_sensor_stuck_error(
+                    table_id="ARO-001",
+                    device_id="ARO-001-2"
+                ))
                 if result:
                     print(
                         f"[{get_timestamp()}] WebSocket error signal sent successfully"
@@ -730,6 +799,8 @@ def main():
             send_start_recording=send_start_recording,
             send_stop_recording=send_stop_recording,
             log_time_intervals=log_time_intervals,
+            send_websocket_error_signal=send_websocket_error_signal,  # Pass WebSocket error signal callback (sensor stuck)
+            send_websocket_wrong_ball_dir_error_signal=send_websocket_wrong_ball_dir_error_signal,  # Pass WebSocket wrong ball direction error signal callback
         )
 
     # Create and start read thread
