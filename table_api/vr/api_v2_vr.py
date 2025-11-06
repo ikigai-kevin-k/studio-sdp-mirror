@@ -4,10 +4,16 @@ from pygments.formatters import TerminalFormatter
 from pygments.lexers import JsonLexer
 import json
 import time
+import sys
+import os
+
+# Add the studio_api directory to Python path to import ErrorMsgId
+sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
+from studio_api.ws_err_sig import ErrorMsgId
 
 # ARO-002
-accessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI4YmY2OTdiMi01ODZjLTRhM2UtOGQ1Ni04MDM0N2M0OTk2OTciLCJnYW1lQ29kZSI6WyJBUk8tMDAyIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NDgyNDIyOTMyODYsImlhdCI6MTc0ODI0MjI5M30.knG6yjA1U_t5Nu2Y5yT0vA1r-WCV5jUKniIrpPhoKoo"
-
+# accessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI4YmY2OTdiMi01ODZjLTRhM2UtOGQ1Ni04MDM0N2M0OTk2OTciLCJnYW1lQ29kZSI6WyJBUk8tMDAyIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NDgyNDIyOTMyODYsImlhdCI6MTc0ODI0MjI5M30.knG6yjA1U_t5Nu2Y5yT0vA1r-WCV5jUKniIrpPhoKoo"
+accessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiJlOGM1ZDdmOC0wZjBiLTQ2NTAtYjY4My1iOTU0ODlhZDE3MTYiLCJnYW1lQ29kZSI6WyJTdHVkaW8tUm91bGV0dGUtVGVzdCJdLCJyb2xlIjoic2RwIiwiY3JlYXRlZEF0IjoxNzYxMTE4MzQ1MjAzLCJpYXQiOjE3NjExMTgzNDV9.3KdnvWP25p_dwlA65gLGr1xoFRVbvwOTFzCmb6egKVI"
 
 def start_post_v2(url, token):
     # Set up HTTP headers
@@ -447,6 +453,82 @@ def bet_stop_post(url: str, token: str) -> bool:
         return False
 
 
+def _get_broadcast_metadata(broadcast_type, signal_type="warning"):
+    """
+    Get ErrorMsgId and metadata for broadcast_type
+    
+    Args:
+        broadcast_type (str): Type of broadcast message (e.g., "roulette.relaunch")
+        signal_type (str): Signal type, 'warning' or 'error' (default: 'warning')
+    
+    Returns:
+        dict: Dictionary containing msgId, content, and metadata
+    """
+    # Map broadcast_type to ErrorMsgId and metadata
+    broadcast_mapping = {
+        "roulette.relaunch": {
+            "msgId": ErrorMsgId.ROULETTE_INVALID_AFTER_RELAUNCH.value,
+            "content": "Roulette relaunch notification",
+            "metadata": {
+                "title": "ROULETTE RELAUNCH",
+                "description": "Roulette game relaunch notification",
+                "code": "ARE.1",
+                "suggestion": "Game will relaunch shortly",
+                "signalType": signal_type,
+            },
+        },
+        "roulette.launch_fail": {
+            "msgId": ErrorMsgId.ROULETTE_LAUNCH_FAIL.value,
+            "content": "Roulette launch fail error",
+            "metadata": {
+                "title": "ROULETTE LAUNCH FAIL",
+                "description": "Roulette ball launch failed",
+                "code": "ARE.2",
+                "suggestion": "Check the launch mechanism",
+                "signalType": signal_type,
+            },
+        },
+        "roulette.wrong_ball_dir": {
+            "msgId": ErrorMsgId.ROUELTTE_WRONG_BALL_DIR.value,
+            "content": "Roulette wrong ball direction error",
+            "metadata": {
+                "title": "WRONG BALL DIRECTION",
+                "description": "Ball is recognized spinning toward the wrong direction in the rim",
+                "code": "ARE.4",
+                "suggestion": "Check the sensor, it usually is due to sensor mis-recognize the direction",
+                "signalType": signal_type,
+            },
+        },
+        "roulette.sensor_stuck": {
+            "msgId": ErrorMsgId.ROULETTE_SENSOR_STUCK.value,
+            "content": "Sensor broken causes roulette machine idle",
+            "metadata": {
+                "title": "SENSOR STUCK",
+                "description": "Sensor broken causes roulette machine idle",
+                "code": "ARE.3",
+                "suggestion": "Clean or replace the ball",
+                "signalType": signal_type,
+            },
+        },
+        # Add more mappings as needed
+    }
+    
+    # Default mapping if not found
+    default_mapping = {
+        "msgId": ErrorMsgId.ROULETTE_INVALID_AFTER_RELAUNCH.value,
+        "content": f"Broadcast notification: {broadcast_type}",
+        "metadata": {
+            "title": "BROADCAST NOTIFICATION",
+            "description": f"Broadcast message: {broadcast_type}",
+            "code": "BRD.1",
+            "suggestion": "Please check the game status",
+            "signalType": signal_type,
+        },
+    }
+    
+    return broadcast_mapping.get(broadcast_type, default_mapping)
+
+
 def broadcast_post_v2(
     url, token, broadcast_type, audience="players", afterSeconds=20
 ):  # , metadata=None):
@@ -456,7 +538,7 @@ def broadcast_post_v2(
     Args:
         url (str): API endpoint URL
         token (str): Authentication token
-        broadcast_type (str): Type of broadcast message (e.g., "dice.reroll")
+        broadcast_type (str): Type of broadcast message (e.g., "roulette.relaunch")
         audience (str): Target audience for the broadcast (default: "players")
         metadata (dict): Additional metadata for the broadcast (default: None)
     """
@@ -466,20 +548,21 @@ def broadcast_post_v2(
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
+        "Connection": "close",
     }
 
-    # Generate a unique message ID using timestamp
-    msg_id = f"msg_{int(time.time() * 1000)}"
-
+    # Get ErrorMsgId and metadata based on broadcast_type
+    broadcast_data = _get_broadcast_metadata(broadcast_type, signal_type="warning")
+    
+    # Merge audience and afterSeconds into metadata if needed
+    if "metadata" in broadcast_data:
+        broadcast_data["metadata"]["audience"] = audience
+        broadcast_data["metadata"]["afterSeconds"] = afterSeconds
+    
     data = {
-        "msgId": msg_id,
-        # "type": broadcast_type,
-        # "audience": audience,
-        "metadata": {
-            "type": broadcast_type,
-            "audience": audience,
-            "afterSeconds": afterSeconds,
-        },  # metadata or {}
+        "msgId": broadcast_data["msgId"],
+        "content": broadcast_data["content"],
+        "metadata": broadcast_data["metadata"],
     }
 
     response = requests.post(

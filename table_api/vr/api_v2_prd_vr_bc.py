@@ -4,52 +4,15 @@ from pygments.formatters import TerminalFormatter
 from pygments.lexers import JsonLexer
 import json
 import time
-import os
 import sys
+import os
 
 # Add the studio_api directory to Python path to import ErrorMsgId
 sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
 from studio_api.ws_err_sig import ErrorMsgId
 
-
-# Load configuration from JSON file
-def load_config():
-    """Load configuration from table-config-vip-roulette-v2.json"""
-    config_path = os.path.join(
-        os.path.dirname(__file__),
-        "..",
-        "..",
-        "conf",
-        "table-config-vip-roulette-v2.json",
-    )
-    try:
-        with open(config_path, "r") as f:
-            configs = json.load(f)
-            # Find PRD-4 configuration
-            for config in configs:
-                if config["name"] == "PRD-4":
-                    return config
-        raise Exception("PRD-4 configuration not found in config file")
-    except Exception as e:
-        print(f"Error loading config: {e}")
-        return None
-
-
-# Load PRD-4 configuration
-config = load_config()
-if config and "access_token" in config:
-    accessToken = config["access_token"]
-    gameCode = config["game_code"]
-    get_url = config["get_url"] + gameCode
-    post_url = config["post_url"] + gameCode
-    token = config["table_token"]
-else:
-    # Fallback to hardcoded values if config loading fails or access_token is missing
-    accessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI2Yjg1Y2JiYS0zODI1LTQ3NGYtOGU2Zi05NmJmYzc5ZWJlY2IiLCJnYW1lQ29kZSI6WyJBUk8tMDA0Il0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NjA0MjkwOTY0MDgsImlhdCI6MTc2MDQyOTA5Nn0.Cv9BVagV69IUeSoCmyB3amrvu4_QN28SPxXafmv35A0"
-    gameCode = "ARO-004"
-    get_url = "https://crystal-table.ikg-game.cc/v2/service/tables/" + gameCode
-    post_url = "https://crystal-table.ikg-game.cc/v2/service/tables/" + gameCode
-    token = "E5LN4END9Q"
+# PRD ARO-002
+accessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI2YWFmNjdmMC1lZDcwLTQzY2MtOWRmZi1jZjhlMmY5NTNhMTEiLCJnYW1lQ29kZSI6WyJBUk8tMDAyIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NDk3OTM3OTMyNTAsImlhdCI6MTc0OTc5Mzc5M30.K84ZS_QpxgsmrZMie27q5pxaKrmYDkxN_drOkrNhd9E"
 
 
 def start_post_v2_prd(url, token):
@@ -636,17 +599,18 @@ if __name__ == "__main__":
         results = "0"  # str(random.randint(0, 36))
         get_url = "https://crystal-table.ikg-game.cc/v2/service/tables/"
         post_url = "https://crystal-table.ikg-game.cc/v2/service/tables/"
-        gameCode = "ARO-004"
+        gameCode = "ARO-002"
         get_url = get_url + gameCode
         post_url = post_url + gameCode
         token = "E5LN4END9Q"
 
         # broadcast_post(post_url, token, "roulette.relaunch", "players", 20)
         # broadcast_post(post_url, token, "dice.reshake", "sdp", 20)
-        print("================Start================\n")
-        round_id, betPeriod = start_post_v2_prd(post_url, token)
-        round_id, status, betPeriod = get_roundID_v2_prd(get_url, token)
-        print(round_id, status, betPeriod)
+        # print("================Start================\n")
+        # round_id, betPeriod = start_post_v2_prd(post_url, token)
+        # round_id, status, betPeriod = get_roundID_v2_prd(get_url, token)
+        # print(round_id, status, betPeriod)
+        broadcast_post_v2_prd("https://crystal-table.ikg-game.cc/v2/service/tables/", "E5LN4END9Q", "roulette.relaunch", "players", 20)
 
         # betPeriod = 10
         # print(round_id, status, betPeriod)
@@ -673,12 +637,12 @@ if __name__ == "__main__":
         # visibility_post(post_url, token, True)
         # time.sleep(1)
 
-        print("================Deal================\n")
-        time.sleep(18)
-        bet_stop_post_prd(post_url, token)
-        deal_post_v2_prd(post_url, token, round_id, results)
-        print("================Finish================\n")
-        finish_post_v2_prd(post_url, token)
+        # print("================Deal================\n")
+        # time.sleep(18)
+        # bet_stop_post_prd(post_url, token)
+        # deal_post_v2_prd(post_url, token, round_id, results)
+        # print("================Finish================\n")
+        # finish_post_v2_prd(post_url, token)
 
         # print("================Cancel================\n")
         # cancel_post(post_url, token)

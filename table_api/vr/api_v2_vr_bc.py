@@ -4,55 +4,18 @@ from pygments.formatters import TerminalFormatter
 from pygments.lexers import JsonLexer
 import json
 import time
-import os
 import sys
+import os
 
 # Add the studio_api directory to Python path to import ErrorMsgId
 sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
 from studio_api.ws_err_sig import ErrorMsgId
 
+# ARO-002
+# accessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI4YmY2OTdiMi01ODZjLTRhM2UtOGQ1Ni04MDM0N2M0OTk2OTciLCJnYW1lQ29kZSI6WyJBUk8tMDAyIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NDgyNDIyOTMyODYsImlhdCI6MTc0ODI0MjI5M30.knG6yjA1U_t5Nu2Y5yT0vA1r-WCV5jUKniIrpPhoKoo"
+accessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiJlOGM1ZDdmOC0wZjBiLTQ2NTAtYjY4My1iOTU0ODlhZDE3MTYiLCJnYW1lQ29kZSI6WyJTdHVkaW8tUm91bGV0dGUtVGVzdCJdLCJyb2xlIjoic2RwIiwiY3JlYXRlZEF0IjoxNzYxMTE4MzQ1MjAzLCJpYXQiOjE3NjExMTgzNDV9.3KdnvWP25p_dwlA65gLGr1xoFRVbvwOTFzCmb6egKVI"
 
-# Load configuration from JSON file
-def load_config():
-    """Load configuration from table-config-vip-roulette-v2.json"""
-    config_path = os.path.join(
-        os.path.dirname(__file__),
-        "..",
-        "..",
-        "conf",
-        "table-config-vip-roulette-v2.json",
-    )
-    try:
-        with open(config_path, "r") as f:
-            configs = json.load(f)
-            # Find PRD-4 configuration
-            for config in configs:
-                if config["name"] == "PRD-4":
-                    return config
-        raise Exception("PRD-4 configuration not found in config file")
-    except Exception as e:
-        print(f"Error loading config: {e}")
-        return None
-
-
-# Load PRD-4 configuration
-config = load_config()
-if config and "access_token" in config:
-    accessToken = config["access_token"]
-    gameCode = config["game_code"]
-    get_url = config["get_url"] + gameCode
-    post_url = config["post_url"] + gameCode
-    token = config["table_token"]
-else:
-    # Fallback to hardcoded values if config loading fails or access_token is missing
-    accessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI2Yjg1Y2JiYS0zODI1LTQ3NGYtOGU2Zi05NmJmYzc5ZWJlY2IiLCJnYW1lQ29kZSI6WyJBUk8tMDA0Il0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NjA0MjkwOTY0MDgsImlhdCI6MTc2MDQyOTA5Nn0.Cv9BVagV69IUeSoCmyB3amrvu4_QN28SPxXafmv35A0"
-    gameCode = "ARO-004"
-    get_url = "https://crystal-table.ikg-game.cc/v2/service/tables/" + gameCode
-    post_url = "https://crystal-table.ikg-game.cc/v2/service/tables/" + gameCode
-    token = "E5LN4END9Q"
-
-
-def start_post_v2_prd(url, token):
+def start_post_v2(url, token):
     # Set up HTTP headers
     headers = {
         "accept": "application/json",
@@ -60,7 +23,6 @@ def start_post_v2_prd(url, token):
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
-        "Connection": "close",
         # 'timecode': '26000' # 8 + 15 + 3 = 26
     }
 
@@ -105,7 +67,7 @@ def start_post_v2_prd(url, token):
     return round_id, betPeriod
 
 
-def deal_post_v2_prd(url, token, round_id, result):
+def deal_post_v2(url, token, round_id, result):
     timecode = str(int(time.time() * 1000) + 5000)
     headers = {
         "accept": "application/json",
@@ -114,40 +76,29 @@ def deal_post_v2_prd(url, token, round_id, result):
         "Content-Type": "application/json",
         "timecode": timecode,
         "Cookie": f"accessToken={accessToken}",
-        "Connection": "close",
     }
 
     data = {
         "roundId": f"{round_id}",
-        # "roulette": result  # 修改: 使用 "roulette" 而不是 "sicBo"，直接傳入數字的string
-        "roulette": result,
+        "roulette": result,  # 修改: 使用 "roulette" 而不是 "sicBo"，直接傳入數字的string
     }
 
     response = requests.post(
         f"{url}/deal", headers=headers, json=data, verify=False
     )
-
-    if response.status_code != 200:
-        print("====================")
-        print("[DEBUG] deal_post_v2")
-        print("====================")
-        print(f"Error: {response.status_code} - {response.text}")
-        print("====================")
-
     json_str = json.dumps(response.json(), indent=2)
 
     colored_json = highlight(json_str, JsonLexer(), TerminalFormatter())
     print(colored_json)
 
 
-def finish_post_v2_prd(url, token):
+def finish_post_v2(url, token):
     headers = {
         "accept": "application/json",
         "Bearer": token,
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
-        "Connection": "close",
     }
     data = {}
     response = requests.post(
@@ -159,14 +110,13 @@ def finish_post_v2_prd(url, token):
     print(colored_json)
 
 
-def visibility_post_prd(url, token, enable):
+def visibility_post(url, token, enable):
     headers = {
         "accept": "application/json",
         "Bearer": token,
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
-        "Connection": "close",
     }
     print("enable: ", enable)
 
@@ -183,7 +133,7 @@ def visibility_post_prd(url, token, enable):
     print(colored_json)
 
 
-def get_roundID_v2_prd(url, token):
+def get_roundID(url, token):
     # Set up HTTP headers
 
     # print("URL:", url)
@@ -194,7 +144,6 @@ def get_roundID_v2_prd(url, token):
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
-        "Connection": "close",
     }
 
     # Define payload for the POST request
@@ -241,14 +190,13 @@ def get_roundID_v2_prd(url, token):
     return round_id, status, betPeriod
 
 
-def pause_post_v2_prd(url, token, reason):
+def pause_post(url, token, reason):
     headers = {
         "accept": "application/json",
         "Bearer": token,
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
-        "Connection": "close",
     }
 
     data = {"reason": reason}  # for example: "cannot drive the dice shaker"
@@ -262,14 +210,13 @@ def pause_post_v2_prd(url, token, reason):
     print(colored_json)
 
 
-def resume_pos_v2_prd(url, token):
+def resume_post(url, token):
     headers = {
         "accept": "application/json",
         "Bearer": token,
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
         "Cookie": f"accessToken={accessToken}",
-        "Connection": "close",
     }
 
     data = {}  # Empty payload as per API specification
@@ -282,7 +229,7 @@ def resume_pos_v2_prd(url, token):
     print(colored_json)
 
 
-def sdp_config_post_v2_prd(url, token, config_data):
+def sdp_config_post(url, token, config_data):
     """
     Update SDP configuration for a specific table
 
@@ -316,7 +263,7 @@ def sdp_config_post_v2_prd(url, token, config_data):
     print(colored_json)
 
 
-def get_sdp_config_v2_prd(url, token):
+def get_sdp_config(url, token):
     """
     Get SDP configuration from the table status
 
@@ -346,18 +293,17 @@ def get_sdp_config_v2_prd(url, token):
             response_data.get("data", {}).get("table", {}).get("sdpConfig", {})
         )
 
-        broker_host = sdp_config.get("broker_host")
-        broker_port = sdp_config.get("broker_port")
-        room_id = sdp_config.get("room_id")
+        strings = sdp_config.get("strings")
+        number = sdp_config.get("number")
 
-        return broker_host, broker_port, room_id
+        return strings, number
 
     except json.JSONDecodeError:
         print("Error: Unable to decode JSON response.")
         return None, None
 
 
-def update_sdp_config_from_file_v2_prd(url, token, config_file="sdp.config"):
+def update_sdp_config_from_file(url, token, config_file="sdp.config"):
     """
     Read configuration from sdp.config file and update SDP configuration
 
@@ -384,7 +330,7 @@ def update_sdp_config_from_file_v2_prd(url, token, config_file="sdp.config"):
             "number": 0,  # Default value as it's not used for durations
         }
 
-        sdp_config_post_v2_prd(url, token, config_data)
+        sdp_config_post(url, token, config_data)
         return True
 
     except FileNotFoundError:
@@ -398,7 +344,7 @@ def update_sdp_config_from_file_v2_prd(url, token, config_file="sdp.config"):
         return False
 
 
-def cancel_post_v2_prd(url: str, token: str) -> None:
+def cancel_post(url: str, token: str) -> None:
     """
     取消當前局次
     """
@@ -445,9 +391,9 @@ def cancel_post_v2_prd(url: str, token: str) -> None:
         print(f"Unexpected error in cancel_post: {e}")
 
 
-def bet_stop_post_prd(url: str, token: str) -> bool:
+def bet_stop_post(url: str, token: str) -> bool:
     """
-    Stop betting for the current round - Virtual Roulette game (PRD environment)
+    Stop betting for the current round - Virtual Roulette game
     Returns True if successful, False otherwise
     """
     try:
@@ -473,7 +419,7 @@ def bet_stop_post_prd(url: str, token: str) -> bool:
                 )
             else:
                 error_msg = f"HTTP {response.status_code}"
-            print(f"Error in bet_stop_post_prd: {error_msg}")
+            print(f"Error in bet_stop_post: {error_msg}")
             return False
 
         if response_data is None:
@@ -486,7 +432,7 @@ def bet_stop_post_prd(url: str, token: str) -> bool:
             and response_data["error"]
         ):
             error_msg = response_data["error"].get("message", "Unknown error")
-            print(f"Error in bet_stop_post_prd: {error_msg}")
+            print(f"Error in bet_stop_post: {error_msg}")
             return False
 
         # Format and display the response
@@ -497,13 +443,13 @@ def bet_stop_post_prd(url: str, token: str) -> bool:
         return True
 
     except requests.exceptions.RequestException as e:
-        print(f"Network error in bet_stop_post_prd: {e}")
+        print(f"Network error in bet_stop_post: {e}")
         return False
     except ValueError as e:
-        print(f"JSON decode error in bet_stop_post_prd: {e}")
+        print(f"JSON decode error in bet_stop_post: {e}")
         return False
     except Exception as e:
-        print(f"Unexpected error in bet_stop_post_prd: {e}")
+        print(f"Unexpected error in bet_stop_post: {e}")
         return False
 
 
@@ -583,7 +529,7 @@ def _get_broadcast_metadata(broadcast_type, signal_type="warning"):
     return broadcast_mapping.get(broadcast_type, default_mapping)
 
 
-def broadcast_post_v2_prd(
+def broadcast_post_v2(
     url, token, broadcast_type, audience="players", afterSeconds=20
 ):  # , metadata=None):
     """
@@ -633,29 +579,36 @@ if __name__ == "__main__":
 
     cnt = 0
     while cnt < 1:
-        results = "0"  # str(random.randint(0, 36))
-        get_url = "https://crystal-table.ikg-game.cc/v2/service/tables/"
-        post_url = "https://crystal-table.ikg-game.cc/v2/service/tables/"
-        gameCode = "ARO-004"
-        get_url = get_url + gameCode
-        post_url = post_url + gameCode
-        token = "E5LN4END9Q"
 
-        # broadcast_post(post_url, token, "roulette.relaunch", "players", 20)
-        # broadcast_post(post_url, token, "dice.reshake", "sdp", 20)
-        print("================Start================\n")
-        round_id, betPeriod = start_post_v2_prd(post_url, token)
-        round_id, status, betPeriod = get_roundID_v2_prd(get_url, token)
-        print(round_id, status, betPeriod)
+        # results = "0"  # str(random.randint(0, 36))
+        # get_url = "https://crystal-table.iki-cit.cc/v2/service/tables/"
+        # post_url = "https://crystal-table.iki-cit.cc/v2/service/tables/"
 
-        # betPeriod = 10
+        # get_url =  "https://crystal-los.iki-uat.cc/v1/service/table/"
+        # post_url = "https://crystal-los.iki-uat.cc/v1/service/sdp/table/"
+
+        # gameCode = 'SDP-003'
+        # gameCode = 'SDP-001'
+        # gameCode = 'SDP-003'
+        # gameCode = "ARO-002"
+        # get_url = get_url + gameCode
+        # post_url = post_url + gameCode
+        # token = "E5LN4END9Q"
+
+        broadcast_post_v2("https://crystal-table.iki-cit.cc/v2/service/tables/", "E5LN4END9Q", "roulette.relaunch", "players", 20)
+        # print("================Start================\n")
+        # round_id, betPeriod = start_post_v2(post_url, token)
+        # round_id, status, betPeriod = get_roundID(get_url, token)
         # print(round_id, status, betPeriod)
-        # while betPeriod >= 0: #or status !='bet-stopped':
-        # print("Bet Period count down:", betPeriod)
-        # time.sleep(1)
-        # betPeriod = betPeriod - 1
-        # _, status, _ =  get_roundID(get_url, token)
-        # print(status)
+
+        # betPeriod = 19
+        # print(round_id, status, betPeriod)
+        # while betPeriod > 0: #or status !='bet-stopped':
+        #     print("Bet Period count down:", betPeriod)
+        #     time.sleep(1)
+        #     betPeriod = betPeriod - 1
+        #     _, status, _ =  get_roundID(get_url, token)
+        #     print(status)
 
         # print("================Pause================\n")
         # pause_post(post_url, token, "test")
@@ -673,12 +626,12 @@ if __name__ == "__main__":
         # visibility_post(post_url, token, True)
         # time.sleep(1)
 
-        print("================Deal================\n")
-        time.sleep(18)
-        bet_stop_post_prd(post_url, token)
-        deal_post_v2_prd(post_url, token, round_id, results)
-        print("================Finish================\n")
-        finish_post_v2_prd(post_url, token)
+        # print("================Deal================\n")
+        # time.sleep(18)
+        # bet_stop_post(post_url, token)
+        # deal_post_v2(post_url, token, round_id, results)
+        # print("================Finish================\n")
+        # finish_post_v2(post_url, token)
 
         # print("================Cancel================\n")
         # cancel_post(post_url, token)
