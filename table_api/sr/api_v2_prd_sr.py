@@ -5,6 +5,23 @@ from pygments.lexers import JsonLexer
 import json
 import time
 import os
+import sys
+
+# Import ErrorMsgId from ws_err_sig
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "studio_api"))
+try:
+    from studio_api.ws_err_sig import ErrorMsgId
+except ImportError:
+    # Fallback if import fails
+    from enum import Enum
+    class ErrorMsgId(Enum):
+        ROULETTE_INVALID_AFTER_RELAUNCH = "ROULETTE_INVALID_AFTER_RELAUNCH"
+        ROULETTE_NO_BALL_DETECT = "ROULETTE_NO_BALL_DETECT"
+        ROULETTE_NO_WIN_NUM = "ROULETTE_NO_WIN_NUM"
+        ROULETTE_NO_REACH_POS = "ROULETTE_NO_REACH_POS"
+        ROULETTE_SENSOR_STUCK = "ROULETTE_SENSOR_STUCK"
+        ROUELTTE_WRONG_BALL_DIR = "ROUELTTE_WRONG_BALL_DIR"
+        ROULETTE_LAUNCH_FAIL = "ROULETTE_LAUNCH_FAIL"
 
 
 # Load configuration from JSON file
@@ -497,6 +514,82 @@ def bet_stop_post_prd(url: str, token: str) -> bool:
         return False
 
 
+def _get_broadcast_metadata_prd(broadcast_type, signal_type="warning"):
+    """
+    Get ErrorMsgId and metadata for broadcast_type
+    
+    Args:
+        broadcast_type (str): Type of broadcast message (e.g., "roulette.relaunch")
+        signal_type (str): Signal type, 'warning' or 'error' (default: 'warning')
+    
+    Returns:
+        tuple: (ErrorMsgId value, metadata dict)
+    """
+    # Map broadcast_type to ErrorMsgId and metadata
+    broadcast_mapping = {
+        "roulette.relaunch": {
+            "msgId": ErrorMsgId.ROULETTE_INVALID_AFTER_RELAUNCH.value,
+            "content": "Roulette relaunch notification",
+            "metadata": {
+                "title": "ROULETTE RELAUNCH",
+                "description": "Roulette game relaunch notification",
+                "code": "ARE.1",
+                "suggestion": "Game will relaunch shortly",
+                "signalType": signal_type,
+            },
+        },
+        "roulette.launch_fail": {
+            "msgId": ErrorMsgId.ROULETTE_LAUNCH_FAIL.value,
+            "content": "Roulette launch fail error",
+            "metadata": {
+                "title": "ROULETTE LAUNCH FAIL",
+                "description": "Roulette ball launch failed",
+                "code": "ARE.2",
+                "suggestion": "Check the launch mechanism",
+                "signalType": signal_type,
+            },
+        },
+        "roulette.wrong_ball_dir": {
+            "msgId": ErrorMsgId.ROUELTTE_WRONG_BALL_DIR.value,
+            "content": "Roulette wrong ball direction error",
+            "metadata": {
+                "title": "WRONG BALL DIRECTION",
+                "description": "Ball is recognized spinning toward the wrong direction in the rim",
+                "code": "ARE.4",
+                "suggestion": "Check the sensor, it usually is due to sensor mis-recognize the direction",
+                "signalType": signal_type,
+            },
+        },
+        "roulette.sensor_stuck": {
+            "msgId": ErrorMsgId.ROULETTE_SENSOR_STUCK.value,
+            "content": "Sensor broken causes roulette machine idle",
+            "metadata": {
+                "title": "SENSOR STUCK",
+                "description": "Sensor broken causes roulette machine idle",
+                "code": "ARE.3",
+                "suggestion": "Clean or replace the ball",
+                "signalType": signal_type,
+            },
+        },
+        # Add more mappings as needed
+    }
+    
+    # Default mapping if not found
+    default_mapping = {
+        "msgId": ErrorMsgId.ROULETTE_INVALID_AFTER_RELAUNCH.value,
+        "content": f"Broadcast notification: {broadcast_type}",
+        "metadata": {
+            "title": "BROADCAST NOTIFICATION",
+            "description": f"Broadcast message: {broadcast_type}",
+            "code": "BRD.1",
+            "suggestion": "Please check the game status",
+            "signalType": signal_type,
+        },
+    }
+    
+    return broadcast_mapping.get(broadcast_type, default_mapping)
+
+
 def broadcast_post_v2_prd(
     url, token, broadcast_type, audience="players", afterSeconds=20
 ):  # , metadata=None):
@@ -506,7 +599,7 @@ def broadcast_post_v2_prd(
     Args:
         url (str): API endpoint URL
         token (str): Authentication token
-        broadcast_type (str): Type of broadcast message (e.g., "dice.reroll")
+        broadcast_type (str): Type of broadcast message (e.g., "roulette.relaunch")
         audience (str): Target audience for the broadcast (default: "players")
         metadata (dict): Additional metadata for the broadcast (default: None)
     """
@@ -519,18 +612,13 @@ def broadcast_post_v2_prd(
         "Connection": "close",
     }
 
-    # Generate a unique message ID using timestamp
-    msg_id = f"msg_{int(time.time() * 1000)}"
-
+    # Get ErrorMsgId and metadata based on broadcast_type
+    broadcast_data = _get_broadcast_metadata_prd(broadcast_type, signal_type="warning")
+    
     data = {
-        "msgId": msg_id,
-        # "type": broadcast_type,
-        # "audience": audience,
-        "metadata": {
-            "type": broadcast_type,
-            "audience": audience,
-            "afterSeconds": afterSeconds,
-        },  # metadata or {}
+        "msgId": broadcast_data["msgId"],
+        "content": broadcast_data["content"],
+        "metadata": broadcast_data["metadata"],
     }
 
     response = requests.post(
@@ -597,7 +685,6 @@ if __name__ == "__main__":
         #     "result_duration": 4
         # }
         # sdp_config_post(sdp_url, token, config_data)
-
         # Example usage of get_sdp_config
         # strings, number = get_sdp_config(get_url, token)
         # print(f"SDP Config - strings: {strings}, number: {number}")

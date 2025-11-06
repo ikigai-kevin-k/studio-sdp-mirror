@@ -924,53 +924,53 @@ def betStop_round_for_table(table, token):
     return asyncio.run(_betStop_round_for_table_async(table, token))
 
 
-async def _execute_broadcast_post_async(table, token):
+async def _execute_broadcast_post_async(table, token, broadcast_type="roulette.relaunch"):
     """Execute broadcast_post to notify relaunch - async implementation"""
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
         if table["name"] == "CIT":
             result = await retry_with_network_check(
-                broadcast_post_v2, post_url, token, "roulette.relaunch", "players", 20
+                broadcast_post_v2, post_url, token, broadcast_type, "players", 20
             )
         elif table["name"] == "UAT":
             result = await retry_with_network_check(
-                broadcast_post_v2_uat, post_url, token, "roulette.relaunch", "players", 20
+                broadcast_post_v2_uat, post_url, token, broadcast_type, "players", 20
             )
         elif table["name"] == "PRD":
             result = await retry_with_network_check(
-                broadcast_post_v2_prd, post_url, token, "roulette.relaunch", "players", 20
+                broadcast_post_v2_prd, post_url, token, broadcast_type, "players", 20
             )
         elif table["name"] == "STG":
             result = await retry_with_network_check(
-                broadcast_post_v2_stg, post_url, token, "roulette.relaunch", "players", 20
+                broadcast_post_v2_stg, post_url, token, broadcast_type, "players", 20
             )
         elif table["name"] == "QAT":
             result = await retry_with_network_check(
-                broadcast_post_v2_qat, post_url, token, "roulette.relaunch", "players", 20
+                broadcast_post_v2_qat, post_url, token, broadcast_type, "players", 20
             )
         elif table["name"] == "CIT-5":
             result = await retry_with_network_check(
-                broadcast_post_v2_cit5, post_url, token, "roulette.relaunch", "players", 20
+                broadcast_post_v2_cit5, post_url, token, broadcast_type, "players", 20
             )
         elif table["name"] == "CIT-6":
             result = await retry_with_network_check(
-                broadcast_post_v2_cit6, post_url, token, "roulette.relaunch", "players", 20
+                broadcast_post_v2_cit6, post_url, token, broadcast_type, "players", 20
             )
         elif table["name"] == "CIT-7":
             result = await retry_with_network_check(
-                broadcast_post_v2_cit7, post_url, token, "roulette.relaunch", "players", 20
+                broadcast_post_v2_cit7, post_url, token, broadcast_type, "players", 20
             )
         elif table["name"] == "PRD-5":
             result = await retry_with_network_check(
-                broadcast_post_v2_prd5, post_url, token, "roulette.relaunch", "players", 20
+                broadcast_post_v2_prd5, post_url, token, broadcast_type, "players", 20
             )
         elif table["name"] == "PRD-6":
             result = await retry_with_network_check(
-                broadcast_post_v2_prd6, post_url, token, "roulette.relaunch", "players", 20
+                broadcast_post_v2_prd6, post_url, token, broadcast_type, "players", 20
             )
         elif table["name"] == "PRD-7":
             result = await retry_with_network_check(
-                broadcast_post_v2_prd7, post_url, token, "roulette.relaunch", "players", 20
+                broadcast_post_v2_prd7, post_url, token, broadcast_type, "players", 20
             )
         else:
             return None
@@ -1057,9 +1057,9 @@ async def _execute_broadcast_post_async(table, token):
         return None
 
 
-def execute_broadcast_post(table, token):
+def execute_broadcast_post(table, token, broadcast_type="roulette.relaunch"):
     """Execute broadcast_post to notify relaunch - synchronous wrapper"""
-    return asyncio.run(_execute_broadcast_post_async(table, token))
+    return asyncio.run(_execute_broadcast_post_async(table, token, broadcast_type))
 
 
 def main():

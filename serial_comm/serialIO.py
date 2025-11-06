@@ -148,6 +148,50 @@ def read_from_serial(
                                     from main_speed import send_websocket_error_signal as fallback_send_ws_error
                                     fallback_send_ws_error()
 
+                                # Send broadcast_post for sensor stuck error
+                                current_time_broadcast = time.time()
+                                broadcast_type_sensor_stuck = "roulette.sensor_stuck"
+                                last_broadcast_key_sensor_stuck = f"last_broadcast_time_{broadcast_type_sensor_stuck}"
+                                
+                                # Check if 10 seconds have passed or it's the first broadcast
+                                if (
+                                    not hasattr(
+                                        execute_broadcast_post,
+                                        last_broadcast_key_sensor_stuck,
+                                    )
+                                    or (
+                                        current_time_broadcast
+                                        - getattr(execute_broadcast_post, last_broadcast_key_sensor_stuck, 0)
+                                    )
+                                    >= 10
+                                ):
+                                    print(
+                                        f"[{get_timestamp()}] Sending broadcast_post ({broadcast_type_sensor_stuck}) for *X;6 message..."
+                                    )
+                                    log_to_file(
+                                        f"Sending broadcast_post ({broadcast_type_sensor_stuck}) for *X;6 message",
+                                        "Broadcast >>>",
+                                    )
+                                    
+                                    # Send broadcast_post to each table
+                                    with ThreadPoolExecutor(
+                                        max_workers=len(tables)
+                                    ) as executor:
+                                        futures = [
+                                            executor.submit(
+                                                execute_broadcast_post,
+                                                table,
+                                                token,
+                                                broadcast_type_sensor_stuck,
+                                            )
+                                            for table in tables
+                                        ]
+                                        for future in futures:
+                                            future.result()  # Wait for all requests to complete
+                                    
+                                    # Update last send time
+                                    setattr(execute_broadcast_post, last_broadcast_key_sensor_stuck, current_time_broadcast)
+
                                 # Set global flag to terminate the program
                                 global_vars["terminate_program"] = True
                                 print(
@@ -298,34 +342,40 @@ def read_from_serial(
                                             "Error >>>",
                                         )
 
-                                    # Check if warning_flag requires broadcast (original logic)
-                                    if (
-                                        int(warning_flag) == 8
-                                        or int(warning_flag) == 2
-                                        or warning_flag == "A"
-                                    ):
+                                    # Check if warning_flag requires broadcast and determine broadcast_type
+                                    broadcast_type = None
+                                    if int(warning_flag) == 8:
+                                        broadcast_type = "roulette.launch_fail"
+                                    elif int(warning_flag) == 2:
+                                        broadcast_type = "roulette.wrong_ball_dir"
+                                    elif warning_flag == "A":
+                                        broadcast_type = "roulette.relaunch"  # Default for flag A
+                                    
+                                    if broadcast_type:
                                         # Check if 10 seconds have passed or it's the first broadcast
+                                        # Use different last_broadcast_time for each broadcast_type
+                                        last_broadcast_key = f"last_broadcast_time_{broadcast_type}"
                                         if (
                                             not hasattr(
                                                 execute_broadcast_post,
-                                                "last_broadcast_time",
+                                                last_broadcast_key,
                                             )
                                             or (
                                                 current_time
-                                                - execute_broadcast_post.last_broadcast_time
+                                                - getattr(execute_broadcast_post, last_broadcast_key, 0)
                                             )
                                             >= 10
                                         ):
 
                                             print(
-                                                f"\nDetected warning_flag not equal to 0, sending broadcast_post to notify relaunch..."
+                                                f"\nDetected warning_flag={warning_flag}, sending broadcast_post ({broadcast_type})..."
                                             )
                                             log_to_file(
-                                                "Detected warning_flag not equal to 0, sending broadcast_post to notify relaunch",
+                                                f"Detected warning_flag={warning_flag}, sending broadcast_post ({broadcast_type})",
                                                 "Broadcast >>>",
                                             )
 
-                                            # Send broadcast_post to each table
+                                            # Send broadcast_post to each table with specific broadcast_type
                                             with ThreadPoolExecutor(
                                                 max_workers=len(tables)
                                             ) as executor:
@@ -334,19 +384,19 @@ def read_from_serial(
                                                         execute_broadcast_post,
                                                         table,
                                                         token,
+                                                        broadcast_type,
                                                     )
                                                     for table in tables
                                                 ]
                                                 for future in futures:
                                                     future.result()  # Wait for all requests to complete
 
-                                            # Update last send time
-                                            execute_broadcast_post.last_broadcast_time = (
-                                                current_time
-                                            )
+                                            # Update last send time for this broadcast_type
+                                            setattr(execute_broadcast_post, last_broadcast_key, current_time)
                                         else:
+                                            elapsed = current_time - getattr(execute_broadcast_post, last_broadcast_key, 0)
                                             print(
-                                                f"Already sent broadcast {current_time - execute_broadcast_post.last_broadcast_time:.1f} seconds ago, waiting for time interval..."
+                                                f"Already sent broadcast ({broadcast_type}) {elapsed:.1f} seconds ago, waiting for time interval..."
                                             )
                         except Exception as e:
                             print(
