@@ -4,6 +4,12 @@ from pygments.formatters import TerminalFormatter
 from pygments.lexers import JsonLexer
 import json
 import time
+import sys
+import os
+
+# Add the studio_api directory to Python path to import ErrorMsgId
+sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
+from studio_api.ws_err_sig import ErrorMsgId
 
 
 # CIT SBO-001 - SicBo Game API Module for CIT Environment
@@ -401,6 +407,93 @@ def cancel_post(url: str, token: str) -> None:
         print(f"Unexpected error in cancel_post: {e}")
 
 
+def _get_broadcast_metadata(broadcast_type, signal_type="warning"):
+    """
+    Get ErrorMsgId and metadata for broadcast_type
+    
+    Args:
+        broadcast_type (str): Type of broadcast message (e.g., "dice.reshake")
+        signal_type (str): Signal type, 'warning' or 'error' (default: 'warning')
+    
+    Returns:
+        dict: Dictionary containing msgId, content, and metadata
+    """
+    # Map broadcast_type to ErrorMsgId and metadata
+    broadcast_mapping = {
+        "dice.reshake": {
+            "msgId": ErrorMsgId.SICBO_INVALID_AFTER_RESHAKE.value,
+            "content": "Sicbo invalid result after reshake",
+            "metadata": {
+                "title": "SICBO RESHAKE",
+                "description": "Invalid result detected, reshaking dice",
+                "code": "SBE.1",
+                "suggestion": "Dice will be reshaken shortly",
+                "signalType": signal_type,
+            },
+        },
+        "dice.reroll": {
+            "msgId": ErrorMsgId.SICBO_INVALID_AFTER_RESHAKE.value,
+            "content": "Sicbo invalid result after reshake",
+            "metadata": {
+                "title": "SICBO RESHAKE",
+                "description": "Invalid result detected, reshaking dice",
+                "code": "SBE.1",
+                "suggestion": "Dice will be reshaken shortly",
+                "signalType": signal_type,
+            },
+        },
+        "sicbo.reshake": {
+            "msgId": ErrorMsgId.SICBO_INVALID_AFTER_RESHAKE.value,
+            "content": "Sicbo invalid result after reshake",
+            "metadata": {
+                "title": "SICBO RESHAKE",
+                "description": "Invalid result detected, reshaking dice",
+                "code": "SBE.1",
+                "suggestion": "Dice will be reshaken shortly",
+                "signalType": signal_type,
+            },
+        },
+        "sicbo.invalid_result": {
+            "msgId": ErrorMsgId.SICBO_INVALID_RESULT.value,
+            "content": "Sicbo invalid result error",
+            "metadata": {
+                "title": "SICBO INVALID RESULT",
+                "description": "Invalid result detected",
+                "code": "SBE.2",
+                "suggestion": "Please check the result",
+                "signalType": signal_type,
+            },
+        },
+        "sicbo.no_shake": {
+            "msgId": ErrorMsgId.SICBO_NO_SHAKE.value,
+            "content": "Sicbo no shake error",
+            "metadata": {
+                "title": "SICBO NO SHAKE",
+                "description": "Dice shaker did not shake",
+                "code": "SBE.3",
+                "suggestion": "Check the shaker mechanism",
+                "signalType": signal_type,
+            },
+        },
+        # Add more mappings as needed
+    }
+    
+    # Default mapping if not found
+    default_mapping = {
+        "msgId": ErrorMsgId.SICBO_INVALID_AFTER_RESHAKE.value,
+        "content": f"Broadcast notification: {broadcast_type}",
+        "metadata": {
+            "title": "BROADCAST NOTIFICATION",
+            "description": f"Broadcast message: {broadcast_type}",
+            "code": "BRD.1",
+            "suggestion": "Please check the game status",
+            "signalType": signal_type,
+        },
+    }
+    
+    return broadcast_mapping.get(broadcast_type, default_mapping)
+
+
 def broadcast_post_v2(
     url, token, broadcast_type, audience="players", afterSeconds=20
 ):
@@ -423,16 +516,18 @@ def broadcast_post_v2(
         "Connection": "close",
     }
 
-    # Generate a unique message ID using timestamp
-    msg_id = f"msg_{int(time.time() * 1000)}"
-
+    # Get ErrorMsgId and metadata based on broadcast_type
+    broadcast_data = _get_broadcast_metadata(broadcast_type, signal_type="warning")
+    
+    # Merge audience and afterSeconds into metadata if needed
+    if "metadata" in broadcast_data:
+        broadcast_data["metadata"]["audience"] = audience
+        broadcast_data["metadata"]["afterSeconds"] = afterSeconds
+    
     data = {
-        "msgId": msg_id,
-        "metadata": {
-            "type": broadcast_type,
-            "audience": audience,
-            "afterSeconds": afterSeconds,
-        },
+        "msgId": broadcast_data["msgId"],
+        "content": broadcast_data["content"],
+        "metadata": broadcast_data["metadata"],
     }
 
     response = requests.post(
@@ -630,18 +725,18 @@ def broadcast_post_v2(
         "Connection": "close",
     }
 
-    # Generate a unique message ID using timestamp
-    msg_id = f"msg_{int(time.time() * 1000)}"
-
+    # Get ErrorMsgId and metadata based on broadcast_type
+    broadcast_data = _get_broadcast_metadata(broadcast_type, signal_type="warning")
+    
+    # Merge audience and afterSeconds into metadata if needed
+    if "metadata" in broadcast_data:
+        broadcast_data["metadata"]["audience"] = audience
+        broadcast_data["metadata"]["afterSeconds"] = afterSeconds
+    
     data = {
-        "msgId": msg_id,
-        # "type": broadcast_type,
-        # "audience": audience,
-        "metadata": {
-            "type": broadcast_type,
-            "audience": audience,
-            "afterSeconds": afterSeconds,
-        },  # metadata or {}
+        "msgId": broadcast_data["msgId"],
+        "content": broadcast_data["content"],
+        "metadata": broadcast_data["metadata"],
     }
 
     response = requests.post(

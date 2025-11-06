@@ -1351,45 +1351,45 @@ class SDPGame:
                                 broadcast_post_v2(
                                     post_url,
                                     self.token,
-                                    "Issue detected. Reshake ball.",
+                                    "dice.reshake",
                                     "players",
-                                    {"afterSeconds": 4},
+                                    4,
                                 )
                                 # sentry_sdk.capture_message("[SBO-001][CIT][ERR_RESHAKE]: Issue detected. Reshake ball.")
                             elif table["name"] == "UAT":
                                 broadcast_post_v2_uat(
                                     post_url,
                                     self.token,
-                                    "Issue detected. Reshake ball.",
+                                    "dice.reshake",
                                     "players",
-                                    {"afterSeconds": 4},
+                                    4,
                                 )
                                 # sentry_sdk.capture_message("[SBO-001][UAT][ERR_RESHAKE]: Issue detected. Reshake ball.")
                             elif table["name"] == "PRD":
                                 broadcast_post_v2_prd(
                                     post_url,
                                     self.token,
-                                    "Issue detected. Reshake ball.",
+                                    "dice.reshake",
                                     "players",
-                                    {"afterSeconds": 4},
+                                    4,
                                 )
                                 # sentry_sdk.capture_message("[SBO-001][PRD][ERR_RESHAKE]: Issue detected. Reshake ball.")
                             elif table["name"] == "STG":
                                 broadcast_post_v2_stg(
                                     post_url,
                                     self.token,
-                                    "Issue detected. Reshake ball.",
+                                    "dice.reshake",
                                     "players",
-                                    {"afterSeconds": 4},
+                                    4,
                                 )
                                 # sentry_sdk.capture_message("[SBO-001][STG][ERR_RESHAKE]: Issue detected. Reshake ball.")
                             elif table["name"] == "QAT":
                                 broadcast_post_v2_qat(
                                     post_url,
                                     self.token,
-                                    "Issue detected. Reshake ball.",
+                                    "dice.reshake",
                                     "players",
-                                    {"afterSeconds": 4},
+                                    4,
                                 )
                                 # sentry_sdk.capture_message("[SBO-001][QAT][ERR_RESHAKE]: Issue detected. Reshake ball.")
                         # Reset error signal flag for reshake cycle
