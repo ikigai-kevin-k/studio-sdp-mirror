@@ -3,6 +3,8 @@
 Script for continuously monitoring time interval metrics from log file and sending to Prometheus Pushgateway
 Continuously watches time_intervals-2api.log for new metrics and pushes to GE server side Prometheus Pushgateway service
 Reads finish_to_start_time, start_to_launch_time, launch_to_deal_time, deal_to_finish_time
+Calculates game_duration_aro11 as the sum of all four time intervals
+Specifically for ARO-001-1 (ARO11) instance
 """
 
 import re
@@ -19,6 +21,9 @@ JOB_NAME = "time_intervals_metrics"
 
 # Log file path
 LOG_FILE = "time_intervals-2api.log"
+
+# Instance label for ARO-001-1
+INSTANCE_LABEL = "aro11"
 
 # Alternative paths to try
 POSSIBLE_LOG_PATHS = [
@@ -94,7 +99,7 @@ def parse_metrics_from_block(block: str):
         block: Text block containing metrics
         
     Returns:
-        dict: Dictionary containing the four metrics, or None if parsing failed
+        dict: Dictionary containing the four metrics plus game_duration_aro11, or None if parsing failed
     """
     metrics = {}
     
@@ -118,6 +123,13 @@ def parse_metrics_from_block(block: str):
     ]
     
     if all(metric in metrics for metric in required_metrics):
+        # Calculate total game duration (sum of all four time intervals)
+        metrics['game_duration_aro11'] = (
+            metrics['finish_to_start_time'] +
+            metrics['start_to_launch_time'] +
+            metrics['launch_to_deal_time'] +
+            metrics['deal_to_finish_time']
+        )
         return metrics
     
     return None
@@ -225,7 +237,8 @@ def metrics_are_equal(metrics1: dict, metrics2: dict):
         'finish_to_start_time',
         'start_to_launch_time',
         'launch_to_deal_time',
-        'deal_to_finish_time'
+        'deal_to_finish_time',
+        'game_duration_aro11'
     ]
     
     for metric in required_metrics:
@@ -238,14 +251,14 @@ def metrics_are_equal(metrics1: dict, metrics2: dict):
     return True
 
 
-def send_metrics_to_prometheus(metrics: dict, instance_label: str = "api-instance"):
+def send_metrics_to_prometheus(metrics: dict, instance_label: str = INSTANCE_LABEL):
     """
     Send time interval metrics to Pushgateway
     Only pushes if metrics have changed since last push
     
     Args:
-        metrics: Dictionary containing the four metrics
-        instance_label: Instance label for the metrics
+        metrics: Dictionary containing the four metrics plus game_duration_aro11
+        instance_label: Instance label for the metrics (default: aro11)
         
     Returns:
         bool: True if successful, False otherwise
@@ -283,6 +296,14 @@ def send_metrics_to_prometheus(metrics: dict, instance_label: str = "api-instanc
         registry=registry
     )
     
+    # Create Gauge metric for total game duration
+    game_duration = Gauge(
+        'game_duration_aro11',
+        'Total game duration (sum of all four time intervals) in seconds',
+        ['instance'],
+        registry=registry
+    )
+    
     # Check if metrics are the same as last push
     last_metrics = load_last_metrics()
     if last_metrics and metrics_are_equal(metrics, last_metrics):
@@ -295,6 +316,7 @@ def send_metrics_to_prometheus(metrics: dict, instance_label: str = "api-instanc
     start_to_launch.labels(instance=instance_label).set(metrics['start_to_launch_time'])
     launch_to_deal.labels(instance=instance_label).set(metrics['launch_to_deal_time'])
     deal_to_finish.labels(instance=instance_label).set(metrics['deal_to_finish_time'])
+    game_duration.labels(instance=instance_label).set(metrics['game_duration_aro11'])
     
     # Push metrics to Pushgateway
     try:
@@ -308,6 +330,7 @@ def send_metrics_to_prometheus(metrics: dict, instance_label: str = "api-instanc
         print(f"  - start_to_launch_time: {metrics['start_to_launch_time']:.4f}s")
         print(f"  - launch_to_deal_time: {metrics['launch_to_deal_time']:.4f}s")
         print(f"  - deal_to_finish_time: {metrics['deal_to_finish_time']:.4f}s")
+        print(f"  - game_duration_aro11: {metrics['game_duration_aro11']:.4f}s")
         
         # Save current metrics as last pushed metrics
         save_last_metrics(metrics)
@@ -335,6 +358,7 @@ def monitor_log_file(log_file_path: str):
     
     print(f"🔄 Starting continuous monitoring mode")
     print(f"   Monitoring: {log_file_path}")
+    print(f"   Instance: {INSTANCE_LABEL} (ARO-001-1)")
     print(f"   Check interval: {MONITOR_INTERVAL} seconds")
     print(f"   Press Ctrl+C to stop")
     print("-" * 60)
@@ -361,8 +385,8 @@ def monitor_log_file(log_file_path: str):
                 timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
                 print(f"\n[{timestamp}] 📊 Found new metrics block #{metrics_count}")
                 
-                # Send metrics to Prometheus
-                success = send_metrics_to_prometheus(metrics)
+                # Send metrics to Prometheus with ARO11 instance label
+                success = send_metrics_to_prometheus(metrics, INSTANCE_LABEL)
                 
                 if success:
                     print(f"   ✓ Metrics processed and sent")
@@ -391,10 +415,11 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
     
     print("=" * 60)
-    print("Prometheus Duration Metrics Monitor")
+    print("Prometheus Duration Metrics Monitor - ARO-001-1 (ARO11)")
     print("=" * 60)
     print(f"Pushgateway URL: {PUSHGATEWAY_URL}")
     print(f"Job name: {JOB_NAME}")
+    print(f"Instance label: {INSTANCE_LABEL}")
     print(f"Log file: {LOG_FILE}")
     print(f"Monitoring interval: {MONITOR_INTERVAL}s")
     print("-" * 60)
@@ -421,10 +446,11 @@ def main():
     print(f"  - Pushgateway: {PUSHGATEWAY_URL}")
     print(f"  - Prometheus: http://100.64.0.113:9090")
     print(f"\nQuery examples in Prometheus:")
-    print(f'  finish_to_start_time{{job="{JOB_NAME}"}}')
-    print(f'  start_to_launch_time{{job="{JOB_NAME}"}}')
-    print(f'  launch_to_deal_time{{job="{JOB_NAME}"}}')
-    print(f'  deal_to_finish_time{{job="{JOB_NAME}"}}')
+    print(f'  finish_to_start_time{{job="{JOB_NAME}", instance="{INSTANCE_LABEL}"}}')
+    print(f'  start_to_launch_time{{job="{JOB_NAME}", instance="{INSTANCE_LABEL}"}}')
+    print(f'  launch_to_deal_time{{job="{JOB_NAME}", instance="{INSTANCE_LABEL}"}}')
+    print(f'  deal_to_finish_time{{job="{JOB_NAME}", instance="{INSTANCE_LABEL}"}}')
+    print(f'  game_duration_aro11{{job="{JOB_NAME}", instance="{INSTANCE_LABEL}"}}')
 
 
 if __name__ == "__main__":

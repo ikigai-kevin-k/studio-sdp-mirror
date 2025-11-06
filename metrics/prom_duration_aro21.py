@@ -3,6 +3,7 @@
 Script for continuously monitoring time interval metrics from log file and sending to Prometheus Pushgateway
 Continuously watches time_intervals-2api.log for new metrics and pushes to GE server side Prometheus Pushgateway service
 Reads finish_to_start_time, start_to_launch_time, launch_to_deal_time, deal_to_finish_time
+Calculates game_duration_aro21 as the sum of all four time intervals
 Specifically for ARO-002-1 (ARO21) instance
 """
 
@@ -98,7 +99,7 @@ def parse_metrics_from_block(block: str):
         block: Text block containing metrics
         
     Returns:
-        dict: Dictionary containing the four metrics, or None if parsing failed
+        dict: Dictionary containing the four metrics plus game_duration_aro21, or None if parsing failed
     """
     metrics = {}
     
@@ -122,6 +123,13 @@ def parse_metrics_from_block(block: str):
     ]
     
     if all(metric in metrics for metric in required_metrics):
+        # Calculate total game duration (sum of all four time intervals)
+        metrics['game_duration_aro21'] = (
+            metrics['finish_to_start_time'] +
+            metrics['start_to_launch_time'] +
+            metrics['launch_to_deal_time'] +
+            metrics['deal_to_finish_time']
+        )
         return metrics
     
     return None
@@ -229,7 +237,8 @@ def metrics_are_equal(metrics1: dict, metrics2: dict):
         'finish_to_start_time',
         'start_to_launch_time',
         'launch_to_deal_time',
-        'deal_to_finish_time'
+        'deal_to_finish_time',
+        'game_duration_aro21'
     ]
     
     for metric in required_metrics:
@@ -248,7 +257,7 @@ def send_metrics_to_prometheus(metrics: dict, instance_label: str = INSTANCE_LAB
     Only pushes if metrics have changed since last push
     
     Args:
-        metrics: Dictionary containing the four metrics
+        metrics: Dictionary containing the four metrics plus game_duration_aro21
         instance_label: Instance label for the metrics (default: aro21)
         
     Returns:
@@ -287,6 +296,14 @@ def send_metrics_to_prometheus(metrics: dict, instance_label: str = INSTANCE_LAB
         registry=registry
     )
     
+    # Create Gauge metric for total game duration
+    game_duration = Gauge(
+        'game_duration_aro21',
+        'Total game duration (sum of all four time intervals) in seconds',
+        ['instance'],
+        registry=registry
+    )
+    
     # Check if metrics are the same as last push
     last_metrics = load_last_metrics()
     if last_metrics and metrics_are_equal(metrics, last_metrics):
@@ -299,6 +316,7 @@ def send_metrics_to_prometheus(metrics: dict, instance_label: str = INSTANCE_LAB
     start_to_launch.labels(instance=instance_label).set(metrics['start_to_launch_time'])
     launch_to_deal.labels(instance=instance_label).set(metrics['launch_to_deal_time'])
     deal_to_finish.labels(instance=instance_label).set(metrics['deal_to_finish_time'])
+    game_duration.labels(instance=instance_label).set(metrics['game_duration_aro21'])
     
     # Push metrics to Pushgateway
     try:
@@ -312,6 +330,7 @@ def send_metrics_to_prometheus(metrics: dict, instance_label: str = INSTANCE_LAB
         print(f"  - start_to_launch_time: {metrics['start_to_launch_time']:.4f}s")
         print(f"  - launch_to_deal_time: {metrics['launch_to_deal_time']:.4f}s")
         print(f"  - deal_to_finish_time: {metrics['deal_to_finish_time']:.4f}s")
+        print(f"  - game_duration_aro21: {metrics['game_duration_aro21']:.4f}s")
         
         # Save current metrics as last pushed metrics
         save_last_metrics(metrics)
@@ -431,6 +450,7 @@ def main():
     print(f'  start_to_launch_time{{job="{JOB_NAME}", instance="{INSTANCE_LABEL}"}}')
     print(f'  launch_to_deal_time{{job="{JOB_NAME}", instance="{INSTANCE_LABEL}"}}')
     print(f'  deal_to_finish_time{{job="{JOB_NAME}", instance="{INSTANCE_LABEL}"}}')
+    print(f'  game_duration_aro21{{job="{JOB_NAME}", instance="{INSTANCE_LABEL}"}}')
 
 
 if __name__ == "__main__":
