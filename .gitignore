@@ -133,6 +133,8 @@ self-test-*.log
 .env.staging
 .last_metrics.json
 .last_position.json
+.last_metrics_*.json
+.last_position_*.json
 
 # Configuration files with sensitive data
 conf/*.local.json
