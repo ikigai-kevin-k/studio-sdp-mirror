@@ -22,6 +22,20 @@ try:
 except ImportError:
     send_resolved_status_update = None
 
+# Import broadcast_post functions for SicBo tables
+try:
+    from table_api.sb.api_v2_sb import broadcast_post_v2
+    from table_api.sb.api_v2_uat_sb import broadcast_post_v2_uat
+    from table_api.sb.api_v2_prd_sb import broadcast_post_v2_prd
+    from table_api.sb.api_v2_stg_sb import broadcast_post_v2_stg
+    from table_api.sb.api_v2_qat_sb import broadcast_post_v2_qat
+except ImportError:
+    broadcast_post_v2 = None
+    broadcast_post_v2_uat = None
+    broadcast_post_v2_prd = None
+    broadcast_post_v2_stg = None
+    broadcast_post_v2_qat = None
+
 
 class IDPController(Controller):
     """Controls IDP (Image Detection Processing) operations"""
@@ -46,6 +60,8 @@ class IDPController(Controller):
         self._error_signal_count = 0  # Track error signal send count (0 = not sent, 1 = first (warn), 2 = second (error))
         self._previous_cycle_warn_sent = False  # Track if warn signal was sent in previous cycle
         self._previous_cycle_error_sent = False  # Track if error signal was sent in previous cycle
+        self.table_configs = None  # Table configurations for broadcast_post
+        self.token = None  # Token for broadcast_post
 
     async def initialize(self):
         """Initialize IDP controller"""
@@ -107,6 +123,8 @@ class IDPController(Controller):
                             )
                             # Send error signal to WebSocket server
                             self._send_no_shake_error_signal()
+                            # Send broadcast_post to all tables
+                            self._send_no_shake_broadcast()
                         
                         # check if the dice result is valid (three numbers)
                         if (
@@ -311,6 +329,104 @@ class IDPController(Controller):
         except Exception as e:
             self.logger.error(
                 f"Failed to send SICBO_NO_SHAKE error signal: {e}"
+            )
+
+    def _send_no_shake_broadcast(self):
+        """Send broadcast_post to all tables for NO SHAKE error (error_code -3)
+        
+        Sends broadcast_post_v2 with "dice.no_shake" to all configured tables
+        (CIT, UAT, QAT, STG, PRD) for SBO-001
+        """
+        if self.table_configs is None or self.token is None:
+            self.logger.warning(
+                "table_configs or token not set, skipping broadcast_post"
+            )
+            return
+        
+        if broadcast_post_v2 is None:
+            self.logger.warning(
+                "broadcast_post functions not available, skipping broadcast_post"
+            )
+            return
+        
+        try:
+            # Send broadcast_post to each table based on environment
+            for table in self.table_configs:
+                # Only process SBO-001 tables
+                if table.get("game_code") != "SBO-001":
+                    continue
+                
+                post_url = f"{table['post_url']}{table['game_code']}"
+                table_name = table.get("name", "")
+                
+                try:
+                    if table_name == "CIT":
+                        if broadcast_post_v2 is not None:
+                            broadcast_post_v2(
+                                post_url,
+                                self.token,
+                                "dice.no_shake",
+                                "players",
+                                20,
+                            )
+                            self.logger.info(
+                                f"Sent broadcast_post (dice.no_shake) to {table_name}"
+                            )
+                    elif table_name == "UAT":
+                        if broadcast_post_v2_uat is not None:
+                            broadcast_post_v2_uat(
+                                post_url,
+                                self.token,
+                                "dice.no_shake",
+                                "players",
+                                20,
+                            )
+                            self.logger.info(
+                                f"Sent broadcast_post (dice.no_shake) to {table_name}"
+                            )
+                    elif table_name == "QAT":
+                        if broadcast_post_v2_qat is not None:
+                            broadcast_post_v2_qat(
+                                post_url,
+                                self.token,
+                                "dice.no_shake",
+                                "players",
+                                20,
+                            )
+                            self.logger.info(
+                                f"Sent broadcast_post (dice.no_shake) to {table_name}"
+                            )
+                    elif table_name == "STG":
+                        if broadcast_post_v2_stg is not None:
+                            broadcast_post_v2_stg(
+                                post_url,
+                                self.token,
+                                "dice.no_shake",
+                                "players",
+                                20,
+                            )
+                            self.logger.info(
+                                f"Sent broadcast_post (dice.no_shake) to {table_name}"
+                            )
+                    elif table_name == "PRD":
+                        if broadcast_post_v2_prd is not None:
+                            broadcast_post_v2_prd(
+                                post_url,
+                                self.token,
+                                "dice.no_shake",
+                                "players",
+                                20,
+                            )
+                            self.logger.info(
+                                f"Sent broadcast_post (dice.no_shake) to {table_name}"
+                            )
+                except Exception as e:
+                    self.logger.error(
+                        f"Failed to send broadcast_post to {table_name}: {e}"
+                    )
+        except Exception as e:
+            self.logger.error(
+                f"Error in _send_no_shake_broadcast: {e}"
             )
 
     async def detect(self, round_id: str) -> Tuple[bool, Optional[list]]:

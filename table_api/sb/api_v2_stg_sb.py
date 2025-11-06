@@ -597,6 +597,17 @@ def _get_broadcast_metadata(broadcast_type, signal_type="warning"):
                 "signalType": signal_type,
             },
         },
+        "dice.no_shake": {
+            "msgId": ErrorMsgId.SICBO_NO_SHAKE.value,
+            "content": "Sicbo no shake error",
+            "metadata": {
+                "title": "SICBO NO SHAKE",
+                "description": "Dice shaker did not shake",
+                "code": "SBE.3",
+                "suggestion": "Check the shaker mechanism",
+                "signalType": signal_type,
+            },
+        },
         "sicbo.no_shake": {
             "msgId": ErrorMsgId.SICBO_NO_SHAKE.value,
             "content": "Sicbo no shake error",

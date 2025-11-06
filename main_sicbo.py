@@ -720,6 +720,10 @@ class SDPGame:
         self.logger.info(
             f"Loaded {len(self.table_configs)} table configurations"
         )
+        
+        # Set table_configs and token for IDP controller to enable broadcast_post
+        self.idp_controller.table_configs = self.table_configs
+        self.idp_controller.token = self.token
 
         self.stream_started = False
 
