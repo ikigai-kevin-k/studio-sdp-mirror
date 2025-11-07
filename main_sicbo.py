@@ -77,6 +77,15 @@ from table_api.sb.api_v2_qat_sb import (
     broadcast_post_v2_qat,
     bet_stop_post_qat,
 )
+from table_api.sb.api_v2_glc_sb import (
+    start_post_v2_glc,
+    deal_post_v2_glc,
+    finish_post_v2_glc,
+    pause_post_v2_glc,
+    get_roundID_v2_glc,
+    broadcast_post_v2_glc,
+    bet_stop_post_glc,
+)
 from networkChecker import networkChecker
 from datetime import datetime
 from slack import send_error_to_slack
@@ -374,6 +383,10 @@ async def start_round_for_table(table, token):
             round_id, bet_period = await retry_with_network_check(
                 start_post_v2_qat, post_url, token
             )
+        elif table["name"] == "GLC":
+            round_id, bet_period = await retry_with_network_check(
+                start_post_v2_glc, post_url, token
+            )
         else:
             return None, None
 
@@ -425,6 +438,10 @@ async def deal_round_for_table(table, token, round_id, dice_result):
         elif table["name"] == "QAT":
             await retry_with_network_check(
                 deal_post_v2_qat, post_url, token, round_id, dice_result
+            )
+        elif table["name"] == "GLC":
+            await retry_with_network_check(
+                deal_post_v2_glc, post_url, token, round_id, dice_result
             )
 
         return table["name"], True
@@ -495,6 +512,8 @@ async def finish_round_for_table(table, token):
             await retry_with_network_check(finish_post_v2_stg, post_url, token)
         elif table["name"] == "QAT":
             await retry_with_network_check(finish_post_v2_qat, post_url, token)
+        elif table["name"] == "GLC":
+            await retry_with_network_check(finish_post_v2_glc, post_url, token)
 
         return table["name"], True
 
@@ -561,6 +580,8 @@ async def betStop_round_for_table(table, token):
             await retry_with_network_check(bet_stop_post_stg, post_url, token)
         elif table["name"] == "QAT":
             await retry_with_network_check(bet_stop_post_qat, post_url, token)
+        elif table["name"] == "GLC":
+            await retry_with_network_check(bet_stop_post_glc, post_url, token)
 
         return table["name"], True
 
@@ -944,6 +965,15 @@ class SDPGame:
                             round_id, status, bet_period = (
                                 await retry_with_network_check(
                                     get_roundID_v2_qat,
+                                    get_url,
+                                    self.token,
+                                    max_retries=2,
+                                )
+                            )
+                        elif table["name"] == "GLC":
+                            round_id, status, bet_period = (
+                                await retry_with_network_check(
+                                    get_roundID_v2_glc,
                                     get_url,
                                     self.token,
                                     max_retries=2,
@@ -1396,6 +1426,15 @@ class SDPGame:
                                     4,
                                 )
                                 # sentry_sdk.capture_message("[SBO-001][QAT][ERR_RESHAKE]: Issue detected. Reshake ball.")
+                            elif table["name"] == "GLC":
+                                broadcast_post_v2_glc(
+                                    post_url,
+                                    self.token,
+                                    "dice.reshake",
+                                    "players",
+                                    4,
+                                )
+                                # sentry_sdk.capture_message("[SBO-001][GLC][ERR_RESHAKE]: Issue detected. Reshake ball.")
                         # Reset error signal flag for reshake cycle
                         self.idp_controller.reset_error_signal_flag()
                         await self.shaker_controller.shake(first_round_id)
@@ -1416,6 +1455,7 @@ class SDPGame:
                                 status_prd = None
                                 status_stg = None
                                 status_qat = None
+                                status_glc = None
 
                                 # change to: pause_post, then start polling, until status is "finished" or "canceled", then start a new round
                                 if table["name"] == "CIT":
@@ -1469,6 +1509,16 @@ class SDPGame:
                                         "after pause_post, status_qat:",
                                         status_qat,
                                     )
+                                elif table["name"] == "GLC":
+                                    pause_post_v2_glc(
+                                        post_url,
+                                        self.token,
+                                        "IDP cannot detect  the result for 3 times",
+                                    )
+                                    print(
+                                        "after pause_post, status_glc:",
+                                        status_glc,
+                                    )
                                 # start polling, until status is "finished" or "canceled", then start a new round
                                 while True:
 
@@ -1499,6 +1549,11 @@ class SDPGame:
                                             post_url, self.token
                                         )
                                         print("status:", status_qat)
+                                    elif table["name"] == "GLC":
+                                        _, status_glc, _ = get_roundID_v2_glc(
+                                            post_url, self.token
+                                        )
+                                        print("status:", status_glc)
                                     if (
                                         status_cit == "finished"
                                         or status_cit == "canceled"

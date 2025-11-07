@@ -29,12 +29,14 @@ try:
     from table_api.sb.api_v2_prd_sb import broadcast_post_v2_prd
     from table_api.sb.api_v2_stg_sb import broadcast_post_v2_stg
     from table_api.sb.api_v2_qat_sb import broadcast_post_v2_qat
+    from table_api.sb.api_v2_glc_sb import broadcast_post_v2_glc
 except ImportError:
     broadcast_post_v2 = None
     broadcast_post_v2_uat = None
     broadcast_post_v2_prd = None
     broadcast_post_v2_stg = None
     broadcast_post_v2_qat = None
+    broadcast_post_v2_glc = None
 
 
 class IDPController(Controller):
@@ -411,6 +413,18 @@ class IDPController(Controller):
                     elif table_name == "PRD":
                         if broadcast_post_v2_prd is not None:
                             broadcast_post_v2_prd(
+                                post_url,
+                                self.token,
+                                "dice.no_shake",
+                                "players",
+                                20,
+                            )
+                            self.logger.info(
+                                f"Sent broadcast_post (dice.no_shake) to {table_name}"
+                            )
+                    elif table_name == "GLC":
+                        if broadcast_post_v2_glc is not None:
+                            broadcast_post_v2_glc(
                                 post_url,
                                 self.token,
                                 "dice.no_shake",

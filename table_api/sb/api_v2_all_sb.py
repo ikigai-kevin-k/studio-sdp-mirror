@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 API v2 All-in-One Script
-並行執行五個環境的 API 測試腳本
+並行執行六個環境的 API 測試腳本
 
 支援環境：
 - CIT (api_v2_sb.py)
@@ -9,6 +9,7 @@ API v2 All-in-One Script
 - STG (api_v2_stg_sb.py)
 - QAT (api_v2_qat_sb.py)
 - UAT (api_v2_uat_sb.py)
+- GLC (api_v2_glc_sb.py)
 """
 
 import asyncio
@@ -30,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 class APIv2AllRunner:
-    """並行執行五個 API 環境的執行器"""
+    """並行執行六個 API 環境的執行器"""
 
     def __init__(self):
         self.script_dir = Path(__file__).parent
@@ -40,6 +41,7 @@ class APIv2AllRunner:
             "STG": "api_v2_stg_sb.py",
             "QAT": "api_v2_qat_sb.py",
             "UAT": "api_v2_uat_sb.py",
+            "GLC": "api_v2_glc_sb.py",
         }
         self.results = {}
         self.execution_times = {}
@@ -51,7 +53,7 @@ class APIv2AllRunner:
         執行單個 API 腳本
 
         Args:
-            env_name: 環境名稱 (CIT, PRD, STG, QAT, UAT)
+            env_name: 環境名稱 (CIT, PRD, STG, QAT, UAT, GLC)
             script_name: 腳本檔案名稱
 
         Returns:
@@ -103,7 +105,7 @@ class APIv2AllRunner:
         logger.info("Starting parallel execution of all API scripts...")
 
         # 使用 ThreadPoolExecutor 進行並行執行
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
             # 提交所有任務
             future_to_env = {
                 executor.submit(
@@ -220,7 +222,7 @@ def main():
     """主函數"""
     import argparse
 
-    parser = argparse.ArgumentParser(description="並行執行五個 API 環境的腳本")
+    parser = argparse.ArgumentParser(description="並行執行六個 API 環境的腳本")
     parser.add_argument(
         "--mode",
         choices=["parallel", "sequential"],
