@@ -24,6 +24,17 @@ def load_env_config():
 
 def get_los_env_url(env_name, config):
     """Get LOS environment URL from config by environment name"""
+    # Hardcoded environment mappings for environments not in config
+    hardcoded_envs = {
+        "GLC": "crystal-table.iki-glc.cc",
+        "glc": "crystal-table.iki-glc.cc",
+    }
+    
+    # Check hardcoded environments first
+    if env_name in hardcoded_envs:
+        return hardcoded_envs[env_name]
+    
+    # Check config file
     for env in config:
         if env.get("name") == env_name:
             # Extract domain from get_url
@@ -43,7 +54,7 @@ def get_access_token(game_code=None, env_name=None):
 
     Args:
         game_code (str): The game code to use (default: BCR-001)
-        env_name (str): Environment name from config (CIT, UAT, PRD, STG, QAT)
+        env_name (str): Environment name from config (CIT, UAT, PRD, STG, QAT, GLC)
     """
     # Load configuration
     config = load_env_config()
