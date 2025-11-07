@@ -94,5 +94,13 @@
     "game_code": "ARO-005",
     "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiI0ZTgzYTM2NS04ZDNhLTQ2NjEtYjY4My00ZTZmMTNmZGIxMjAiLCJnYW1lQ29kZSI6WyJBUk8tMDA1Il0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NjA0MjUwNTg4NDcsImlhdCI6MTc2MDQyNTA1OH0.eVHgIDF6io8KL7v0oTOkcUcRFNTHv77egK9b4H63yz8",
     "table_token": "E5LN4END9Q"
+  },
+  {
+    "name": "GLC",
+    "get_url": "https://crystal-table.iki-glc.cc/v2/service/tables/",
+    "post_url": "https://crystal-table.iki-glc.cc/v2/service/tables/",
+    "game_code": "ARO-001",
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiIxYTQ1MGFkYy1kYTI0LTQ2ZGQtYTdmOS01ZmJiOWUyNjg4YmIiLCJnYW1lQ29kZSI6WyJBUk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NjI1MDg0NzQwMTUsImlhdCI6MTc2MjUwODQ3NH0.j49wrkExFys3EKjbQhGmZPq4yb7YvkvRkoGXZltgxHA",
+    "table_token": "E5LN4END9Q"
   }
 ]
