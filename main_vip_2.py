@@ -1087,8 +1087,14 @@ def execute_deal_post(table, token, win_num):
         return None
 
 
-async def _execute_broadcast_post_async(table, token):
-    """Async version of execute_broadcast_post with network retry"""
+async def _execute_broadcast_post_async(table, token, broadcast_type="roulette.relaunch"):
+    """Async version of execute_broadcast_post with network retry
+    
+    Args:
+        table: Table configuration dictionary
+        token: Authentication token
+        broadcast_type: Type of broadcast message (default: "roulette.relaunch")
+    """
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
         
@@ -1096,49 +1102,49 @@ async def _execute_broadcast_post_async(table, token):
         if table["name"] == "UAT-2":
             from table_api.vr import uat_vr_2
             result = await retry_with_network_check(
-                uat_vr_2.broadcast_post_v2, post_url, token, "roulette.relaunch", "players", 20
+                uat_vr_2.broadcast_post_v2, post_url, token, broadcast_type, "players", 20
             )
         elif table["name"] == "STG-2":
             from table_api.vr import stg_vr_2
             result = await retry_with_network_check(
-                stg_vr_2.broadcast_post_v2, post_url, token, "roulette.relaunch", "players", 20
+                stg_vr_2.broadcast_post_v2, post_url, token, broadcast_type, "players", 20
             )
         elif table["name"] == "QAT-2":
             from table_api.vr import qat_vr_2
             result = await retry_with_network_check(
-                qat_vr_2.broadcast_post_v2, post_url, token, "roulette.relaunch", "players", 20
+                qat_vr_2.broadcast_post_v2, post_url, token, broadcast_type, "players", 20
             )
         else:  # CIT-2
             from table_api.vr import cit_vr_2
             result = await retry_with_network_check(
-                cit_vr_2.broadcast_post_v2, post_url, token, "roulette.relaunch", "players", 20
+                cit_vr_2.broadcast_post_v2, post_url, token, broadcast_type, "players", 20
             )
 
         if result:
             print(
-                f"Successfully sent broadcast_post (relaunch) for {table['name']}"
+                f"Successfully sent broadcast_post ({broadcast_type}) for {table['name']}"
             )
             log_to_file(
-                f"Successfully sent broadcast_post (relaunch) for {table['name']}",
+                f"Successfully sent broadcast_post ({broadcast_type}) for {table['name']}",
                 "Broadcast >>>",
             )
 
-            # Send success notification for successful relaunch
+            # Send success notification for successful broadcast
             try:
                 if alert_manager:
                     alert_manager.send_info(
-                        info_message="Roulette relaunch notification sent successfully",
+                        info_message=f"Roulette broadcast notification ({broadcast_type}) sent successfully",
                         environment=table["name"],
                         table_name=table.get("game_code", "Unknown")
                     )
                 else:
                     send_error_to_slack(
-                        error_message="Roulette relaunch notification sent successfully",
+                        error_message=f"Roulette broadcast notification ({broadcast_type}) sent successfully",
                         environment=table["name"],
                         table_name=table.get("game_code", "Unknown"),
-                        error_code="ROULETTE_RELAUNCH",
+                        error_code="ROULETTE_BROADCAST",
                     )
-                print(f"Success notification sent for {table['name']} relaunch")
+                print(f"Success notification sent for {table['name']} broadcast ({broadcast_type})")
             except Exception as alert_error:
                 print(f"Failed to send success notification: {alert_error}")
                 log_to_file(
@@ -1147,25 +1153,25 @@ async def _execute_broadcast_post_async(table, token):
                 )
         else:
             print(
-                f"Failed to send broadcast_post (relaunch) for {table['name']}"
+                f"Failed to send broadcast_post ({broadcast_type}) for {table['name']}"
             )
             log_to_file(
-                f"Failed to send broadcast_post (relaunch) for {table['name']}",
+                f"Failed to send broadcast_post ({broadcast_type}) for {table['name']}",
                 "Broadcast >>>",
             )
 
-            # Send error notification for failed relaunch
+            # Send error notification for failed broadcast
             try:
                 send_alert_with_retry_level(
                     error_type=f"broadcast_post_failed_{table['name']}",
-                    message="Failed to send roulette relaunch notification",
+                    message=f"Failed to send roulette broadcast notification ({broadcast_type})",
                     environment=table["name"],
                     table_name=table.get("game_code", "Unknown"),
-                    error_code="ROULETTE_RELAUNCH_FAILED",
+                    error_code="ROULETTE_BROADCAST_FAILED",
                     is_recoverable=True
                 )
                 print(
-                    f"Error notification sent for {table['name']} relaunch failure"
+                    f"Error notification sent for {table['name']} broadcast failure ({broadcast_type})"
                 )
             except Exception as alert_error:
                 print(
@@ -1207,8 +1213,16 @@ async def _execute_broadcast_post_async(table, token):
         return None
 
 
-def execute_broadcast_post(table, token):
-    """Sync wrapper for async broadcast_post function"""
+def execute_broadcast_post(table, token, broadcast_type="roulette.relaunch"):
+    """Execute broadcast_post to notify relaunch or other error types
+    
+    Args:
+        table: Table configuration dictionary
+        token: Authentication token
+        broadcast_type: Type of broadcast message (default: "roulette.relaunch")
+                       Supported types: "roulette.relaunch", "roulette.launch_fail",
+                       "roulette.wrong_ball_dir", "roulette.sensor_stuck"
+    """
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
         
@@ -1216,49 +1230,49 @@ def execute_broadcast_post(table, token):
         if table["name"] == "UAT-2":
             from table_api.vr import uat_vr_2
             result = uat_vr_2.broadcast_post_v2(
-                post_url, token, "roulette.relaunch", "players", 20
-            )  # , None)
+                post_url, token, broadcast_type, "players", 20
+            )
         elif table["name"] == "STG-2":
             from table_api.vr import stg_vr_2
             result = stg_vr_2.broadcast_post_v2(
-                post_url, token, "roulette.relaunch", "players", 20
-            )  # , None)
+                post_url, token, broadcast_type, "players", 20
+            )
         elif table["name"] == "QAT-2":
             from table_api.vr import qat_vr_2
             result = qat_vr_2.broadcast_post_v2(
-                post_url, token, "roulette.relaunch", "players", 20
-            )  # , None)
+                post_url, token, broadcast_type, "players", 20
+            )
         else:  # CIT-2
             from table_api.vr import cit_vr_2
             result = cit_vr_2.broadcast_post_v2(
-                post_url, token, "roulette.relaunch", "players", 20
-            )  # , None)
+                post_url, token, broadcast_type, "players", 20
+            )
 
         if result:
             print(
-                f"Successfully sent broadcast_post (relaunch) for {table['name']}"
+                f"Successfully sent broadcast_post ({broadcast_type}) for {table['name']}"
             )
             log_to_file(
-                f"Successfully sent broadcast_post (relaunch) for {table['name']}",
+                f"Successfully sent broadcast_post ({broadcast_type}) for {table['name']}",
                 "Broadcast >>>",
             )
 
-            # Send success notification for successful relaunch
+            # Send success notification for successful broadcast
             try:
                 if alert_manager:
                     alert_manager.send_info(
-                        info_message="Roulette relaunch notification sent successfully",
+                        info_message=f"Roulette broadcast notification ({broadcast_type}) sent successfully",
                         environment=table["name"],
                         table_name=table.get("game_code", "Unknown")
                     )
                 else:
                     send_error_to_slack(
-                        error_message="Roulette relaunch notification sent successfully",
+                        error_message=f"Roulette broadcast notification ({broadcast_type}) sent successfully",
                         environment=table["name"],
                         table_name=table.get("game_code", "Unknown"),
-                        error_code="ROULETTE_RELAUNCH",
+                        error_code="ROULETTE_BROADCAST",
                     )
-                print(f"Success notification sent for {table['name']} relaunch")
+                print(f"Success notification sent for {table['name']} broadcast ({broadcast_type})")
             except Exception as alert_error:
                 print(f"Failed to send success notification: {alert_error}")
                 log_to_file(
@@ -1267,25 +1281,25 @@ def execute_broadcast_post(table, token):
                 )
         else:
             print(
-                f"Failed to send broadcast_post (relaunch) for {table['name']}"
+                f"Failed to send broadcast_post ({broadcast_type}) for {table['name']}"
             )
             log_to_file(
-                f"Failed to send broadcast_post (relaunch) for {table['name']}",
+                f"Failed to send broadcast_post ({broadcast_type}) for {table['name']}",
                 "Broadcast >>>",
             )
 
-            # Send error notification for failed relaunch
+            # Send error notification for failed broadcast
             try:
                 send_alert_with_retry_level(
                     error_type=f"broadcast_post_failed_{table['name']}",
-                    message="Failed to send roulette relaunch notification",
+                    message=f"Failed to send roulette broadcast notification ({broadcast_type})",
                     environment=table["name"],
                     table_name=table.get("game_code", "Unknown"),
-                    error_code="ROULETTE_RELAUNCH_FAILED",
+                    error_code="ROULETTE_BROADCAST_FAILED",
                     is_recoverable=True
                 )
                 print(
-                    f"Error notification sent for {table['name']} relaunch failure"
+                    f"Error notification sent for {table['name']} broadcast failure ({broadcast_type})"
                 )
             except Exception as alert_error:
                 print(
