@@ -45,6 +45,9 @@ POSITION_FILE = os.path.join(os.path.dirname(__file__), ".last_position_sbo11.js
 # State file to track last finish time for calculating finish_to_start_time
 LAST_FINISH_TIME_FILE = os.path.join(os.path.dirname(__file__), ".last_finish_time_sbo11.json")
 
+# State file to track incomplete round across reads
+INCOMPLETE_ROUND_FILE = os.path.join(os.path.dirname(__file__), ".incomplete_round_sbo11.json")
+
 # Monitoring interval in seconds
 MONITOR_INTERVAL = 1.0  # Check every 1 second
 
@@ -223,6 +226,52 @@ def save_last_finish_time(finish_time: datetime):
         print(f"Warning: Failed to save last finish time: {e}")
 
 
+def load_incomplete_round():
+    """
+    Load incomplete round state from file
+    
+    Returns:
+        tuple: (round_lines, in_round) or (None, False) if no incomplete round
+    """
+    if not os.path.exists(INCOMPLETE_ROUND_FILE):
+        return None, False
+    
+    try:
+        with open(INCOMPLETE_ROUND_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            round_lines = data.get('round_lines', [])
+            in_round = data.get('in_round', False)
+            if round_lines and in_round:
+                return round_lines, True
+    except Exception:
+        pass
+    
+    return None, False
+
+
+def save_incomplete_round(round_lines: list, in_round: bool):
+    """
+    Save incomplete round state to file
+    
+    Args:
+        round_lines: List of log lines for the incomplete round
+        in_round: Whether we're currently tracking a round
+    """
+    try:
+        if in_round and round_lines:
+            with open(INCOMPLETE_ROUND_FILE, 'w', encoding='utf-8') as f:
+                json.dump({
+                    'round_lines': round_lines,
+                    'in_round': in_round
+                }, f, indent=2)
+        else:
+            # Remove file if round is complete
+            if os.path.exists(INCOMPLETE_ROUND_FILE):
+                os.remove(INCOMPLETE_ROUND_FILE)
+    except Exception as e:
+        print(f"Warning: Failed to save incomplete round: {e}")
+
+
 def parse_metrics_from_log_lines(lines: list, previous_finish_time: datetime = None):
     """
     Parse metrics from log lines by calculating time intervals between events
@@ -366,8 +415,14 @@ def read_new_metrics(log_file_path: str):
         # Track game rounds - look for complete round sequences
         # A complete round: previous_finish -> start -> deal -> finish
         metrics_list = []
-        round_lines = []
-        in_round = False
+        
+        # Load incomplete round from previous read (if any)
+        round_lines, in_round = load_incomplete_round()
+        if round_lines is None:
+            round_lines = []
+            in_round = False
+        else:
+            print(f"📋 Resuming incomplete round from previous read ({len(round_lines)} lines)")
         
         # Load last finish time at the start
         previous_finish = load_last_finish_time()
@@ -443,8 +498,16 @@ def read_new_metrics(log_file_path: str):
                 if metrics:
                     metrics_list.append(metrics)
                     print(f"✅ Parsed last round metrics")
+                    # Round is complete, clear state
+                    round_lines = []
+                    in_round = False
                 else:
                     print(f"⚠️  Failed to parse last round")
+        
+        # Save incomplete round state for next read
+        save_incomplete_round(round_lines, in_round)
+        if in_round and round_lines:
+            print(f"💾 Saved incomplete round state ({len(round_lines)} lines) for next read")
         
         # Debug: Print events found
         if any(count > 0 for count in events_found.values()):
