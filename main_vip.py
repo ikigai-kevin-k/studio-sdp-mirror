@@ -70,6 +70,13 @@ from table_api.vr.api_v2_qat_vr import (
     broadcast_post_v2_qat,
     bet_stop_post_qat,
 )
+from table_api.vr.api_v2_glc_vr import (
+    start_post_v2_glc,
+    deal_post_v2_glc,
+    finish_post_v2_glc,
+    broadcast_post_v2_glc,
+    bet_stop_post_glc,
+)
 
 # Import Slack notification module
 from slack import send_error_to_slack
@@ -991,6 +998,8 @@ def execute_finish_post(table, token):
             result = finish_post_v2_stg(post_url, token)
         elif table["name"] == "QAT":
             result = finish_post_v2_qat(post_url, token)
+        elif table["name"] == "GLC":
+            result = finish_post_v2_glc(post_url, token)
         else:
             result = finish_post_v2(post_url, token)
         print(f"Successfully ended this game round for {table['name']}")
@@ -1015,6 +1024,8 @@ def execute_start_post(table, token):
             round_id, betPeriod = start_post_v2_stg(post_url, token)
         elif table["name"] == "QAT":
             round_id, betPeriod = start_post_v2_qat(post_url, token)
+        elif table["name"] == "GLC":
+            round_id, betPeriod = start_post_v2_glc(post_url, token)
         else:
             round_id, betPeriod = start_post_v2(post_url, token)
 
@@ -1059,6 +1070,10 @@ def execute_deal_post(table, token, win_num):
             result = deal_post_v2_qat(
                 post_url, token, table["round_id"], str(win_num)
             )
+        elif table["name"] == "GLC":
+            result = deal_post_v2_glc(
+                post_url, token, table["round_id"], str(win_num)
+            )
         else:
             result = deal_post_v2(
                 post_url, token, table["round_id"], str(win_num)
@@ -1091,6 +1106,8 @@ def betStop_round_for_table(table, token):
             result = bet_stop_post_stg(post_url, token)
         elif table["name"] == "QAT":
             result = bet_stop_post_qat(post_url, token)
+        elif table["name"] == "GLC":
+            result = bet_stop_post_glc(post_url, token)
         else:
             result = False
 
@@ -1128,6 +1145,10 @@ def execute_broadcast_post(table, token):
             )  # , None)
         elif table["name"] == "QAT":
             result = broadcast_post_v2_qat(
+                post_url, token, "roulette.relaunch", "players", 20
+            )  # , None)
+        elif table["name"] == "GLC":
+            result = broadcast_post_v2_glc(
                 post_url, token, "roulette.relaunch", "players", 20
             )  # , None)
         else:
