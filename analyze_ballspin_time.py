@@ -132,6 +132,7 @@ def parse_time_range(time_range_str: str) -> Tuple[Optional[datetime], Optional[
     Supported formats:
     - "YYYY-MM-DD" (single date, whole day)
     - "YYYY-MM-DD to YYYY-MM-DD" (date range)
+    - "YYYY-MM-DD YYYY-MM-DD" (date range, space-separated)
     - "YYYY-MM-DD HH:MM:SS to YYYY-MM-DD HH:MM:SS" (datetime range)
     
     Args:
@@ -147,40 +148,64 @@ def parse_time_range(time_range_str: str) -> Tuple[Optional[datetime], Optional[
         parts = time_range_str.split(" to ", 1)
         start_str = parts[0].strip()
         end_str = parts[1].strip()
+    else:
+        # Try to detect if it's two dates separated by space
+        # Pattern: YYYY-MM-DD YYYY-MM-DD or YYYY-MM-DD HH:MM:SS YYYY-MM-DD HH:MM:SS
+        parts = time_range_str.split()
         
-        # Try to parse as datetime first
-        try:
-            start_time = datetime.strptime(start_str, "%Y-%m-%d %H:%M:%S")
-        except ValueError:
+        if len(parts) >= 2:
+            # Try to parse first part as date
             try:
-                # Parse as date, set to start of day
-                start_time = datetime.strptime(start_str, "%Y-%m-%d")
+                # Try as date first
+                datetime.strptime(parts[0], "%Y-%m-%d")
+                # If successful, check if second part is also a date
+                try:
+                    datetime.strptime(parts[1], "%Y-%m-%d")
+                    # Both are dates, treat as range
+                    start_str = parts[0]
+                    end_str = parts[1]
+                except ValueError:
+                    # Second part is not a date, treat as single date
+                    start_str = time_range_str
+                    end_str = None
             except ValueError:
-                print(f"❌ Error: Invalid start time format: {start_str}")
-                return None, None
-        
+                # First part is not a date, treat as single date
+                start_str = time_range_str
+                end_str = None
+        else:
+            # Single date
+            start_str = time_range_str
+            end_str = None
+    
+    # Parse start time
+    try:
+        start_time = datetime.strptime(start_str, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
         try:
-            end_time = datetime.strptime(end_str, "%Y-%m-%d %H:%M:%S")
+            # Parse as date, set to start of day
+            start_time = datetime.strptime(start_str, "%Y-%m-%d")
         except ValueError:
-            try:
-                # Parse as date, set to end of day (23:59:59.999)
-                end_time = datetime.strptime(end_str, "%Y-%m-%d")
-                end_time = end_time.replace(hour=23, minute=59, second=59, microsecond=999999)
-            except ValueError:
-                print(f"❌ Error: Invalid end time format: {end_str}")
-                return None, None
-        
+            print(f"❌ Error: Invalid start time format: {start_str}")
+            return None, None
+    
+    # Parse end time
+    if end_str is None:
+        # Single date, treat as whole day
+        end_time = start_time.replace(hour=23, minute=59, second=59, microsecond=999999)
         return start_time, end_time
     
-    else:
-        # Single date, treat as whole day
+    try:
+        end_time = datetime.strptime(end_str, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
         try:
-            start_time = datetime.strptime(time_range_str, "%Y-%m-%d")
-            end_time = start_time.replace(hour=23, minute=59, second=59, microsecond=999999)
-            return start_time, end_time
+            # Parse as date, set to end of day (23:59:59.999)
+            end_time = datetime.strptime(end_str, "%Y-%m-%d")
+            end_time = end_time.replace(hour=23, minute=59, second=59, microsecond=999999)
         except ValueError:
-            print(f"❌ Error: Invalid date format: {time_range_str}")
+            print(f"❌ Error: Invalid end time format: {end_str}")
             return None, None
+    
+    return start_time, end_time
 
 
 def main():
@@ -213,6 +238,7 @@ def main():
             print("  Format examples:")
             print("    - Single date: 2025-11-10")
             print("    - Date range: 2025-11-01 to 2025-11-10")
+            print("    - Date range (space-separated): 2025-11-01 2025-11-10")
             print("    - DateTime range: 2025-11-10 00:00:00 to 2025-11-10 23:59:59")
             time_range_str = input("Time range: ").strip()
     
