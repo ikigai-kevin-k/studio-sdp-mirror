@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Analyze ball_spin_time.csv to calculate mean and standard deviation
-within a specified time range
+Analyze game_round.csv to calculate mean and standard deviation
+within a specified time range for total game round time
 """
 
 import csv
@@ -26,7 +26,7 @@ def parse_datetime(date_str: str, time_str: str) -> datetime:
     return datetime.strptime(datetime_str, "%Y-%m-%d %H:%M:%S.%f")
 
 
-def load_csv_data(csv_file: str) -> List[Tuple[datetime, float]]:
+def load_csv_data(csv_file: str) -> List[Tuple[datetime, float, float, float, float]]:
     """
     Load data from CSV file
     
@@ -34,7 +34,7 @@ def load_csv_data(csv_file: str) -> List[Tuple[datetime, float]]:
         csv_file: Path to CSV file
         
     Returns:
-        List of tuples: (datetime, launch_to_deal_time)
+        List of tuples: (datetime, start_to_launch, launch_to_deal, deal_to_finish, total_time)
     """
     data = []
     
@@ -44,8 +44,11 @@ def load_csv_data(csv_file: str) -> List[Tuple[datetime, float]]:
             for row in reader:
                 try:
                     dt = parse_datetime(row['date'], row['timestamp'])
-                    time_value = float(row['launch_to_deal_time'])
-                    data.append((dt, time_value))
+                    start_to_launch = float(row['start_to_launch_time'])
+                    launch_to_deal = float(row['launch_to_deal_time'])
+                    deal_to_finish = float(row['deal_to_finish_time'])
+                    total_time = float(row['total_game_round_time'])
+                    data.append((dt, start_to_launch, launch_to_deal, deal_to_finish, total_time))
                 except (ValueError, KeyError) as e:
                     print(f"⚠️  Warning: Skipping invalid row: {e}")
                     continue
@@ -60,29 +63,29 @@ def load_csv_data(csv_file: str) -> List[Tuple[datetime, float]]:
 
 
 def filter_by_time_range(
-    data: List[Tuple[datetime, float]],
+    data: List[Tuple[datetime, float, float, float, float]],
     start_time: Optional[datetime] = None,
     end_time: Optional[datetime] = None
-) -> List[float]:
+) -> List[Tuple[float, float, float, float]]:
     """
     Filter data by time range
     
     Args:
-        data: List of (datetime, value) tuples
+        data: List of (datetime, start_to_launch, launch_to_deal, deal_to_finish, total_time) tuples
         start_time: Start datetime (inclusive), None for no lower bound
         end_time: End datetime (inclusive), None for no upper bound
         
     Returns:
-        List of filtered values
+        List of filtered (start_to_launch, launch_to_deal, deal_to_finish, total_time) tuples
     """
     filtered = []
     
-    for dt, value in data:
+    for dt, start_to_launch, launch_to_deal, deal_to_finish, total_time in data:
         if start_time is not None and dt < start_time:
             continue
         if end_time is not None and dt > end_time:
             continue
-        filtered.append(value)
+        filtered.append((start_to_launch, launch_to_deal, deal_to_finish, total_time))
     
     return filtered
 
@@ -150,13 +153,11 @@ def parse_time_range(time_range_str: str) -> Tuple[Optional[datetime], Optional[
         end_str = parts[1].strip()
     else:
         # Try to detect if it's two dates separated by space
-        # Pattern: YYYY-MM-DD YYYY-MM-DD or YYYY-MM-DD HH:MM:SS YYYY-MM-DD HH:MM:SS
         parts = time_range_str.split()
         
         if len(parts) >= 2:
             # Try to parse first part as date
             try:
-                # Try as date first
                 datetime.strptime(parts[0], "%Y-%m-%d")
                 # If successful, check if second part is also a date
                 try:
@@ -211,11 +212,11 @@ def parse_time_range(time_range_str: str) -> Tuple[Optional[datetime], Optional[
 def main():
     """Main function"""
     print("=" * 60)
-    print("Error Rate CSV Analyzer")
+    print("Game Round Time CSV Analyzer")
     print("=" * 60)
     
     # Load CSV data
-    csv_file = "ball_spin_time.csv"
+    csv_file = "game_round.csv"
     print(f"\n📖 Loading data from: {csv_file}")
     data = load_csv_data(csv_file)
     
@@ -231,8 +232,8 @@ def main():
     else:
         # Show data range
         if data:
-            min_time = min(dt for dt, _ in data)
-            max_time = max(dt for dt, _ in data)
+            min_time = min(dt for dt, _, _, _, _ in data)
+            max_time = max(dt for dt, _, _, _, _ in data)
             print(f"\n📅 Data time range: {min_time.strftime('%Y-%m-%d %H:%M:%S')} to {max_time.strftime('%Y-%m-%d %H:%M:%S')}")
             print("\nEnter time range (or press Enter for all data):")
             print("  Format examples:")
@@ -259,21 +260,27 @@ def main():
         print("\n📅 Analyzing all data (no time filter)")
     
     # Filter data
-    filtered_values = filter_by_time_range(data, start_time, end_time)
+    filtered_data = filter_by_time_range(data, start_time, end_time)
     
-    if not filtered_values:
+    if not filtered_data:
         print("\n❌ No data found in specified time range!")
         return
     
-    print(f"✅ Found {len(filtered_values):,} records in time range")
+    print(f"✅ Found {len(filtered_data):,} records in time range")
     
-    # Calculate statistics
+    # Extract values for each component
+    total_times = [row[3] for row in filtered_data]
+    start_to_launch_times = [row[0] for row in filtered_data]
+    launch_to_deal_times = [row[1] for row in filtered_data]
+    deal_to_finish_times = [row[2] for row in filtered_data]
+    
+    # Calculate statistics for total time
     print("\n⏳ Calculating statistics...")
-    mean, std_dev, stats = calculate_statistics(filtered_values)
+    mean, std_dev, stats = calculate_statistics(total_times)
     
     # Display results
     print("\n" + "=" * 60)
-    print("Statistical Analysis Results")
+    print("Statistical Analysis Results - Total Game Round Time")
     print("=" * 60)
     print(f"Time Range:")
     if start_time and end_time:
@@ -284,28 +291,29 @@ def main():
     print()
     print(f"Sample Size: {stats['count']:,}")
     print()
-    print(f"Mean (μ):     {mean:.2f} seconds")
-    print(f"Std Dev (σ):  {std_dev:.2f} seconds")
+    print(f"Total Game Round Time:")
+    print(f"  Mean (μ):     {mean:.2f} seconds")
+    print(f"  Std Dev (σ):  {std_dev:.2f} seconds")
     print()
-    print(f"Minimum:      {stats['min']:.2f} seconds")
-    print(f"Maximum:      {stats['max']:.2f} seconds")
-    print(f"Median:       {stats['median']:.2f} seconds")
+    print(f"  Minimum:      {stats['min']:.2f} seconds")
+    print(f"  Maximum:      {stats['max']:.2f} seconds")
+    print(f"  Median:       {stats['median']:.2f} seconds")
     
     if 'q1' in stats and 'q3' in stats:
-        print(f"Q1 (25%):     {stats['q1']:.2f} seconds")
-        print(f"Q3 (75%):     {stats['q3']:.2f} seconds")
+        print(f"  Q1 (25%):     {stats['q1']:.2f} seconds")
+        print(f"  Q3 (75%):     {stats['q3']:.2f} seconds")
         iqr = stats['q3'] - stats['q1']
-        print(f"IQR:          {iqr:.2f} seconds")
+        print(f"  IQR:          {iqr:.2f} seconds")
     
     # Calculate coefficient of variation
     if mean > 0:
         cv = (std_dev / mean) * 100
-        print(f"CV (%):       {cv:.2f}%")
+        print(f"  CV (%):       {cv:.2f}%")
     
     # Calculate confidence intervals (95%)
-    if len(filtered_values) > 1:
+    if len(total_times) > 1:
         import math
-        se = std_dev / math.sqrt(len(filtered_values))
+        se = std_dev / math.sqrt(len(total_times))
         t_value = 1.96  # Approximate for large samples (95% confidence)
         margin = t_value * se
         print()
@@ -313,6 +321,38 @@ def main():
         print(f"  Lower: {mean - margin:.2f} seconds")
         print(f"  Upper: {mean + margin:.2f} seconds")
         print(f"  Margin: ±{margin:.2f} seconds")
+    
+    # Component statistics
+    print("\n" + "=" * 60)
+    print("Component Statistics")
+    print("=" * 60)
+    
+    # start_to_launch_time
+    mean_stl, std_dev_stl, stats_stl = calculate_statistics(start_to_launch_times)
+    print(f"\nstart_to_launch_time:")
+    print(f"  Mean:     {mean_stl:.2f} seconds")
+    print(f"  Std Dev:  {std_dev_stl:.2f} seconds")
+    print(f"  Min:      {stats_stl['min']:.2f} seconds")
+    print(f"  Max:      {stats_stl['max']:.2f} seconds")
+    print(f"  Median:   {stats_stl['median']:.2f} seconds")
+    
+    # launch_to_deal_time
+    mean_ltd, std_dev_ltd, stats_ltd = calculate_statistics(launch_to_deal_times)
+    print(f"\nlaunch_to_deal_time:")
+    print(f"  Mean:     {mean_ltd:.2f} seconds")
+    print(f"  Std Dev:  {std_dev_ltd:.2f} seconds")
+    print(f"  Min:      {stats_ltd['min']:.2f} seconds")
+    print(f"  Max:      {stats_ltd['max']:.2f} seconds")
+    print(f"  Median:   {stats_ltd['median']:.2f} seconds")
+    
+    # deal_to_finish_time
+    mean_dtf, std_dev_dtf, stats_dtf = calculate_statistics(deal_to_finish_times)
+    print(f"\ndeal_to_finish_time:")
+    print(f"  Mean:     {mean_dtf:.2f} seconds")
+    print(f"  Std Dev:  {std_dev_dtf:.2f} seconds")
+    print(f"  Min:      {stats_dtf['min']:.2f} seconds")
+    print(f"  Max:      {stats_dtf['max']:.2f} seconds")
+    print(f"  Median:   {stats_dtf['median']:.2f} seconds")
     
     print("=" * 60)
 
