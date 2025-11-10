@@ -310,6 +310,20 @@ def main():
         cv = (std_dev / mean) * 100
         print(f"  CV (%):       {cv:.2f}%")
     
+    # Calculate games exceeding 60 seconds (Error Rate Stats)
+    threshold = 60.0
+    games_exceeding_threshold = [t for t in total_times if t > threshold]
+    total_games = len(total_times)
+    games_exceeding_count = len(games_exceeding_threshold)
+    
+    if total_games > 0:
+        percentage_exceeding = (games_exceeding_count / total_games) * 100
+        print()
+        print(f"Games Exceeding {threshold} seconds:")
+        print(f"  Count:        {games_exceeding_count:,} games")
+        print(f"  Percentage:   {percentage_exceeding:.2f}%")
+        print(f"  Total games:  {total_games:,} games")
+    
     # Calculate confidence intervals (95%)
     if len(total_times) > 1:
         import math
