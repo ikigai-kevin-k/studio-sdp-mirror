@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Monitor speed_{yyyy-mm-dd}.log files for ERROR|Error|error lines and push to Loki server
-Extracts error log entries from last 7 days and pushes to remote Loki server
+Continuously watches log files and pushes error log entries to remote Loki server
 
 Based on Loki server settings:
 - Server: http://100.64.0.113:3100
@@ -14,31 +14,65 @@ import sys
 import re
 import json
 import time
+import signal
 import requests
 from datetime import datetime, timedelta
 from glob import glob
 from typing import List, Dict, Optional
-
-# Import progress bar
-try:
-    from progress_bar import ProgressBar
-    PROGRESS_BAR_AVAILABLE = True
-except ImportError:
-    PROGRESS_BAR_AVAILABLE = False
 
 # Configuration
 LOKI_URL = "http://100.64.0.113:3100/loki/api/v1/push"
 STUDIO_SDP_DIR = "/home/rnd/studio-sdp-roulette"
 LOG_FILE_PATTERN = "speed_*.log"
 
-# Loki rejects samples older than 7 days (reject_old_samples_max_age: 168h)
-# However, Loki also has a dynamic "oldest acceptable timestamp" that changes
-# To be safe, we'll process only last 2 days to ensure all entries are accepted
-MAX_AGE_DAYS = 2
+# State file to track last read position in log file
+POSITION_FILE = os.path.join(STUDIO_SDP_DIR, ".last_position_speed_errors.json")
 
-# Batch size for pushing to Loki (to avoid message size limits)
-# Loki has a max message size limit (~4MB), so we'll push in batches
-BATCH_SIZE = 1000  # Push 1000 entries at a time
+# Monitoring interval in seconds
+MONITOR_INTERVAL = 5.0  # Check every 5 seconds
+
+# Batch size for pushing to Loki (push when we have this many errors)
+BATCH_SIZE = 10
+
+# Global flag for graceful shutdown
+running = True
+
+# Global buffer for error logs
+error_buffer: List[Dict] = []
+
+
+def find_latest_log_file() -> Optional[str]:
+    """
+    Find the latest speed_{yyyy-mm-dd}.log file by date (not modification time)
+    
+    Returns:
+        str: Path to the latest log file, or None if not found
+    """
+    # Find all speed_*.log files matching pattern speed_{yyyy-mm-dd}.log
+    pattern = os.path.join(STUDIO_SDP_DIR, LOG_FILE_PATTERN)
+    found_files = glob(pattern)
+    
+    # Filter to only match speed_{yyyy-mm-dd}.log format (e.g., speed_2025-11-11.log)
+    log_files = []
+    for file_path in found_files:
+        filename = os.path.basename(file_path)
+        # Match pattern: speed_YYYY-MM-DD.log
+        match = re.match(r'^speed_(\d{4}-\d{2}-\d{2})\.log$', filename)
+        if match:
+            try:
+                # Extract date and parse it
+                date_str = match.group(1)
+                file_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                log_files.append((file_path, file_date))
+            except ValueError:
+                continue
+    
+    if not log_files:
+        return None
+    
+    # Sort by date (descending) and return the latest
+    log_files.sort(key=lambda x: x[1], reverse=True)
+    return log_files[0][0]
 
 
 def parse_timestamp_from_line(line: str) -> Optional[datetime]:
@@ -76,46 +110,46 @@ def is_error_line(line: str) -> bool:
     return bool(re.search(r'\b(ERROR|Error|error)\b', line))
 
 
-def find_speed_log_files() -> List[str]:
+def load_last_position() -> int:
     """
-    Find speed_{yyyy-mm-dd}.log files from last 7 days
-    (We'll filter by timestamp when pushing, not by file date)
+    Load last read position from state file
     
     Returns:
-        list: List of log file paths sorted by date
+        int: Last read position (byte offset), or 0 if file doesn't exist
     """
-    # Find all speed_*.log files
-    pattern = os.path.join(STUDIO_SDP_DIR, LOG_FILE_PATTERN)
-    all_log_files = glob(pattern)
+    if not os.path.exists(POSITION_FILE):
+        return 0
     
-    # Filter files from last 7 days
-    today = datetime.now().date()
-    cutoff_date = today - timedelta(days=7)
-    
-    log_files = []
-    for log_file in all_log_files:
-        # Extract date from filename (e.g., speed_2025-11-11.log)
-        filename = os.path.basename(log_file)
-        try:
-            # Extract date part (YYYY-MM-DD)
-            date_str = filename.split('_')[1].split('.')[0]
-            file_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-            
-            # Only include files from last 7 days
-            if file_date >= cutoff_date:
-                log_files.append(log_file)
-        except (IndexError, ValueError) as e:
-            # Skip files that don't match expected pattern
-            continue
-    
-    # Sort by date
-    log_files.sort()
-    return log_files
+    try:
+        with open(POSITION_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return data.get('position', 0)
+    except Exception:
+        return 0
 
 
-def extract_error_lines_from_file(log_file_path: str) -> List[Dict]:
+def save_last_position(position: int, log_file: str):
     """
-    Extract error lines from a log file
+    Save last read position to state file
+    
+    Args:
+        position: Byte position in the log file
+        log_file: Path to the log file
+    """
+    try:
+        with open(POSITION_FILE, 'w', encoding='utf-8') as f:
+            json.dump({
+                'position': position,
+                'log_file': log_file,
+                'last_update': datetime.now().isoformat()
+            }, f, indent=2)
+    except Exception as e:
+        print(f"⚠️  Warning: Failed to save position file: {e}")
+
+
+def read_error_lines(log_file_path: str) -> List[Dict]:
+    """
+    Read new error lines from log file since last read position
     
     Args:
         log_file_path: Path to the log file
@@ -123,53 +157,70 @@ def extract_error_lines_from_file(log_file_path: str) -> List[Dict]:
     Returns:
         list: List of error log entries with timestamp and message
     """
-    error_lines = []
-    
-    if not os.path.exists(log_file_path):
-        return error_lines
-    
     try:
-        file_size = os.path.getsize(log_file_path)
-        file_size_mb = file_size / (1024 * 1024)
+        # Get current file size
+        current_size = os.path.getsize(log_file_path)
+        last_position = load_last_position()
         
-        # Estimate total lines
-        estimated_lines = max(1, int(file_size / 100))
+        # Check if we're reading a different file
+        saved_data = {}
+        if os.path.exists(POSITION_FILE):
+            try:
+                with open(POSITION_FILE, 'r', encoding='utf-8') as f:
+                    saved_data = json.load(f)
+            except:
+                pass
         
-        # Create progress bar if available
-        progress = None
-        if PROGRESS_BAR_AVAILABLE and file_size_mb > 10:
-            progress = ProgressBar(estimated_lines, desc=f"Extracting errors from {os.path.basename(log_file_path)}", width=50)
+        # If file changed, reset position
+        if saved_data.get('log_file') != log_file_path:
+            last_position = 0
         
+        # If file was truncated or is smaller, reset position
+        if current_size < last_position:
+            print("⚠️  Log file appears to have been rotated or truncated, resetting position")
+            last_position = 0
+        
+        # If no new content, return empty list
+        if current_size <= last_position:
+            return []
+        
+        # Read new content
         with open(log_file_path, 'r', encoding='utf-8', errors='ignore') as f:
-            lines_processed = 0
-            for line in f:
-                lines_processed += 1
-                
-                # Update progress bar
-                if progress:
-                    progress.set_current(lines_processed)
-                
-                if not line.strip():
-                    continue
-                
-                # Check if line contains error
-                if is_error_line(line):
-                    # Parse timestamp
-                    timestamp = parse_timestamp_from_line(line)
-                    if timestamp:
-                        error_lines.append({
-                            'timestamp': timestamp,
-                            'message': line.strip(),
-                            'log_file': os.path.basename(log_file_path)
-                        })
+            # Seek to last position
+            f.seek(last_position)
+            new_content = f.read()
         
-        if progress:
-            progress.close()
-    
+        # Update position
+        save_last_position(current_size, log_file_path)
+        
+        # If no new content, return empty list
+        if not new_content.strip():
+            return []
+        
+        # Split into lines and filter error lines
+        error_lines = []
+        new_lines = new_content.strip().split('\n')
+        
+        for line in new_lines:
+            if not line.strip():
+                continue
+            
+            # Check if line contains error
+            if is_error_line(line):
+                # Parse timestamp
+                timestamp = parse_timestamp_from_line(line)
+                if timestamp:
+                    error_lines.append({
+                        'timestamp': timestamp,
+                        'message': line.strip(),
+                        'log_file': os.path.basename(log_file_path)
+                    })
+        
+        return error_lines
+        
     except Exception as e:
-        print(f"   ❌ Error reading log file {log_file_path}: {e}")
-    
-    return error_lines
+        print(f"✗ Error reading log file: {e}")
+        return []
 
 
 def push_errors_to_loki(error_entries: List[Dict]) -> bool:
@@ -249,13 +300,12 @@ def push_errors_to_loki(error_entries: List[Dict]) -> bool:
         # Prepare payload
         payload = {"streams": [stream]}
         
-        # Push to Loki (don't print here, will be printed by caller)
-        
+        # Push to Loki
         response = requests.post(
             LOKI_URL,
             headers={"Content-Type": "application/json"},
             json=payload,
-            timeout=60
+            timeout=30
         )
         
         if response.status_code == 204:
@@ -282,12 +332,104 @@ def push_errors_to_loki(error_entries: List[Dict]) -> bool:
         return False
 
 
+def signal_handler(sig, frame):
+    """Handle SIGINT (Ctrl+C) for graceful shutdown"""
+    global running
+    print("\n\n⚠️  Received shutdown signal, stopping monitor...")
+    running = False
+
+
+def monitor_log_file(log_file_path: str):
+    """
+    Continuously monitor log file for new error lines and push to Loki
+    Automatically switches to latest log file if a new one is created
+    
+    Args:
+        log_file_path: Path to the log file to monitor
+    """
+    global running, error_buffer
+    
+    current_log_file = log_file_path
+    
+    print(f"🔄 Starting continuous monitoring mode")
+    print(f"   Monitoring: {current_log_file}")
+    print(f"   Loki Server: {LOKI_URL}")
+    print(f"   Check interval: {MONITOR_INTERVAL}s")
+    print(f"   Batch size: {BATCH_SIZE} errors")
+    print(f"   Press Ctrl+C to stop")
+    print("-" * 60)
+    
+    # Initialize position to end of file if starting fresh
+    if load_last_position() == 0:
+        try:
+            current_size = os.path.getsize(current_log_file)
+            save_last_position(current_size, current_log_file)
+            print(f"ℹ️  Initializing position at end of file ({current_size} bytes)")
+        except Exception as e:
+            print(f"⚠️  Could not initialize position: {e}")
+    
+    error_count = 0
+    push_count = 0
+    
+    try:
+        while running:
+            # Check if a newer log file exists
+            latest_log_file = find_latest_log_file()
+            if latest_log_file and latest_log_file != current_log_file:
+                print(f"🔄 Newer log file detected: {latest_log_file}")
+                print(f"   Switching from: {current_log_file}")
+                current_log_file = latest_log_file
+                # Reset position when switching files
+                save_last_position(0, current_log_file)
+            
+            # Read new error lines from current log file
+            new_errors = read_error_lines(current_log_file)
+            
+            if new_errors:
+                error_count += len(new_errors)
+                print(f"📊 Found {len(new_errors)} new error line(s) in {os.path.basename(current_log_file)}")
+                
+                # Add to buffer
+                error_buffer.extend(new_errors)
+                
+                # Push to Loki if buffer reaches batch size
+                if len(error_buffer) >= BATCH_SIZE:
+                    print(f"📤 Pushing batch of {len(error_buffer)} error entries to Loki...")
+                    if push_errors_to_loki(error_buffer):
+                        push_count += len(error_buffer)
+                        error_buffer = []  # Clear buffer after successful push
+                    else:
+                        print(f"⚠️  Failed to push, keeping {len(error_buffer)} entries in buffer")
+            
+            # Sleep before next check
+            time.sleep(MONITOR_INTERVAL)
+            
+    except KeyboardInterrupt:
+        print("\n\n⚠️  Keyboard interrupt received")
+    except Exception as e:
+        print(f"\n✗ Error during monitoring: {e}")
+        raise
+    finally:
+        # Push any remaining errors in buffer
+        if error_buffer:
+            print(f"\n📤 Pushing remaining {len(error_buffer)} error entries...")
+            if push_errors_to_loki(error_buffer):
+                push_count += len(error_buffer)
+                error_buffer = []
+        
+        print(f"\n📊 Total errors found: {error_count}")
+        print(f"📤 Total errors pushed: {push_count}")
+        print("👋 Monitor stopped")
+
+
 def main():
-    """Main function"""
+    """Main function - starts continuous monitoring of log file"""
+    global running
+    
     import argparse
     
     parser = argparse.ArgumentParser(
-        description="Extract ERROR lines from speed log files and push to Loki"
+        description="Monitor speed log files for ERROR lines and push to Loki"
     )
     parser.add_argument(
         "--once",
@@ -297,80 +439,56 @@ def main():
     
     args = parser.parse_args()
     
+    # Register signal handler for graceful shutdown
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
     print("=" * 60)
-    print("Speed Roulette Error Log Extractor - Push to Loki Server")
+    print("Speed Roulette Error Log Monitor - Push to Loki Server")
     print("=" * 60)
     print(f"Loki Server: {LOKI_URL}")
     print(f"Log file pattern: {LOG_FILE_PATTERN}")
-    print(f"Processing last 7 days of log files")
-    print(f"Filtering: Only entries from last 6 hours will be pushed (Loki timestamp limit)")
+    print(f"Monitoring interval: {MONITOR_INTERVAL}s")
+    print(f"Batch size: {BATCH_SIZE} errors")
     print("-" * 60)
     
-    # Find speed log files from last 7 days
-    log_files = find_speed_log_files()
-    
-    if not log_files:
-        print(f"❌ No speed log files found in the last {MAX_AGE_DAYS} days")
-        print(f"   Searched for: {LOG_FILE_PATTERN}")
+    # Find the latest log file
+    log_file_path = find_latest_log_file()
+    if not log_file_path:
+        print(f"✗ Log file not found: {LOG_FILE_PATTERN}")
+        print(f"  Searched in: {STUDIO_SDP_DIR}")
         return
     
-    print(f"📁 Found {len(log_files)} log file(s) from last {MAX_AGE_DAYS} days:")
-    for log_file in log_files:
-        print(f"   - {os.path.basename(log_file)}")
+    print(f"✓ Found latest log file: {log_file_path}")
+    print(f"  File modified: {time.ctime(os.path.getmtime(log_file_path))}")
     
-    # Extract error lines from all files
-    print(f"\n⏳ Extracting ERROR lines from log files...")
-    all_error_entries = []
-    
-    for i, log_file in enumerate(log_files, 1):
-        print(f"\n[{i}/{len(log_files)}] Processing: {os.path.basename(log_file)}...")
-        error_lines = extract_error_lines_from_file(log_file)
-        all_error_entries.extend(error_lines)
-        print(f"   ✅ Found {len(error_lines)} error line(s)")
-    
-    if not all_error_entries:
-        print(f"\n⚠️  No error lines found in any log files")
-        return
-    
-    print(f"\n📊 Total error lines found: {len(all_error_entries)}")
-    
-    # Push to Loki in batches
-    if all_error_entries:
-        print(f"\n📤 Pushing error entries to Loki in batches of {BATCH_SIZE}...")
-        total_pushed = 0
-        total_failed = 0
-        
-        # Split into batches
-        for i in range(0, len(all_error_entries), BATCH_SIZE):
-            batch = all_error_entries[i:i + BATCH_SIZE]
-            batch_num = (i // BATCH_SIZE) + 1
-            total_batches = (len(all_error_entries) + BATCH_SIZE - 1) // BATCH_SIZE
-            
-            print(f"\n   Batch {batch_num}/{total_batches}: {len(batch)} entries...")
-            if push_errors_to_loki(batch):
-                total_pushed += len(batch)
+    if args.once:
+        # Run once mode: read all new errors and push
+        print(f"\n🔄 Running in one-time mode...")
+        new_errors = read_error_lines(log_file_path)
+        if new_errors:
+            print(f"📊 Found {len(new_errors)} new error line(s)")
+            if push_errors_to_loki(new_errors):
+                print(f"✅ Successfully pushed {len(new_errors)} error log entries to Loki")
             else:
-                total_failed += len(batch)
-                print(f"   ⚠️  Batch {batch_num} failed, continuing with next batch...")
-        
-        print(f"\n📊 Push Summary:")
-        print(f"   ✅ Successfully pushed: {total_pushed} entries")
-        if total_failed > 0:
-            print(f"   ❌ Failed: {total_failed} entries")
-        
-        if total_pushed > 0:
-            print(f"\n✅ Error log entries pushed to Loki successfully")
-            print(f"\nYou can query the error logs in Grafana/Loki using:")
-            print(f'  {{job="speed_roulette_error_logs"}}')
-            print(f'  {{job="speed_roulette_error_logs", game_type="speed"}}')
+                print(f"❌ Failed to push error log entries to Loki")
         else:
-            print(f"\n❌ Failed to push any error log entries to Loki")
+            print(f"ℹ️  No new error lines found")
     else:
-        print(f"\n⚠️  No error lines found to push")
+        # Start continuous monitoring
+        try:
+            monitor_log_file(log_file_path)
+        except Exception as e:
+            print(f"✗ Fatal error: {e}")
+            sys.exit(1)
     
+    print("\n" + "=" * 60)
+    print("Monitor stopped successfully")
+    print(f"\nYou can query the error logs in Grafana/Loki using:")
+    print(f'  {{job="speed_roulette_error_logs"}}')
+    print(f'  {{job="speed_roulette_error_logs", game_type="speed"}}')
     print("=" * 60)
 
 
 if __name__ == "__main__":
     main()
-
