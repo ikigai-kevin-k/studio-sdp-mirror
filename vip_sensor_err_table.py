@@ -40,7 +40,7 @@ def parse_datetime(date_str: str, time_str: str) -> datetime:
     return datetime.strptime(datetime_str, "%Y-%m-%d %H:%M:%S.%f")
 
 
-def extract_x6_messages(log_file: str) -> List[Tuple[datetime, str, str, str]]:
+def extract_x6_messages(log_file: str, show_progress: bool = False) -> List[Tuple[datetime, str, str, str]]:
     """
     Extract *X;6 messages from a log file
     Only keep *X;6 messages that transition from *X;2, *X;3, or *X;4 states
@@ -48,6 +48,7 @@ def extract_x6_messages(log_file: str) -> List[Tuple[datetime, str, str, str]]:
     
     Args:
         log_file: Path to log file
+        show_progress: Whether to show progress indicator for large files
         
     Returns:
         List of tuples: (datetime, date, time, message) - only *X;6 messages from valid transitions
@@ -58,8 +59,19 @@ def extract_x6_messages(log_file: str) -> List[Tuple[datetime, str, str, str]]:
     time_threshold_seconds = 10.1  # Consider *X;6 messages within 10 seconds as consecutive (allow small margin for timestamp precision)
     
     try:
+        # Check file size to determine if we should show progress
+        file_size = os.path.getsize(log_file)
+        file_size_mb = file_size / (1024 * 1024)
+        should_show_progress = show_progress or file_size_mb > 50  # Show progress for files > 50MB
+        
         with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
+            lines_processed = 0
             for line in f:
+                lines_processed += 1
+                
+                # Show progress every 100k lines for large files
+                if should_show_progress and lines_processed % 100000 == 0:
+                    print(f"      Processed {lines_processed:,} lines...", end='\r', flush=True)
                 match = X_PATTERN.search(line)
                 if match:
                     date = match.group(1)
@@ -100,6 +112,10 @@ def extract_x6_messages(log_file: str) -> List[Tuple[datetime, str, str, str]]:
                     
                     # Update previous state
                     prev_state = current_state
+            
+            # Clear progress line if we showed progress
+            if should_show_progress and lines_processed > 0:
+                print(" " * 50, end='\r')  # Clear the progress line
     except Exception as e:
         print(f"❌ Error reading file {log_file}: {e}")
     

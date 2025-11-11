@@ -75,10 +75,29 @@ def get_current_log_file(game_type: str) -> Optional[str]:
         Path to current day's log file, or None if not found
     """
     today = datetime.now().strftime("%Y-%m-%d")
-    log_file = os.path.join(STUDIO_SDP_DIR, f"{game_type}_{today}.log")
     
-    if os.path.exists(log_file):
-        return log_file
+    if game_type == "vip":
+        # VIP only monitors vip_{yyyy-mm-dd}.log files (date-split logs)
+        # Do not monitor self-test-2api.log
+        date_log = os.path.join(STUDIO_SDP_DIR, f"vip_{today}.log")
+        if os.path.exists(date_log):
+            return date_log
+    elif game_type == "speed":
+        # Speed uses logs/sdp_serial.log as current log file
+        # If it exists, use it; otherwise check for serial_{today}.log or speed_{today}.log
+        current_log = os.path.join(STUDIO_SDP_DIR, "logs", "sdp_serial.log")
+        if os.path.exists(current_log):
+            return current_log
+        
+        # Fallback to date-split log files
+        serial_log = os.path.join(STUDIO_SDP_DIR, f"serial_{today}.log")
+        if os.path.exists(serial_log):
+            return serial_log
+        
+        speed_log = os.path.join(STUDIO_SDP_DIR, f"speed_{today}.log")
+        if os.path.exists(speed_log):
+            return speed_log
+    
     return None
 
 
@@ -233,7 +252,10 @@ def process_historical_data(game_type: str, state: Dict) -> bool:
 
 def monitor_incremental(game_type: str, state: Dict) -> bool:
     """
-    Monitor current day's log file for new sensor errors
+    Monitor log files for new sensor errors
+    
+    For VIP: Monitor all vip_{yyyy-mm-dd}.log files from the past week
+    For Speed: Monitor current day's log file
     
     Args:
         game_type: "speed" or "vip"
@@ -248,29 +270,6 @@ def monitor_incremental(game_type: str, state: Dict) -> bool:
     if game_state.get("first_run", True):
         return process_historical_data(game_type, state)
     
-    # Get current day's log file
-    current_log = get_current_log_file(game_type)
-    if not current_log:
-        print(f"   ⚠️  Current day's log file not found for {game_type}")
-        return True  # Not an error, just no file yet
-    
-    current_date = datetime.now().strftime("%Y-%m-%d")
-    last_date = game_state.get("last_processed_date")
-    last_file = game_state.get("last_processed_file")
-    
-    # Check if day changed - need to switch to new log file
-    if last_date != current_date or last_file != current_log:
-        print(f"\n📅 Day changed or log file switched")
-        print(f"   Previous: {last_file} (date: {last_date})")
-        print(f"   Current:  {current_log} (date: {current_date})")
-        
-        # Update state for new file
-        game_state["last_processed_file"] = current_log
-        game_state["last_processed_date"] = current_date
-    
-    # Process incremental data
-    print(f"\n📋 Monitoring {game_type.upper()} log: {os.path.basename(current_log)}")
-    
     # Read existing CSV to get processed timestamps
     csv_file = os.path.join(STUDIO_SDP_DIR, f"{game_type}_sensor_err_table.csv")
     import csv
@@ -282,35 +281,132 @@ def monitor_incremental(game_type: str, state: Dict) -> bool:
     
     existing_timestamps = {(e['date'], e['time']) for e in existing_events}
     
-    # Extract new events from current log file
-    new_events = extract_new_events_from_log(
-        game_type, current_log, existing_timestamps
-    )
-    
-    if new_events:
-        print(f"   ✅ Found {len(new_events)} new sensor error event(s)")
+    if game_type == "vip":
+        # For VIP: Monitor all vip_{yyyy-mm-dd}.log files from the past week
+        today = datetime.now()
+        cutoff_date = today - timedelta(days=7)
         
-        # Append to CSV
-        all_events = existing_events + new_events
-        with open(csv_file, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=['log_file', 'date', 'time', 'datetime', 'message'])
-            writer.writeheader()
-            writer.writerows(all_events)
+        # Find all vip_*.log files
+        import glob
+        pattern = os.path.join(STUDIO_SDP_DIR, "vip_*.log")
+        all_log_files = sorted(glob.glob(pattern))
         
-        print(f"   📊 Updated CSV with {len(new_events)} new event(s)")
+        # Filter files from last 7 days only
+        log_files = []
+        for log_file in all_log_files:
+            filename = os.path.basename(log_file)
+            try:
+                # Extract date part (YYYY-MM-DD)
+                date_str = filename.split('_')[1].split('.')[0]
+                file_date = datetime.strptime(date_str, "%Y-%m-%d")
+                
+                # Only include files from last 7 days
+                if file_date >= cutoff_date:
+                    log_files.append(log_file)
+            except (IndexError, ValueError):
+                continue
         
-        # Push to Loki
-        if push_csv_to_loki(csv_file, game_type):
-            print(f"   ✅ New events pushed to Loki")
+        if not log_files:
+            print(f"   ⚠️  No VIP log files found in the past week")
+            return True
+        
+        print(f"\n📋 Monitoring {len(log_files)} VIP log file(s) from the past week")
+        
+        # Process each log file and collect new events
+        all_new_events = []
+        for log_file in log_files:
+            filename = os.path.basename(log_file)
+            new_events = extract_new_events_from_log(
+                game_type, log_file, existing_timestamps
+            )
+            
+            if new_events:
+                print(f"   📖 {filename}: Found {len(new_events)} new event(s)")
+                all_new_events.extend(new_events)
+                # Update existing_timestamps to avoid duplicates across files
+                for event in new_events:
+                    existing_timestamps.add((event['date'], event['time']))
+            else:
+                print(f"   📖 {filename}: No new events")
+        
+        if all_new_events:
+            print(f"\n   ✅ Total: Found {len(all_new_events)} new sensor error event(s)")
+            
+            # Append to CSV
+            all_events = existing_events + all_new_events
+            with open(csv_file, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=['log_file', 'date', 'time', 'datetime', 'message'])
+                writer.writeheader()
+                writer.writerows(all_events)
+            
+            print(f"   📊 Updated CSV with {len(all_new_events)} new event(s)")
+            
+            # Push to Loki
+            if push_csv_to_loki(csv_file, game_type):
+                print(f"   ✅ New events pushed to Loki")
+            else:
+                print(f"   ⚠️  Failed to push new events (will retry next run)")
         else:
-            print(f"   ⚠️  Failed to push new events (will retry next run)")
+            print(f"\n   ℹ️  No new sensor error events in any log files")
+        
+        # Update state
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        game_state["last_processed_date"] = current_date
+        save_state(state)
+        
     else:
-        print(f"   ℹ️  No new sensor error events")
-    
-    # Update state
-    game_state["last_processed_file"] = current_log
-    game_state["last_processed_date"] = current_date
-    save_state(state)
+        # For Speed: Monitor current day's log file (original logic)
+        current_log = get_current_log_file(game_type)
+        if not current_log:
+            print(f"   ⚠️  Current day's log file not found for {game_type}")
+            return True  # Not an error, just no file yet
+        
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        last_date = game_state.get("last_processed_date")
+        last_file = game_state.get("last_processed_file")
+        
+        # Check if day changed - need to switch to new log file
+        if last_date != current_date or last_file != current_log:
+            print(f"\n📅 Day changed or log file switched")
+            print(f"   Previous: {last_file} (date: {last_date})")
+            print(f"   Current:  {current_log} (date: {current_date})")
+            
+            # Update state for new file
+            game_state["last_processed_file"] = current_log
+            game_state["last_processed_date"] = current_date
+        
+        # Process incremental data
+        print(f"\n📋 Monitoring {game_type.upper()} log: {os.path.basename(current_log)}")
+        
+        # Extract new events from current log file
+        new_events = extract_new_events_from_log(
+            game_type, current_log, existing_timestamps
+        )
+        
+        if new_events:
+            print(f"   ✅ Found {len(new_events)} new sensor error event(s)")
+            
+            # Append to CSV
+            all_events = existing_events + new_events
+            with open(csv_file, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=['log_file', 'date', 'time', 'datetime', 'message'])
+                writer.writeheader()
+                writer.writerows(all_events)
+            
+            print(f"   📊 Updated CSV with {len(new_events)} new event(s)")
+            
+            # Push to Loki
+            if push_csv_to_loki(csv_file, game_type):
+                print(f"   ✅ New events pushed to Loki")
+            else:
+                print(f"   ⚠️  Failed to push new events (will retry next run)")
+        else:
+            print(f"   ℹ️  No new sensor error events")
+        
+        # Update state
+        game_state["last_processed_file"] = current_log
+        game_state["last_processed_date"] = current_date
+        save_state(state)
     
     return True
 
