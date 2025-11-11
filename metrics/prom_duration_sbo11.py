@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Script for continuously monitoring time interval metrics from log file and sending to Prometheus Pushgateway
-Continuously watches SBO001_{mmdd}.log for new metrics and pushes to GE server side Prometheus Pushgateway service
+Continuously watches sbo_{yyyy-mm-dd}.log for new metrics and pushes to GE server side Prometheus Pushgateway service
 Reads finish_to_start_time, start_to_launch_time, launch_to_deal_time, deal_to_finish_time
 Calculates game_duration_sbo11 as the sum of all four time intervals
 Specifically for SBO-001-1 (SBO11) instance
@@ -21,8 +21,8 @@ from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
 PUSHGATEWAY_URL = "http://100.64.0.113:9091"
 JOB_NAME = "time_intervals_metrics"
 
-# Log file pattern for SicBo game (SBO001_{mmdd}.log)
-LOG_FILE_PATTERN = "SBO001_*.log"
+# Log file pattern for SicBo game (sbo_{yyyy-mm-dd}.log)
+LOG_FILE_PATTERN = "sbo_*.log"
 LOG_DIR = "logs"
 
 # Instance label for SBO-001-1
@@ -60,7 +60,7 @@ last_finish_time = None
 
 def find_latest_log_file():
     """
-    Find the latest SBO001_{mmdd}.log file from possible log directories
+    Find the latest sbo_{yyyy-mm-dd}.log file from possible log directories
     
     Returns:
         str: Path to the latest log file, or None if not found
@@ -72,14 +72,16 @@ def find_latest_log_file():
         if not os.path.isdir(log_dir):
             continue
         
-        # Find all SBO001_*.log files
+        # Find all sbo_*.log files matching pattern sbo_{yyyy-mm-dd}.log
         pattern = os.path.join(log_dir, LOG_FILE_PATTERN)
         found_files = glob(pattern)
         
-        # Filter out rotated log files (e.g., SBO001_1106.log.1, SBO001_1106.log.2, etc.)
+        # Filter to only match sbo_{yyyy-mm-dd}.log format (e.g., sbo_2024-10-06.log)
+        # Exclude any rotated or backup files
         for file_path in found_files:
-            # Only include files that end with .log (not .log.1, .log.2, etc.)
-            if file_path.endswith('.log') and not any(file_path.endswith(f'.log.{i}') for i in range(1, 10)):
+            filename = os.path.basename(file_path)
+            # Match pattern: sbo_YYYY-MM-DD.log
+            if re.match(r'^sbo_\d{4}-\d{2}-\d{2}\.log$', filename):
                 log_files.append(file_path)
     
     if not log_files:

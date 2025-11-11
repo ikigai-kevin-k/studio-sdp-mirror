@@ -169,20 +169,55 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+class DailyFileHandler(logging.FileHandler):
+    """
+    Custom file handler that creates a new log file each day.
+    File format: sbo_{yyyy-mm-dd}.log
+    """
+    
+    def __init__(self, log_dir: str):
+        self.log_dir = log_dir
+        # Initialize current_date before calling super().__init__()
+        self.current_date = datetime.now().strftime("%Y-%m-%d")
+        log_file = self._get_log_file_path()
+        super().__init__(log_file, encoding="utf-8")
+    
+    def _get_log_file_path(self):
+        """Get log file path for current date"""
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        log_file = os.path.join(self.log_dir, f'sbo_{current_date}.log')
+        return log_file
+    
+    def _should_rotate(self):
+        """Check if we should rotate to a new file (new day)"""
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        return current_date != self.current_date
+    
+    def emit(self, record):
+        """Emit a record, rotating file if needed"""
+        if self._should_rotate():
+            # Close current file
+            if self.stream:
+                self.stream.close()
+                self.stream = None
+            
+            # Open new file for new day
+            self.baseFilename = self._get_log_file_path()
+            self.current_date = datetime.now().strftime("%Y-%m-%d")
+            self.stream = self._open()
+        
+        super().emit(record)
+
+
 def setup_logging(enable_logging: bool, log_dir: str):
     """Setup logging configuration"""
     if enable_logging:
         # ensure log directory exists
         os.makedirs(log_dir, exist_ok=True)
 
-        # set up file handler
-        log_file = os.path.join(log_dir, f'SBO001_{time.strftime("%m%d")}.log')
-        file_handler = logging.handlers.RotatingFileHandler(
-            log_file,
-            maxBytes=10 * 1024 * 1024,
-            backupCount=5,
-            encoding="utf-8",  # 10MB
-        )
+        # set up file handler with daily rotation
+        # File format: sbo_{yyyy-mm-dd}.log
+        file_handler = DailyFileHandler(log_dir)
 
         # set up formatter
         formatter = logging.Formatter(
@@ -201,7 +236,7 @@ def setup_logging(enable_logging: bool, log_dir: str):
 
         root_logger.setLevel(logging.INFO)
 
-        logging.info(f"Logging to file: {log_file}")
+        logging.info(f"Logging to file: {file_handler.baseFilename}")
 
 
 def load_table_config(config_file="conf/table-config-sicbo-v2.json"):
