@@ -215,12 +215,89 @@ class SlackNotifier:
             logger.error(f"Error sending rich message: {e}")
             return False
 
+    def get_user_id_by_name(
+        self, display_name: str, email: Optional[str] = None
+    ) -> Optional[str]:
+        """
+        Get Slack user ID by display name or email
+
+        Args:
+            display_name: User's display name (e.g., "Kevin Kuo")
+            email: User's email address (optional, more reliable)
+
+        Returns:
+            str: User ID if found, None otherwise
+        """
+        if not self.bot_client:
+            logger.warning("Bot client not available, cannot lookup user")
+            return None
+
+        try:
+            # Try email lookup first if provided
+            if email:
+                try:
+                    response = self.bot_client.users_lookupByEmail(email=email)
+                    if response["ok"]:
+                        user_id = response["user"]["id"]
+                        logger.info(
+                            f"Found user {display_name} by email: {user_id}"
+                        )
+                        return user_id
+                except SlackApiError as e:
+                    if e.response["error"] != "users_not_found":
+                        logger.warning(
+                            f"Email lookup failed for {email}: {e.response['error']}"
+                        )
+
+            # Fallback to list all users and search by name
+            response = self.bot_client.users_list()
+            if not response["ok"]:
+                logger.error(f"Failed to get users list: {response.get('error')}")
+                return None
+
+            # Search for user by display name or real name
+            display_name_lower = display_name.lower()
+            for user in response["members"]:
+                # Check display name
+                if (
+                    user.get("profile", {}).get("display_name", "").lower()
+                    == display_name_lower
+                ):
+                    user_id = user["id"]
+                    logger.info(
+                        f"Found user {display_name} by display name: {user_id}"
+                    )
+                    return user_id
+
+                # Check real name
+                if (
+                    user.get("profile", {}).get("real_name", "").lower()
+                    == display_name_lower
+                ):
+                    user_id = user["id"]
+                    logger.info(
+                        f"Found user {display_name} by real name: {user_id}"
+                    )
+                    return user_id
+
+            logger.warning(f"User {display_name} not found")
+            return None
+
+        except SlackApiError as e:
+            logger.error(f"Slack API error looking up user: {e.response['error']}")
+            return None
+        except Exception as e:
+            logger.error(f"Error looking up user: {e}")
+            return None
+
     def send_error_notification(
         self,
         error_message: str,
         error_code: Optional[str] = None,
         table_name: Optional[str] = None,
         environment: str = "Unknown",
+        mention_user: Optional[str] = None,
+        mention_user_email: Optional[str] = None,
     ) -> bool:
         """
         Send formatted error notification
@@ -230,11 +307,26 @@ class SlackNotifier:
             error_code: Error code if available
             table_name: Table name if relevant
             environment: Environment (CIT/UAT/QAT/STG/PRD)
+            mention_user: Display name of user to mention (e.g., "Kevin Kuo")
+            mention_user_email: Email of user to mention (optional, more reliable)
 
         Returns:
             bool: True if successful, False otherwise
         """
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Get user ID if mention is requested
+        mention_text = ""
+        if mention_user:
+            user_id = self.get_user_id_by_name(mention_user, mention_user_email)
+            if user_id:
+                mention_text = f"<@{user_id}> "
+                logger.info(f"Mentioning user {mention_user} ({user_id})")
+            else:
+                logger.warning(
+                    f"Could not find user {mention_user} to mention, "
+                    "sending without mention"
+                )
 
         # Create rich message blocks
         blocks = [
@@ -244,6 +336,15 @@ class SlackNotifier:
                     "type": "plain_text",
                     "text": f"🚨 SDP Error - {environment}",
                     "emoji": True,
+                },
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"{mention_text}*Error requires your attention*"
+                    if mention_text
+                    else "*Error occurred*",
                 },
             },
             {
@@ -281,7 +382,17 @@ class SlackNotifier:
                 }
             )
 
-        # Removed error message block for simplified format
+        # Add error message block
+        if error_message:
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"*Error Message:*\n```{error_message}```",
+                    },
+                }
+            )
 
         # Try to send rich message first, fallback to simple message
         if self.bot_client:
@@ -291,10 +402,14 @@ class SlackNotifier:
 
         # Fallback to simple message (simplified format)
         simple_message = f"🚨 SDP Error in {environment}\n"
+        if mention_text:
+            simple_message = f"{mention_text}{simple_message}"
         if table_name:
             simple_message += f"Table: {table_name}\n"
         if error_code:
             simple_message += f"Error Code: {error_code}\n"
+        if error_message:
+            simple_message += f"Error Message: {error_message}\n"
         simple_message += f"Time: {timestamp}"
 
         return self.send_simple_message(simple_message)
@@ -383,6 +498,8 @@ def send_error_to_slack(
     environment: str = "Unknown",
     table_name: Optional[str] = None,
     error_code: Optional[str] = None,
+    mention_user: Optional[str] = None,
+    mention_user_email: Optional[str] = None,
 ) -> bool:
     """
     Quick function to send error notification
@@ -392,6 +509,8 @@ def send_error_to_slack(
         environment: Environment name
         table_name: Table name if relevant
         error_code: Error code if available
+        mention_user: Display name of user to mention (e.g., "Kevin Kuo")
+        mention_user_email: Email of user to mention (optional, more reliable)
 
     Returns:
         bool: True if successful, False otherwise
@@ -403,7 +522,12 @@ def send_error_to_slack(
 
     notifier = SlackNotifier()
     return notifier.send_error_notification(
-        error_message, error_code, table_name, environment
+        error_message,
+        error_code,
+        table_name,
+        environment,
+        mention_user,
+        mention_user_email,
     )
 
 
