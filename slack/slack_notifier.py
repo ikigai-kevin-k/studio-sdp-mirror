@@ -298,6 +298,7 @@ class SlackNotifier:
         environment: str = "Unknown",
         mention_user: Optional[str] = None,
         mention_user_email: Optional[str] = None,
+        channel: Optional[str] = None,
     ) -> bool:
         """
         Send formatted error notification
@@ -309,11 +310,15 @@ class SlackNotifier:
             environment: Environment (CIT/UAT/QAT/STG/PRD)
             mention_user: Display name of user to mention (e.g., "Kevin Kuo")
             mention_user_email: Email of user to mention (optional, more reliable)
+            channel: Channel to send to (defaults to default_channel)
 
         Returns:
             bool: True if successful, False otherwise
         """
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Use provided channel or fallback to default_channel
+        target_channel = channel or self.default_channel
 
         # Get user ID if mention is requested
         mention_text = ""
@@ -396,7 +401,7 @@ class SlackNotifier:
 
         # Try to send rich message first, fallback to simple message
         if self.bot_client:
-            success = self.send_rich_message(self.default_channel, blocks)
+            success = self.send_rich_message(target_channel, blocks)
             if success:
                 return True
 
@@ -412,7 +417,7 @@ class SlackNotifier:
             simple_message += f"Error Message: {error_message}\n"
         simple_message += f"Time: {timestamp}"
 
-        return self.send_simple_message(simple_message)
+        return self.send_simple_message(simple_message, channel=target_channel)
 
     def send_success_notification(
         self,
@@ -500,6 +505,7 @@ def send_error_to_slack(
     error_code: Optional[str] = None,
     mention_user: Optional[str] = None,
     mention_user_email: Optional[str] = None,
+    channel: Optional[str] = None,
 ) -> bool:
     """
     Quick function to send error notification
@@ -511,6 +517,7 @@ def send_error_to_slack(
         error_code: Error code if available
         mention_user: Display name of user to mention (e.g., "Kevin Kuo")
         mention_user_email: Email of user to mention (optional, more reliable)
+        channel: Channel to send to (defaults to default_channel from env or #ge-studio)
 
     Returns:
         bool: True if successful, False otherwise
@@ -520,7 +527,10 @@ def send_error_to_slack(
 
     load_dotenv()
 
-    notifier = SlackNotifier()
+    # Get default channel from environment or use ge-studio as default
+    default_channel = os.getenv("SLACK_DEFAULT_CHANNEL", "#ge-studio")
+    
+    notifier = SlackNotifier(default_channel=default_channel)
     return notifier.send_error_notification(
         error_message,
         error_code,
@@ -528,6 +538,7 @@ def send_error_to_slack(
         environment,
         mention_user,
         mention_user_email,
+        channel,
     )
 
 

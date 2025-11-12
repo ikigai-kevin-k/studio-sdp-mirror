@@ -366,12 +366,14 @@ def send_sensor_error_to_slack():
     try:
         # Send error notification using the convenience function with user mention
         # This function will create its own SlackNotifier instance
+        # Send to studio-rnd channel for sensor errors
         success = send_error_to_slack(
             error_message="Speed Roulette Sensor Error, please relaunch the wheel",
             error_code="SENSOR_STUCK",
             table_name="Speed Roulette",
             environment="PRD",
             mention_user="Kevin Kuo",  # Mention Kevin Kuo for sensor errors
+            channel="#studio-rnd",  # Send sensor errors to studio-rnd channel
         )
 
         if success:
