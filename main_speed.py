@@ -246,6 +246,7 @@ ws_connected = False
 
 # Add Slack notification variables
 sensor_error_sent = False  # Flag to ensure sensor error is only sent once
+relaunch_failed_sent = False  # Flag to ensure relaunch failed error is only sent once
 
 # Add program termination flag
 terminate_program = False  # Flag to terminate program when *X;6 sensor error is detected
@@ -402,6 +403,61 @@ def send_sensor_error_to_slack():
         )
         log_to_file(
             f"Error sending sensor error notification: {e}", "Slack >>>"
+        )
+        return False
+
+
+# Function to send relaunch failed notification to Slack
+def send_relaunch_failed_to_slack():
+    """Send relaunch failed notification to Slack with specialized format"""
+    global relaunch_failed_sent
+
+    if relaunch_failed_sent:
+        print(
+            f"[{get_timestamp()}] Relaunch failed error already sent to Slack, skipping..."
+        )
+        return False
+
+    try:
+        # Import the specialized roulette sensor error function
+        from slack.slack_notifier import send_roulette_sensor_error_to_slack
+
+        # Send roulette relaunch failed notification with specialized format
+        # Action is None (can be auto-recovered)
+        success = send_roulette_sensor_error_to_slack(
+            action_message="None (can be auto-recovered)",
+            table_name="ARO-001-1 (speed - main)",
+            error_code="ROULETTE_RELAUNCH_FAILED",
+            mention_user="Kevin Kuo",  # Mention Kevin Kuo for relaunch failed errors
+            channel="#ge-studio",  # Send relaunch failed errors to ge-studio channel
+        )
+
+        if success:
+            relaunch_failed_sent = True
+            print(
+                f"[{get_timestamp()}] Relaunch failed notification sent to Slack successfully (with mention)"
+            )
+            log_to_file(
+                "Relaunch failed notification sent to Slack successfully (with mention)",
+                "Slack >>>",
+            )
+            return True
+        else:
+            print(
+                f"[{get_timestamp()}] Failed to send relaunch failed notification to Slack"
+            )
+            log_to_file(
+                "Failed to send relaunch failed notification to Slack",
+                "Slack >>>",
+            )
+            return False
+
+    except Exception as e:
+        print(
+            f"[{get_timestamp()}] Error sending relaunch failed notification: {e}"
+        )
+        log_to_file(
+            f"Error sending relaunch failed notification: {e}", "Slack >>>"
         )
         return False
 
@@ -1034,17 +1090,10 @@ async def _execute_broadcast_post_async(table, token, broadcast_type="roulette.r
                 "Broadcast >>>",
             )
 
-            # Send Slack notification for failed relaunch
+            # Send Slack notification for failed relaunch (only once, regardless of how many tables fail)
+            # This will be called for each failed table, but the function itself handles deduplication
             try:
-                send_error_to_slack(
-                    error_message="Failed to send roulette relaunch notification",
-                    environment=table["name"],
-                    table_name=table.get("game_code", "Unknown"),
-                    error_code="ROULETTE_RELAUNCH_FAILED",
-                )
-                print(
-                    f"Slack error notification sent for {table['name']} relaunch failure"
-                )
+                send_relaunch_failed_to_slack()
             except Exception as slack_error:
                 print(
                     f"Failed to send Slack error notification: {slack_error}"
@@ -1117,6 +1166,7 @@ def main():
         "finish_post_time": finish_post_time,
         "isLaunch": isLaunch,
         "sensor_error_sent": sensor_error_sent,
+        "relaunch_failed_sent": relaunch_failed_sent,
         "terminate_program": terminate_program,
     }
 
