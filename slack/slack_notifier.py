@@ -422,6 +422,9 @@ class SlackNotifier:
         error_code: Optional[str] = None,
         table_name: Optional[str] = None,
         environment: str = "Unknown",
+        mention_user: Optional[str] = None,
+        mention_user_email: Optional[str] = None,
+        channel: Optional[str] = None,
     ) -> bool:
         """
         Send formatted error notification
@@ -431,11 +434,30 @@ class SlackNotifier:
             error_code: Error code if available
             table_name: Table name if relevant
             environment: Environment (CIT/UAT/QAT/STG/PRD)
+            mention_user: Display name of user to mention (e.g., "Kevin Kuo")
+            mention_user_email: Email of user to mention (optional, more reliable)
+            channel: Channel to send to (defaults to default_channel)
 
         Returns:
             bool: True if successful, False otherwise
         """
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Use provided channel or fallback to default_channel
+        target_channel = channel or self.default_channel
+
+        # Get user ID if mention is requested
+        mention_text = ""
+        if mention_user:
+            user_id = self.get_user_id_by_name(mention_user, mention_user_email)
+            if user_id:
+                mention_text = f"<@{user_id}> "
+                logger.info(f"Mentioning user {mention_user} ({user_id})")
+            else:
+                logger.warning(
+                    f"Could not find user {mention_user} to mention, "
+                    "sending without mention"
+                )
 
         # Create rich message blocks
         blocks = [
@@ -445,6 +467,15 @@ class SlackNotifier:
                     "type": "plain_text",
                     "text": f"🚨 SDP Error - {environment}",
                     "emoji": True,
+                },
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"{mention_text}*Error requires your attention*"
+                    if mention_text
+                    else "*Error occurred*",
                 },
             },
             {
@@ -486,19 +517,21 @@ class SlackNotifier:
 
         # Try to send rich message first, fallback to simple message
         if self.bot_client:
-            success = self.send_rich_message(self.default_channel, blocks)
+            success = self.send_rich_message(target_channel, blocks)
             if success:
                 return True
 
         # Fallback to simple message (simplified format)
         simple_message = f"🚨 SDP Error in {environment}\n"
+        if mention_text:
+            simple_message = f"{mention_text}{simple_message}"
         if table_name:
             simple_message += f"Table: {table_name}\n"
         if error_code:
             simple_message += f"Error Code: {error_code}\n"
         simple_message += f"Time: {timestamp}"
 
-        return self.send_simple_message(simple_message)
+        return self.send_simple_message(simple_message, channel=target_channel)
 
     def send_success_notification(
         self,
@@ -625,6 +658,9 @@ def send_error_to_slack(
     environment: str = "Unknown",
     table_name: Optional[str] = None,
     error_code: Optional[str] = None,
+    mention_user: Optional[str] = None,
+    mention_user_email: Optional[str] = None,
+    channel: Optional[str] = None,
 ) -> bool:
     """
     Quick function to send error notification
@@ -634,6 +670,9 @@ def send_error_to_slack(
         environment: Environment name
         table_name: Table name if relevant
         error_code: Error code if available
+        mention_user: Display name of user to mention (e.g., "Kevin Kuo")
+        mention_user_email: Email of user to mention (optional, more reliable)
+        channel: Channel to send to (defaults to default_channel)
 
     Returns:
         bool: True if successful, False otherwise
@@ -645,7 +684,13 @@ def send_error_to_slack(
 
     notifier = SlackNotifier()
     return notifier.send_error_notification(
-        error_message, error_code, table_name, environment
+        error_message,
+        error_code,
+        table_name,
+        environment,
+        mention_user,
+        mention_user_email,
+        channel,
     )
 
 
