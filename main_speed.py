@@ -240,6 +240,10 @@ deal_post_sent = False
 start_time = 0
 deal_post_time = 0
 finish_post_time = 0
+# Game state tracking for auto-recovery
+u1_sent = False  # Track if *u 1 command has been sent
+betStop_sent = False  # Track if betStop has been sent
+finish_post_sent = False  # Track if finish_post has been sent
 token = "E5LN4END9Q"
 ws_client = None
 ws_connected = False
@@ -1168,6 +1172,10 @@ def main():
         "sensor_error_sent": sensor_error_sent,
         "relaunch_failed_sent": relaunch_failed_sent,
         "terminate_program": terminate_program,
+        # Game state tracking for auto-recovery
+        "u1_sent": u1_sent,
+        "betStop_sent": betStop_sent,
+        "finish_post_sent": finish_post_sent,
     }
 
     # Create a wrapper function for read_from_serial with all required parameters

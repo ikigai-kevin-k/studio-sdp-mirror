@@ -18,6 +18,142 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from log_redirector import log_mqtt, log_api, log_serial, log_console, get_timestamp
 
+# Global variables for auto-recovery from *X;6
+_auto_recovery_state = {
+    "active": False,  # Whether auto-recovery is currently active
+    "p_ok_received": False,  # Whether *P OK has been received
+    "x2_restored": False,  # Whether *X;2 has been restored
+    "recovery_start_time": None,  # When recovery started
+    "p1_send_count": 0,  # Number of *P 1 commands sent
+}
+
+
+def _send_p1_repeatedly(ser, get_timestamp, log_to_file, duration=10, interval=1):
+    """
+    Send *P 1 command repeatedly for specified duration
+    
+    Args:
+        ser: Serial connection object
+        get_timestamp: Function to get timestamp
+        log_to_file: Function to log messages
+        duration: Total duration in seconds (default 10)
+        interval: Interval between sends in seconds (default 1)
+    """
+    global _auto_recovery_state
+    
+    if ser is None:
+        log_serial("Warning: Serial connection not available, cannot send *P 1")
+        return
+    
+    start_time = time.time()
+    send_count = 0
+    
+    while (time.time() - start_time) < duration and _auto_recovery_state["active"]:
+        try:
+            ser.write(("*P 1\r\n").encode())
+            send_count += 1
+            _auto_recovery_state["p1_send_count"] = send_count
+            log_serial(f"*P 1 (attempt {send_count})", "Send <<<")
+            log_to_file("*P 1", "Send <<<")
+            print(f"[{get_timestamp()}] Sent *P 1 command (attempt {send_count})")
+        except Exception as e:
+            print(f"[{get_timestamp()}] Error sending *P 1: {e}")
+            log_to_file(f"Error sending *P 1: {e}", "Error >>>")
+        
+        # Wait for interval, but check if recovery succeeded
+        elapsed = time.time() - start_time
+        remaining = duration - elapsed
+        if remaining > 0:
+            time.sleep(min(interval, remaining))
+    
+    print(f"[{get_timestamp()}] Finished sending *P 1 commands (total: {send_count})")
+    log_to_file(f"Finished sending *P 1 commands (total: {send_count})", "Auto-Recovery >>>")
+
+
+def _continue_game_from_state(
+    global_vars,
+    ser,
+    tables,
+    token,
+    get_timestamp,
+    log_to_file,
+    execute_start_post,
+    execute_deal_post,
+    execute_finish_post,
+    send_start_recording,
+    betStop_round_for_table,
+):
+    """
+    Continue game execution based on current game state
+    
+    Args:
+        global_vars: Dictionary containing game state variables
+        ser: Serial connection object
+        tables: Table configuration list
+        token: Authentication token
+        get_timestamp: Function to get timestamp
+        log_to_file: Function to log messages
+        execute_start_post: Function to execute start post
+        execute_deal_post: Function to execute deal post
+        execute_finish_post: Function to execute finish post
+        send_start_recording: Function to send start recording
+        betStop_round_for_table: Function to call bet stop
+    """
+    print(f"[{get_timestamp()}] Continuing game from saved state...")
+    log_to_file("Continuing game from saved state...", "Auto-Recovery >>>")
+    
+    # Determine current game state and continue from where we left off
+    if global_vars.get("start_post_sent", False):
+        if not global_vars.get("u1_sent", False):
+            # Continue with *u 1, betStop, deal, finish
+            print(f"[{get_timestamp()}] Resuming from start: sending *u 1 (betStop, deal, finish will follow)")
+            log_to_file("Resuming from start: sending *u 1 (betStop, deal, finish will follow)", "Auto-Recovery >>>")
+            
+            # Send *u 1
+            if ser is not None:
+                ser.write(("*u 1\r\n").encode())
+                log_to_file("*u 1", "Send <<<")
+                print(f"[{get_timestamp()}] Sent *u 1 command")
+                global_vars["u1_sent"] = True
+            else:
+                print(f"[{get_timestamp()}] Warning: Serial connection not available, cannot send *u 1")
+            
+            # Note: betStop, deal, and finish will be handled by normal game flow
+            # when *X;3 triggers betStop and *X;5 triggers deal and finish
+            
+        elif not global_vars.get("betStop_sent", False):
+            # Continue with betStop, deal, finish
+            print(f"[{get_timestamp()}] Resuming from *u 1: betStop, deal, finish will follow")
+            log_to_file("Resuming from *u 1: betStop, deal, finish will follow", "Auto-Recovery >>>")
+            
+            # Note: betStop, deal, and finish will be handled by normal game flow
+            # when *X;3 triggers betStop and *X;5 triggers deal and finish
+            
+        elif not global_vars.get("deal_post_sent", False):
+            # Continue with deal, finish
+            print(f"[{get_timestamp()}] Resuming from betStop: deal, finish will follow")
+            log_to_file("Resuming from betStop: deal, finish will follow", "Auto-Recovery >>>")
+            
+            # Note: deal and finish will be handled by normal game flow
+            # when *X;5 triggers deal and finish
+            
+        elif not global_vars.get("finish_post_sent", False):
+            # Continue with finish
+            print(f"[{get_timestamp()}] Resuming from deal: finish will follow")
+            log_to_file("Resuming from deal: finish will follow", "Auto-Recovery >>>")
+            
+            # Note: finish will be handled by normal game flow
+            # when *X;5 triggers finish
+            
+        else:
+            # All steps completed, start next round
+            print(f"[{get_timestamp()}] All steps completed, will start next round on *X;2")
+            log_to_file("All steps completed, will start next round on *X;2", "Auto-Recovery >>>")
+    else:
+        # No start sent yet, will start on next *X;2
+        print(f"[{get_timestamp()}] No start sent yet, will start on next *X;2")
+        log_to_file("No start sent yet, will start on next *X;2", "Auto-Recovery >>>")
+
 
 def read_from_serial(
     ser,
@@ -117,111 +253,151 @@ def read_from_serial(
                                 )
                                 continue  # Skip error handling for startup condition
 
-                            # Trigger error signal and termination for *X;6 message (not startup condition)
-                            print(
-                                f"[{get_timestamp()}] *X;6 MESSAGE detected! Sending notifications and terminating program..."
-                            )
-                            log_to_file(
-                                "*X;6 MESSAGE detected! Sending notifications and terminating program...",
-                                "Receive >>>",
-                            )
-
-                            # Use callback functions if provided, otherwise try to import
-                            try:
-                                # Send sensor error notification to Slack (already passed as callback)
-                                send_sensor_error_to_slack()
-
-                                # Send WebSocket error signal (use callback if provided)
-                                if send_websocket_error_signal is not None:
-                                    send_websocket_error_signal()
-                                else:
-                                    # Fallback: try to import from main_speed (for backward compatibility)
-                                    import sys
-                                    import os
-                                    sys.path.append(
-                                        os.path.dirname(
-                                            os.path.dirname(
-                                                os.path.abspath(__file__)
-                                            )
-                                        )
-                                    )
-                                    from main_speed import send_websocket_error_signal as fallback_send_ws_error
-                                    fallback_send_ws_error()
-
-                                # Send broadcast_post for sensor stuck error
-                                current_time_broadcast = time.time()
-                                broadcast_type_sensor_stuck = "roulette.sensor_stuck"
-                                last_broadcast_key_sensor_stuck = f"last_broadcast_time_{broadcast_type_sensor_stuck}"
-                                
-                                # Check if 10 seconds have passed or it's the first broadcast
-                                if (
-                                    not hasattr(
-                                        execute_broadcast_post,
-                                        last_broadcast_key_sensor_stuck,
-                                    )
-                                    or (
-                                        current_time_broadcast
-                                        - getattr(execute_broadcast_post, last_broadcast_key_sensor_stuck, 0)
-                                    )
-                                    >= 10
-                                ):
-                                    print(
-                                        f"[{get_timestamp()}] Sending broadcast_post ({broadcast_type_sensor_stuck}) for *X;6 message..."
-                                    )
-                                    log_to_file(
-                                        f"Sending broadcast_post ({broadcast_type_sensor_stuck}) for *X;6 message",
-                                        "Broadcast >>>",
-                                    )
-                                    
-                                    # Send broadcast_post to each table
-                                    with ThreadPoolExecutor(
-                                        max_workers=len(tables)
-                                    ) as executor:
-                                        futures = [
-                                            executor.submit(
-                                                execute_broadcast_post,
-                                                table,
-                                                token,
-                                                broadcast_type_sensor_stuck,
-                                            )
-                                            for table in tables
-                                        ]
-                                        for future in futures:
-                                            future.result()  # Wait for all requests to complete
-                                    
-                                    # Update last send time
-                                    setattr(execute_broadcast_post, last_broadcast_key_sensor_stuck, current_time_broadcast)
-
-                                # Set global flag to terminate the program
-                                global_vars["terminate_program"] = True
+                            # Start auto-recovery process for *X;6 message (not startup condition)
+                            global _auto_recovery_state
+                            
+                            # Check if auto-recovery is already active
+                            if _auto_recovery_state["active"]:
                                 print(
-                                    f"[{get_timestamp()}] Program termination flag set due to *X;6 message"
+                                    f"[{get_timestamp()}] Auto-recovery already active, ignoring duplicate *X;6"
                                 )
                                 log_to_file(
-                                    "Program termination flag set due to *X;6 message",
+                                    "Auto-recovery already active, ignoring duplicate *X;6",
                                     "Receive >>>",
                                 )
-
-                            except ImportError as e:
-                                print(
-                                    f"[{get_timestamp()}] Error importing functions: {e}"
-                                )
-                                log_to_file(
-                                    f"Error importing functions: {e}",
-                                    "Error >>>",
-                                )
-                                # Still set termination flag even if import fails
-                                global_vars["terminate_program"] = True
-                            except Exception as e:
-                                print(
-                                    f"[{get_timestamp()}] Error calling sensor error functions: {e}"
-                                )
-                                log_to_file(
-                                    f"Error calling sensor error functions: {e}",
-                                    "Error >>>",
-                                )
-                                # Still set termination flag even if function call fails
-                                global_vars["terminate_program"] = True
+                                continue
+                            
+                            print(
+                                f"[{get_timestamp()}] *X;6 MESSAGE detected! Starting auto-recovery process..."
+                            )
+                            log_to_file(
+                                "*X;6 MESSAGE detected! Starting auto-recovery process...",
+                                "Receive >>>",
+                            )
+                            
+                            # Initialize auto-recovery state
+                            _auto_recovery_state["active"] = True
+                            _auto_recovery_state["p_ok_received"] = False
+                            _auto_recovery_state["x2_restored"] = False
+                            _auto_recovery_state["recovery_start_time"] = current_time
+                            _auto_recovery_state["p1_send_count"] = 0
+                            
+                            # Start sending *P 1 commands in a separate thread
+                            def auto_recovery_thread():
+                                global _auto_recovery_state
+                                
+                                # Send *P 1 commands for 10 seconds, every 1 second
+                                _send_p1_repeatedly(ser, get_timestamp, log_to_file, duration=10, interval=1)
+                                
+                                # Wait up to 20 seconds total for recovery (10s for P1 + 10s for recovery)
+                                recovery_timeout = 20
+                                elapsed = time.time() - _auto_recovery_state["recovery_start_time"]
+                                
+                                while elapsed < recovery_timeout and _auto_recovery_state["active"]:
+                                    time.sleep(0.5)  # Check every 0.5 seconds
+                                    elapsed = time.time() - _auto_recovery_state["recovery_start_time"]
+                                    
+                                    # Check if recovery succeeded
+                                    if _auto_recovery_state["p_ok_received"] and _auto_recovery_state["x2_restored"]:
+                                        print(
+                                            f"[{get_timestamp()}] Auto-recovery SUCCESS! *P OK received and *X;2 restored"
+                                        )
+                                        log_to_file(
+                                            "Auto-recovery SUCCESS! *P OK received and *X;2 restored",
+                                            "Auto-Recovery >>>",
+                                        )
+                                        
+                                        # Continue game from saved state
+                                        try:
+                                            # Import betStop function
+                                            import sys
+                                            import os
+                                            sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                                            
+                                            betStop_round_for_table = None
+                                            if 'main_speed' in sys.modules:
+                                                from main_speed import betStop_round_for_table
+                                            else:
+                                                main_script = sys.argv[0] if sys.argv else ''
+                                                if 'main_speed' in main_script:
+                                                    from main_speed import betStop_round_for_table
+                                            
+                                            _continue_game_from_state(
+                                                global_vars,
+                                                ser,
+                                                tables,
+                                                token,
+                                                get_timestamp,
+                                                log_to_file,
+                                                execute_start_post,
+                                                execute_deal_post,
+                                                execute_finish_post,
+                                                send_start_recording,
+                                                betStop_round_for_table,
+                                            )
+                                        except Exception as e:
+                                            print(f"[{get_timestamp()}] Error continuing game: {e}")
+                                            log_to_file(f"Error continuing game: {e}", "Error >>>")
+                                        
+                                        # Reset auto-recovery state
+                                        _auto_recovery_state["active"] = False
+                                        return
+                                
+                                # Recovery failed or timeout
+                                if _auto_recovery_state["active"]:
+                                    print(
+                                        f"[{get_timestamp()}] Auto-recovery FAILED or TIMEOUT! Sending sensor error notification..."
+                                    )
+                                    log_to_file(
+                                        "Auto-recovery FAILED or TIMEOUT! Sending sensor error notification...",
+                                        "Auto-Recovery >>>",
+                                    )
+                                    
+                                    # Send sensor error notification to Slack
+                                    try:
+                                        send_sensor_error_to_slack()
+                                        
+                                        # Send WebSocket error signal
+                                        if send_websocket_error_signal is not None:
+                                            send_websocket_error_signal()
+                                        
+                                        # Send broadcast_post for sensor stuck error
+                                        current_time_broadcast = time.time()
+                                        broadcast_type_sensor_stuck = "roulette.sensor_stuck"
+                                        last_broadcast_key_sensor_stuck = f"last_broadcast_time_{broadcast_type_sensor_stuck}"
+                                        
+                                        if (
+                                            not hasattr(execute_broadcast_post, last_broadcast_key_sensor_stuck)
+                                            or (current_time_broadcast - getattr(execute_broadcast_post, last_broadcast_key_sensor_stuck, 0)) >= 10
+                                        ):
+                                            print(f"[{get_timestamp()}] Sending broadcast_post ({broadcast_type_sensor_stuck})...")
+                                            log_to_file(f"Sending broadcast_post ({broadcast_type_sensor_stuck})...", "Broadcast >>>")
+                                            
+                                            with ThreadPoolExecutor(max_workers=len(tables)) as executor:
+                                                futures = [
+                                                    executor.submit(execute_broadcast_post, table, token, broadcast_type_sensor_stuck)
+                                                    for table in tables
+                                                ]
+                                                for future in futures:
+                                                    future.result()
+                                            
+                                            setattr(execute_broadcast_post, last_broadcast_key_sensor_stuck, current_time_broadcast)
+                                        
+                                        # Set termination flag
+                                        global_vars["terminate_program"] = True
+                                        
+                                    except Exception as e:
+                                        print(f"[{get_timestamp()}] Error sending sensor error notification: {e}")
+                                        log_to_file(f"Error sending sensor error notification: {e}", "Error >>>")
+                                        global_vars["terminate_program"] = True
+                                    
+                                    # Reset auto-recovery state
+                                    _auto_recovery_state["active"] = False
+                            
+                            # Start auto-recovery thread
+                            recovery_thread = threading.Thread(target=auto_recovery_thread, daemon=True)
+                            recovery_thread.start()
+                            
                         except Exception as e:
                             print(
                                 f"[{get_timestamp()}] Error parsing *X;6 message: {e}"
@@ -229,8 +405,21 @@ def read_from_serial(
                             log_to_file(
                                 f"Error parsing *X;6 message: {e}", "Error >>>"
                             )
-                            # Still set termination flag even if parsing fails
-                            global_vars["terminate_program"] = True
+                            # Reset auto-recovery state on error
+                            _auto_recovery_state["active"] = False
+
+                    # Handle *P OK response
+                    if "*P OK" in data:
+                        global _auto_recovery_state
+                        if _auto_recovery_state["active"]:
+                            _auto_recovery_state["p_ok_received"] = True
+                            print(
+                                f"[{get_timestamp()}] Received *P OK during auto-recovery"
+                            )
+                            log_to_file(
+                                "Received *P OK during auto-recovery",
+                                "Auto-Recovery >>>",
+                            )
 
                     # Handle *X;2 count
                     if "*X;2" in data:
@@ -240,6 +429,18 @@ def read_from_serial(
                         else:
                             global_vars["x2_count"] += 1
                         global_vars["last_x2_time"] = current_time
+                        
+                        # Check if this is recovery from *X;6
+                        global _auto_recovery_state
+                        if _auto_recovery_state["active"]:
+                            _auto_recovery_state["x2_restored"] = True
+                            print(
+                                f"[{get_timestamp()}] Received *X;2 during auto-recovery - state restored!"
+                            )
+                            log_to_file(
+                                "Received *X;2 during auto-recovery - state restored!",
+                                "Auto-Recovery >>>",
+                            )
 
                         # Check if warning_flag is not 0, if so send broadcast_post and error signal
                         try:
@@ -459,6 +660,10 @@ def read_from_serial(
 
                                 global_vars["start_post_sent"] = True
                                 global_vars["deal_post_sent"] = False
+                                # Reset game state tracking for new round
+                                global_vars["u1_sent"] = False
+                                global_vars["betStop_sent"] = False
+                                global_vars["finish_post_sent"] = False
 
                                 # Start bet stop countdown for each table (non-blocking)
                                 for table, round_id, bet_period in round_ids:
@@ -534,7 +739,7 @@ def read_from_serial(
                                         threading.Timer(
                                             bet_period,
                                             lambda t=table, r=round_id, b=bet_period: _bet_stop_countdown(
-                                                t, r, b, token, betStop_round_for_table, get_timestamp, log_to_file
+                                                t, r, b, token, betStop_round_for_table, get_timestamp, log_to_file, global_vars
                                             )
                                         ).start()
                                         print(f"[{get_timestamp()}] Started bet stop countdown for {table['name']} (round {round_id}, {bet_period}s)")
@@ -546,6 +751,8 @@ def read_from_serial(
                                     ser.write(("*u 1\r\n").encode())
                                     log_to_file("*u 1", "Send <<<")
                                     print("*u 1 command sent\n")
+                                    # Update game state tracking
+                                    global_vars["u1_sent"] = True
                                 else:
                                     print(
                                         "Warning: Serial connection not available, cannot send *u 1 command"
@@ -888,11 +1095,18 @@ def read_from_serial(
                                             for future in futures:
                                                 future.result()  # Wait for all requests to complete
 
+                                        # Update game state tracking - finish_post has been sent
+                                        global_vars["finish_post_sent"] = True
+
                                         # Reset all flags and counters (including roulette detection)
                                         global_vars["start_post_sent"] = False
                                         global_vars["x2_count"] = 0
                                         global_vars["x5_count"] = 0
                                         global_vars["isLaunch"] = 0
+                                        # Reset game state tracking for next round
+                                        global_vars["u1_sent"] = False
+                                        global_vars["betStop_sent"] = False
+                                        global_vars["finish_post_sent"] = False
                                         
                                         # Reset roulette detection flags for next round
                                         if 'roulette_detection_sent' in global_vars:
@@ -917,7 +1131,7 @@ def read_from_serial(
             time.sleep(0.001)  # 1ms sleep
 
 
-def _bet_stop_countdown(table, round_id, bet_period, token, betStop_round_for_table, get_timestamp, log_to_file):
+def _bet_stop_countdown(table, round_id, bet_period, token, betStop_round_for_table, get_timestamp, log_to_file, global_vars=None):
     """
     Countdown and call bet stop for a table (non-blocking)
     
@@ -929,6 +1143,7 @@ def _bet_stop_countdown(table, round_id, bet_period, token, betStop_round_for_ta
         betStop_round_for_table: Function to call bet stop
         get_timestamp: Function to get current timestamp
         log_to_file: Function to log messages to file
+        global_vars: Dictionary containing game state variables (optional)
     """
     try:
         # Note: Timer already handles the delay, no need to sleep here
@@ -939,6 +1154,10 @@ def _bet_stop_countdown(table, round_id, bet_period, token, betStop_round_for_ta
         log_to_file(f"Calling bet stop for {table['name']} (round {round_id})", "Bet Stop >>>")
         
         result = betStop_round_for_table(table, token)
+        
+        # Update game state tracking - betStop has been sent
+        if global_vars is not None:
+            global_vars["betStop_sent"] = True
 
         if result[1]:  # Check if successful
             print(f"[{get_timestamp()}] Successfully stopped betting for {table['name']}")
