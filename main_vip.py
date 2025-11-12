@@ -289,8 +289,8 @@ def send_sensor_error_to_slack():
             action_message="relaunch the wheel controller with *P 1",
             table_name="ARO-002-1 (vip - main)",
             error_code="SENSOR_STUCK",
-            mention_user="Mark Bochkov",  # Mention Mark Bochkov for sensor errors
-            channel="#studio-rnd",  # Send sensor errors to studio-rnd channel
+            mention_user="Kevin Kuo",  # Mention Kevin Kuo for sensor errors
+            channel="#ge-studio",  # Send sensor errors to ge-studio channel
         )
 
         if success:
@@ -417,8 +417,8 @@ def send_stop_recording():
 
 def read_from_serial():
     global x2_count, x5_count, last_x2_time, last_x5_time, start_post_sent, deal_post_sent, start_time, deal_post_time, finish_post_time, isLaunch
-    global p1_sent, x1_received, x1_to_x6_timer, x1_received_time
-    while True:
+    global p1_sent, x1_received, x1_to_x6_timer, x1_received_time, terminate_program
+    while not terminate_program:
         if ser.in_waiting > 0:
             data = ser.readline().decode("utf-8").strip()
             print("Receive >>>", data)
@@ -527,10 +527,11 @@ def read_from_serial():
                         send_websocket_error_signal()
                         
                         # Set termination flag to stop the program
-                        global terminate_program
                         terminate_program = True
                         print(f"[{get_timestamp()}] Program will terminate due to sensor error")
                         log_to_file("Program will terminate due to sensor error", "Terminate >>>")
+                        # Break out of the loop to stop processing further messages
+                        break
                 except Exception as e:
                     print(
                         f"[{get_timestamp()}] Error parsing *X;6 message: {e}"
