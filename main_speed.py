@@ -354,7 +354,7 @@ websocket_thread.start()
 
 # Function to send sensor error notification to Slack
 def send_sensor_error_to_slack():
-    """Send sensor error notification to Slack for Speed Roulette table"""
+    """Send sensor error notification to Slack for Speed Roulette table with user mention"""
     global sensor_error_sent
 
     if sensor_error_sent:
@@ -364,22 +364,23 @@ def send_sensor_error_to_slack():
         return False
 
     try:
-        # Send error notification using the convenience function
+        # Send error notification using the convenience function with user mention
         # This function will create its own SlackNotifier instance
         success = send_error_to_slack(
-            error_message="SENSOR ERROR - Detected warning_flag=4 in *X;6 message",
+            error_message="Speed Roulette Sensor Error, please relaunch the wheel",
             error_code="SENSOR_STUCK",
             table_name="Speed Roulette",
-            environment="SPEED_ROULETTE",
+            environment="PRD",
+            mention_user="Kevin Kuo",  # Mention Kevin Kuo for sensor errors
         )
 
         if success:
             sensor_error_sent = True
             print(
-                f"[{get_timestamp()}] Sensor error notification sent to Slack successfully"
+                f"[{get_timestamp()}] Sensor error notification sent to Slack successfully (with mention)"
             )
             log_to_file(
-                "Sensor error notification sent to Slack successfully",
+                "Sensor error notification sent to Slack successfully (with mention)",
                 "Slack >>>",
             )
             return True
