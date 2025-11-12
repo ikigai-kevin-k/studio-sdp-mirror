@@ -222,7 +222,7 @@ class SlackNotifier:
         Get Slack user ID by display name or email
 
         Args:
-            display_name: User's display name (e.g., "Kevin Kuo")
+            display_name: User's display name (e.g., "Mark Bochkov")
             email: User's email address (optional, more reliable)
 
         Returns:
@@ -290,25 +290,24 @@ class SlackNotifier:
             logger.error(f"Error looking up user: {e}")
             return None
 
-    def send_error_notification(
+    def send_roulette_sensor_error_notification(
         self,
-        error_message: str,
+        action_message: str,
+        table_name: str,
         error_code: Optional[str] = None,
-        table_name: Optional[str] = None,
-        environment: str = "Unknown",
         mention_user: Optional[str] = None,
         mention_user_email: Optional[str] = None,
         channel: Optional[str] = None,
     ) -> bool:
         """
-        Send formatted error notification
+        Send formatted roulette sensor error notification
+        Specialized format for hardware sensor errors
 
         Args:
-            error_message: Error message
+            action_message: Action message (e.g., "relaunch the wheel controller with *P 1")
+            table_name: Table name (e.g., "ARO-001-1 (speed - main)")
             error_code: Error code if available
-            table_name: Table name if relevant
-            environment: Environment (CIT/UAT/QAT/STG/PRD)
-            mention_user: Display name of user to mention (e.g., "Kevin Kuo")
+            mention_user: Display name of user to mention (e.g., "Mark Bochkov")
             mention_user_email: Email of user to mention (optional, more reliable)
             channel: Channel to send to (defaults to default_channel)
 
@@ -333,13 +332,13 @@ class SlackNotifier:
                     "sending without mention"
                 )
 
-        # Create rich message blocks
+        # Create rich message blocks for roulette error
         blocks = [
             {
                 "type": "header",
                 "text": {
                     "type": "plain_text",
-                    "text": f"🚨 SDP Error - {environment}",
+                    "text": "🚨 Roulette error",
                     "emoji": True,
                 },
             },
@@ -350,6 +349,102 @@ class SlackNotifier:
                     "text": f"{mention_text}*Error requires your attention*"
                     if mention_text
                     else "*Error occurred*",
+                },
+            },
+            {
+                "type": "section",
+                "fields": [
+                    {"type": "mrkdwn", "text": f"*Time:*\n{timestamp}"},
+                ],
+            },
+        ]
+
+        # Add table name
+        if table_name:
+            blocks.append(
+                {
+                    "type": "section",
+                    "fields": [
+                        {"type": "mrkdwn", "text": f"*Table:*\n{table_name}"}
+                    ],
+                }
+            )
+
+        # Add error code
+        if error_code:
+            blocks.append(
+                {
+                    "type": "section",
+                    "fields": [
+                        {
+                            "type": "mrkdwn",
+                            "text": f"*Error Code:*\n{error_code}",
+                        }
+                    ],
+                }
+            )
+
+        # Add action message
+        if action_message:
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"*Action:*\n```{action_message}```",
+                    },
+                }
+            )
+
+        # Try to send rich message first, fallback to simple message
+        if self.bot_client:
+            success = self.send_rich_message(target_channel, blocks)
+            if success:
+                return True
+
+        # Fallback to simple message
+        simple_message = "🚨 Roulette error\n"
+        if mention_text:
+            simple_message = f"{mention_text}{simple_message}"
+        if table_name:
+            simple_message += f"Table: {table_name}\n"
+        if error_code:
+            simple_message += f"Error Code: {error_code}\n"
+        if action_message:
+            simple_message += f"Action: {action_message}\n"
+        simple_message += f"Time: {timestamp}"
+
+        return self.send_simple_message(simple_message, channel=target_channel)
+
+    def send_error_notification(
+        self,
+        error_message: str,
+        error_code: Optional[str] = None,
+        table_name: Optional[str] = None,
+        environment: str = "Unknown",
+    ) -> bool:
+        """
+        Send formatted error notification
+
+        Args:
+            error_message: Error message
+            error_code: Error code if available
+            table_name: Table name if relevant
+            environment: Environment (CIT/UAT/QAT/STG/PRD)
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Create rich message blocks
+        blocks = [
+            {
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": f"🚨 SDP Error - {environment}",
+                    "emoji": True,
                 },
             },
             {
@@ -387,37 +482,23 @@ class SlackNotifier:
                 }
             )
 
-        # Add error message block
-        if error_message:
-            blocks.append(
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"*Error Message:*\n```{error_message}```",
-                    },
-                }
-            )
+        # Removed error message block for simplified format
 
         # Try to send rich message first, fallback to simple message
         if self.bot_client:
-            success = self.send_rich_message(target_channel, blocks)
+            success = self.send_rich_message(self.default_channel, blocks)
             if success:
                 return True
 
         # Fallback to simple message (simplified format)
         simple_message = f"🚨 SDP Error in {environment}\n"
-        if mention_text:
-            simple_message = f"{mention_text}{simple_message}"
         if table_name:
             simple_message += f"Table: {table_name}\n"
         if error_code:
             simple_message += f"Error Code: {error_code}\n"
-        if error_message:
-            simple_message += f"Error Message: {error_message}\n"
         simple_message += f"Time: {timestamp}"
 
-        return self.send_simple_message(simple_message, channel=target_channel)
+        return self.send_simple_message(simple_message)
 
     def send_success_notification(
         self,
@@ -498,26 +579,24 @@ class SlackNotifier:
 
 
 # Convenience functions for quick usage
-def send_error_to_slack(
-    error_message: str,
-    environment: str = "Unknown",
-    table_name: Optional[str] = None,
+def send_roulette_sensor_error_to_slack(
+    action_message: str,
+    table_name: str,
     error_code: Optional[str] = None,
     mention_user: Optional[str] = None,
     mention_user_email: Optional[str] = None,
     channel: Optional[str] = None,
 ) -> bool:
     """
-    Quick function to send error notification
+    Quick function to send roulette sensor error notification
 
     Args:
-        error_message: Error message
-        environment: Environment name
-        table_name: Table name if relevant
+        action_message: Action message (e.g., "relaunch the wheel controller with *P 1")
+        table_name: Table name (e.g., "ARO-001-1 (speed - main)")
         error_code: Error code if available
-        mention_user: Display name of user to mention (e.g., "Kevin Kuo")
+        mention_user: Display name of user to mention (e.g., "Mark Bochkov")
         mention_user_email: Email of user to mention (optional, more reliable)
-        channel: Channel to send to (defaults to default_channel from env or #ge-studio)
+        channel: Channel to send to (defaults to #studio-rnd for sensor errors)
 
     Returns:
         bool: True if successful, False otherwise
@@ -527,18 +606,46 @@ def send_error_to_slack(
 
     load_dotenv()
 
-    # Get default channel from environment or use ge-studio as default
-    default_channel = os.getenv("SLACK_DEFAULT_CHANNEL", "#ge-studio")
+    # Get default channel from environment or use studio-rnd as default for sensor errors
+    default_channel = os.getenv("SLACK_DEFAULT_CHANNEL", "#studio-rnd")
     
     notifier = SlackNotifier(default_channel=default_channel)
-    return notifier.send_error_notification(
-        error_message,
-        error_code,
+    return notifier.send_roulette_sensor_error_notification(
+        action_message,
         table_name,
-        environment,
+        error_code,
         mention_user,
         mention_user_email,
-        channel,
+        channel or "#studio-rnd",
+    )
+
+
+def send_error_to_slack(
+    error_message: str,
+    environment: str = "Unknown",
+    table_name: Optional[str] = None,
+    error_code: Optional[str] = None,
+) -> bool:
+    """
+    Quick function to send error notification
+
+    Args:
+        error_message: Error message
+        environment: Environment name
+        table_name: Table name if relevant
+        error_code: Error code if available
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    # Load environment variables if not already loaded
+    from dotenv import load_dotenv
+
+    load_dotenv()
+
+    notifier = SlackNotifier()
+    return notifier.send_error_notification(
+        error_message, error_code, table_name, environment
     )
 
 
