@@ -425,6 +425,7 @@ class SlackNotifier:
         mention_user: Optional[str] = None,
         mention_user_email: Optional[str] = None,
         channel: Optional[str] = None,
+        action_message: Optional[str] = None,
     ) -> bool:
         """
         Send formatted error notification
@@ -437,6 +438,7 @@ class SlackNotifier:
             mention_user: Display name of user to mention (e.g., "Kevin Kuo")
             mention_user_email: Email of user to mention (optional, more reliable)
             channel: Channel to send to (defaults to default_channel)
+            action_message: Action message (e.g., "None (auto-recoverable)")
 
         Returns:
             bool: True if successful, False otherwise
@@ -459,13 +461,13 @@ class SlackNotifier:
                     "sending without mention"
                 )
 
-        # Create rich message blocks
+        # Create rich message blocks (similar to Roulette error format)
         blocks = [
             {
                 "type": "header",
                 "text": {
                     "type": "plain_text",
-                    "text": f"🚨 SDP Error - {environment}",
+                    "text": "🚨 SDP Error",
                     "emoji": True,
                 },
             },
@@ -481,10 +483,7 @@ class SlackNotifier:
             {
                 "type": "section",
                 "fields": [
-                    {
-                        "type": "mrkdwn",
-                        "text": f"*Environment:*\n{environment}",
-                    },
+                    {"type": "mrkdwn", "text": f"*Env:*\n{environment}"},
                     {"type": "mrkdwn", "text": f"*Time:*\n{timestamp}"},
                 ],
             },
@@ -513,7 +512,19 @@ class SlackNotifier:
                 }
             )
 
-        # Removed error message block for simplified format
+        # Add action message
+        if action_message:
+            blocks.append(
+                {
+                    "type": "section",
+                    "fields": [
+                        {
+                            "type": "mrkdwn",
+                            "text": f"*Action:*\n{action_message}",
+                        }
+                    ],
+                }
+            )
 
         # Try to send rich message first, fallback to simple message
         if self.bot_client:
@@ -522,13 +533,16 @@ class SlackNotifier:
                 return True
 
         # Fallback to simple message (simplified format)
-        simple_message = f"🚨 SDP Error in {environment}\n"
+        simple_message = "🚨 SDP Error\n"
         if mention_text:
             simple_message = f"{mention_text}{simple_message}"
+        simple_message += f"Env: {environment}\n"
         if table_name:
             simple_message += f"Table: {table_name}\n"
         if error_code:
             simple_message += f"Error Code: {error_code}\n"
+        if action_message:
+            simple_message += f"Action: {action_message}\n"
         simple_message += f"Time: {timestamp}"
 
         return self.send_simple_message(simple_message, channel=target_channel)
@@ -661,6 +675,7 @@ def send_error_to_slack(
     mention_user: Optional[str] = None,
     mention_user_email: Optional[str] = None,
     channel: Optional[str] = None,
+    action_message: Optional[str] = None,
 ) -> bool:
     """
     Quick function to send error notification
@@ -673,6 +688,7 @@ def send_error_to_slack(
         mention_user: Display name of user to mention (e.g., "Kevin Kuo")
         mention_user_email: Email of user to mention (optional, more reliable)
         channel: Channel to send to (defaults to default_channel)
+        action_message: Action message (e.g., "None (auto-recoverable)")
 
     Returns:
         bool: True if successful, False otherwise
@@ -691,6 +707,7 @@ def send_error_to_slack(
         mention_user,
         mention_user_email,
         channel,
+        action_message,
     )
 
 

@@ -341,11 +341,12 @@ async def start_round_for_table(table, token):
                     if should_send_error_notification("PRD"):
                         send_error_to_slack(
                             error_message="PRD Start Post Failed",
-                            environment="Sicbo - TableAPI Error",
-                            table_name=table["name"],
+                            environment="PRD",
+                            table_name="SBO-001-1",
                             error_code="START_POST_FAILED",
                             mention_user="Kevin Kuo",
                             channel="#ge-studio",
+                            action_message="None (auto-recoverable)",
                         )
                         logger.warning(
                             "PRD Start Post Failed - Slack notification sent"
@@ -363,11 +364,12 @@ async def start_round_for_table(table, token):
                 if should_send_error_notification("PRD"):
                     send_error_to_slack(
                         error_message="PRD Start Post Failed",
-                        environment="Sicbo - TableAPI Error",
-                        table_name=table["name"],
+                        environment="PRD",
+                        table_name="SBO-001-1",
                         error_code="START_POST_FAILED",
                         mention_user="Kevin Kuo",
                         channel="#ge-studio",
+                        action_message="None (auto-recoverable)",
                     )
                     logger.warning(
                         "PRD Start Post Failed - Slack notification sent"
@@ -388,11 +390,12 @@ async def start_round_for_table(table, token):
                     if should_send_error_notification("STG"):
                         send_error_to_slack(
                             error_message="STG Start Post Failed",
-                            environment="Sicbo - TableAPI Error",
-                            table_name=table["name"],
+                            environment="STG",
+                            table_name="SBO-001-1",
                             error_code="START_POST_FAILED",
                             mention_user="Kevin Kuo",
                             channel="#ge-studio",
+                            action_message="None (auto-recoverable)",
                         )
                         logger.warning(
                             "STG Start Post Failed - Slack notification sent"
@@ -408,11 +411,12 @@ async def start_round_for_table(table, token):
                 if should_send_error_notification("STG"):
                     send_error_to_slack(
                         error_message="STG Start Post Failed",
-                        environment="Sicbo - TableAPI Error",
-                        table_name=table["name"],
+                        environment="STG",
+                        table_name="SBO-001-1",
                         error_code="START_POST_FAILED",
                         mention_user="Kevin Kuo",
                         channel="#ge-studio",
+                        action_message="None (auto-recoverable)",
                     )
                     logger.warning(
                         "STG Start Post Failed - Slack notification sent"
