@@ -51,6 +51,14 @@ def test_roulette_sensor_error_notification():
             logger.info("Skipping test - Bot token required for notifications")
             return False
 
+        # Send test notification message first to avoid confusion
+        logger.info("Sending test notification message...")
+        notifier.send_simple_message(
+            "The following message is for testing",
+            channel="#studio-rnd",
+        )
+        logger.info("Test notification message sent")
+
         # Test sending roulette sensor error notification with all changes:
         # 1. Header: "Roulette error" (not "SDP Error - PRD")
         # 2. No Environment field
@@ -96,22 +104,38 @@ def test_roulette_sensor_error_notification():
         return False
 
 
-def test_convenience_function():
+def test_convenience_function(channel: str = "#studio-rnd", mention_user: str = "Mark Bochkov"):
     """
     Test using convenience function send_roulette_sensor_error_to_slack
+
+    Args:
+        channel: Channel to send to (e.g., "#studio-rnd" or "#ge-studio")
+        mention_user: User to mention (e.g., "Mark Bochkov" or "Kevin Kuo")
     """
     logger.info("=" * 60)
     logger.info("Test: Convenience Function for Roulette Sensor Error")
     logger.info("=" * 60)
+    logger.info(f"Channel: {channel}")
+    logger.info(f"Mention User: {mention_user}")
+    logger.info("")
 
     try:
+        # Send test notification message first to avoid confusion
+        logger.info("Sending test notification message...")
+        notifier = SlackNotifier()
+        notifier.send_simple_message(
+            "The following message is for testing",
+            channel=channel,
+        )
+        logger.info("Test notification message sent")
+
         # Test using convenience function
         success = send_roulette_sensor_error_to_slack(
             action_message="relaunch the wheel controller with *P 1",
             table_name="ARO-001-1 (speed - main)",
             error_code="SENSOR_STUCK",
-            mention_user="Mark Bochkov",
-            channel="#studio-rnd",
+            mention_user=mention_user,
+            channel=channel,
         )
 
         if success:
@@ -119,7 +143,7 @@ def test_convenience_function():
                 "✅ Convenience function executed successfully!"
             )
             logger.info(
-                "   Please check #studio-rnd channel to verify Mark Bochkov was mentioned."
+                f"   Please check {channel} channel to verify {mention_user} was mentioned."
             )
             return True
         else:
@@ -134,12 +158,15 @@ def test_convenience_function():
         return False
 
 
-def test_user_lookup():
+def test_user_lookup(display_name: str = "Mark Bochkov"):
     """
-    Test looking up Mark Bochkov by display name
+    Test looking up user by display name
+
+    Args:
+        display_name: User display name to lookup (e.g., "Mark Bochkov" or "Kevin Kuo")
     """
     logger.info("=" * 60)
-    logger.info("Test: User Lookup for Mark Bochkov")
+    logger.info(f"Test: User Lookup for {display_name}")
     logger.info("=" * 60)
 
     try:
@@ -153,8 +180,8 @@ def test_user_lookup():
             logger.info("Skipping test - Bot token required for user lookup")
             return False
 
-        # Test lookup for Mark Bochkov
-        user_id = notifier.get_user_id_by_name("Mark Bochkov")
+        # Test lookup for user
+        user_id = notifier.get_user_id_by_name(display_name)
 
         if user_id:
             logger.info(f"✅ Successfully found user: {user_id}")
@@ -162,7 +189,7 @@ def test_user_lookup():
             return True
         else:
             logger.warning(
-                "⚠️  User 'Mark Bochkov' not found. "
+                f"⚠️  User '{display_name}' not found. "
                 "Please verify the display name is correct."
             )
             logger.info(
@@ -179,13 +206,37 @@ def main():
     """
     Main test function
     """
+    # Parse command line arguments
+    channel = "#studio-rnd"
+    mention_user = "Mark Bochkov"
+    
+    if len(sys.argv) > 1:
+        channel_arg = sys.argv[1].lower()
+        
+        if channel_arg == "ge-studio":
+            channel = "#ge-studio"
+            mention_user = "Kevin Kuo"
+            logger.info("📢 Using ge-studio channel with Kevin Kuo")
+        elif channel_arg == "studio-rnd":
+            channel = "#studio-rnd"
+            mention_user = "Mark Bochkov"
+            logger.info("📢 Using studio-rnd channel with Mark Bochkov")
+        else:
+            logger.warning(f"⚠️  Unknown channel argument: {channel_arg}")
+            logger.info("   Using default: studio-rnd with Mark Bochkov")
+            logger.info("   Valid options: ge-studio, studio-rnd")
+    else:
+        logger.info("📢 No channel specified, using default: studio-rnd with Mark Bochkov")
+        logger.info("   Usage: python3 slack/test_roulette_sensor_error.py [ge-studio|studio-rnd]")
+
+    logger.info("")
     logger.info("🚀 Starting Roulette Sensor Error Notification Tests")
     logger.info("=" * 60)
     logger.info("")
     logger.info("Prerequisites:")
     logger.info("  1. SLACK_BOT_TOKEN must be set (required for notifications)")
-    logger.info("  2. User 'Mark Bochkov' must exist in the Slack workspace")
-    logger.info("  3. Bot must be in #studio-rnd channel")
+    logger.info(f"  2. User '{mention_user}' must exist in the Slack workspace")
+    logger.info(f"  3. Bot must be in {channel} channel")
     logger.info("")
 
     # Check environment variables
@@ -208,9 +259,9 @@ def main():
 
     # Run tests
     tests = [
-        ("User Lookup for Mark Bochkov", test_user_lookup),
+        (f"User Lookup for {mention_user}", lambda: test_user_lookup(mention_user)),
         ("Roulette Sensor Error Notification", test_roulette_sensor_error_notification),
-        ("Convenience Function", test_convenience_function),
+        ("Convenience Function", lambda: test_convenience_function(channel, mention_user)),
     ]
 
     results = []
@@ -245,12 +296,12 @@ def main():
     if passed == total:
         logger.info("")
         logger.info("🎉 All tests passed!")
-        logger.info("   Please check #studio-rnd channel to verify:")
+        logger.info(f"   Please check {channel} channel to verify:")
         logger.info("   - Header shows 'Roulette error' (not 'SDP Error - PRD')")
         logger.info("   - No Environment field")
         logger.info("   - Table shows 'ARO-001-1 (speed - main)'")
         logger.info("   - Action shows 'relaunch the wheel controller with *P 1'")
-        logger.info("   - Mark Bochkov is mentioned")
+        logger.info(f"   - {mention_user} is mentioned")
     else:
         logger.info("")
         logger.warning("⚠️  Some tests failed. Please review the error messages above.")
