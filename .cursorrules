@@ -274,6 +274,18 @@ send_error_to_slack(
 - Use appropriate configuration files
 - Implement environment-specific functionality
 
+### 4. Roulette Parameter Reference
+- When users ask questions about roulette parameters, **ALWAYS** reference the **Cammegh SS2 Series Developers Guide (V2.10 05-22)** manual
+- The manual is available in the `Cammegh SS2 Series Developers Guide (V2.10 05-22)_pages` folder as JPG image files
+- **IMPORTANT**: When answering roulette parameter questions, you MUST:
+  1. Use `@Cammegh SS2 Series Developers Guide (V2.10 05-22)_pages` to attach the folder, OR
+  2. Use the `read_file` tool to read specific JPG pages from the folder, OR
+  3. Use `codebase_search` to search within the manual folder for relevant information
+- The Cursor agent/session can identify and read text and image content from these JPG files through OCR
+- Use the manual as the authoritative source for roulette parameter definitions, configurations, and specifications
+- When answering roulette parameter questions, actively search and reference the relevant pages from the manual to provide accurate information
+- Do not rely solely on code examples or configuration files - always verify against the official manual when providing parameter definitions or specifications
+
 ## Code Generation Guidelines
 
 When generating code, follow these principles:
