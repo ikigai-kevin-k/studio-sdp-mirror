@@ -176,31 +176,46 @@ class SlackNotifier:
         channel: str,
         blocks: List[Dict[str, Any]],
         text: Optional[str] = None,
+        use_user_token: bool = True,
     ) -> bool:
         """
-        Send rich message with blocks using bot token
+        Send rich message with blocks using bot token or user token
 
         Args:
             channel: Channel to send to
             blocks: List of block elements for rich formatting
             text: Fallback text for notifications
+            use_user_token: If True, prefer user token (messages can be deleted).
+                           If False, use bot token. Default: True
 
         Returns:
             bool: True if successful, False otherwise
         """
-        if not self.bot_client:
-            logger.error("Bot client not available")
+        # Prefer user token if available and requested (messages sent with user token can be deleted)
+        client = None
+        token_type = None
+        
+        if use_user_token and self.user_client:
+            client = self.user_client
+            token_type = "user"
+        elif self.bot_client:
+            client = self.bot_client
+            token_type = "bot"
+        else:
+            logger.error("No client available (neither user nor bot token)")
             return False
 
         try:
-            response = self.bot_client.chat_postMessage(
+            response = client.chat_postMessage(
                 channel=channel,
                 text=text or "SDP Notification",
                 blocks=blocks,
             )
 
             if response["ok"]:
-                logger.info(f"Rich message sent successfully to {channel}")
+                logger.info(
+                    f"Rich message sent successfully to {channel} using {token_type} token"
+                )
                 return True
             else:
                 logger.error(
@@ -397,8 +412,11 @@ class SlackNotifier:
             )
 
         # Try to send rich message first, fallback to simple message
-        if self.bot_client:
-            success = self.send_rich_message(target_channel, blocks)
+        # Use user token if available so messages can be deleted
+        if self.bot_client or self.user_client:
+            success = self.send_rich_message(
+                target_channel, blocks, use_user_token=True
+            )
             if success:
                 return True
 
@@ -527,8 +545,11 @@ class SlackNotifier:
             )
 
         # Try to send rich message first, fallback to simple message
-        if self.bot_client:
-            success = self.send_rich_message(target_channel, blocks)
+        # Use user token if available so messages can be deleted
+        if self.bot_client or self.user_client:
+            success = self.send_rich_message(
+                target_channel, blocks, use_user_token=True
+            )
             if success:
                 return True
 
