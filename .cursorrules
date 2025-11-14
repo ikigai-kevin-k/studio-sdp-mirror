@@ -316,3 +316,57 @@ When generating code, follow these principles:
    - Implement appropriate mock testing
 
 These rules will help you develop and maintain the Studio SDP Roulette system more effectively, reducing bugs and improving code quality.
+
+## Automatic Git Commit and Push
+
+### Commit Command Detection
+When the user includes the following pattern in their query:
+- `[commit]要commit <file/feature/fix>`
+- `[commit] commit <file/feature/fix>`
+- `[commit]<file/feature/fix>`
+
+The AI assistant MUST automatically execute the following git operations:
+
+1. **Parse the commit message**: Extract the file path, feature name, or fix description from the user's message
+2. **Execute git add**: Add the specified file(s) or all modified files if no specific file is mentioned
+3. **Execute git commit**: Create a commit with an appropriate message based on the context
+4. **Execute git push**: Push the changes to the remote repository
+
+### Implementation Rules
+
+1. **File Detection**:
+   - If a specific file path is mentioned (e.g., `serialIO.py`, `push_speed_log_continuous.py`), add only that file
+   - If a feature name is mentioned (e.g., `feature/log-monitoring`), add all files related to that feature
+   - If "fix" is mentioned, add all modified files related to the fix
+
+2. **Commit Message Format**:
+   - Use descriptive commit messages in English
+   - Include the type: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, etc.
+   - Include a brief description of what was changed
+   - Example: `fix: Reduce batch size in push_speed_log_continuous.py for faster updates`
+
+3. **Error Handling**:
+   - Check git status before committing
+   - Handle cases where files don't exist or have no changes
+   - Handle cases where there's nothing to commit
+   - Handle push failures gracefully
+
+4. **Execution Steps**:
+   ```
+   1. Parse user's commit request
+   2. Check git status
+   3. git add <files>
+   4. git commit -m "<message>"
+   5. git push
+   ```
+
+### Examples
+
+**User query**: `[commit]要commit push_speed_log_continuous.py`
+- Action: `git add push_speed_log_continuous.py`, then commit and push
+
+**User query**: `[commit] commit fix for log monitoring`
+- Action: Add all modified files, commit with fix message, then push
+
+**User query**: `[commit]feature/auto-commit`
+- Action: Add all files related to auto-commit feature, commit, then push
