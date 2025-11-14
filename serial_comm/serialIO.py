@@ -185,6 +185,8 @@ def read_from_serial(
         global_vars: Dictionary containing all global state variables
         # Callback functions for various operations
     """
+    # Declare global variable at function start
+    global _auto_recovery_state
 
     # Set startup time for startup condition detection
     read_from_serial.startup_time = time.time()
@@ -254,8 +256,6 @@ def read_from_serial(
                                 continue  # Skip error handling for startup condition
 
                             # Start auto-recovery process for *X;6 message (not startup condition)
-                            global _auto_recovery_state
-                            
                             # Check if auto-recovery is already active
                             if _auto_recovery_state["active"]:
                                 print(
@@ -410,7 +410,6 @@ def read_from_serial(
 
                     # Handle *P OK response
                     if "*P OK" in data:
-                        global _auto_recovery_state
                         if _auto_recovery_state["active"]:
                             _auto_recovery_state["p_ok_received"] = True
                             print(
@@ -431,7 +430,6 @@ def read_from_serial(
                         global_vars["last_x2_time"] = current_time
                         
                         # Check if this is recovery from *X;6
-                        global _auto_recovery_state
                         if _auto_recovery_state["active"]:
                             _auto_recovery_state["x2_restored"] = True
                             print(
