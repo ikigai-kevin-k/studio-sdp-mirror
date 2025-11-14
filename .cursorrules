@@ -370,3 +370,39 @@ The AI assistant MUST automatically execute the following git operations:
 
 **User query**: `[commit]feature/auto-commit`
 - Action: Add all files related to auto-commit feature, commit, then push
+
+## Codebase Line Count Command
+
+### Line Count Command Detection
+When the user includes the following pattern in their query:
+- `[line]`
+
+The AI assistant MUST automatically execute the following operation:
+
+1. **Execute codebase_line.sh**: Run the `codebase_line.sh` script to calculate and display codebase statistics
+2. **Display Results**: Show the output of the script which includes:
+   - Total lines of code by file type
+   - Total files count
+   - Code lines, comment lines, and blank lines breakdown
+   - Top 10 largest files
+
+### Implementation Rules
+
+1. **Script Location**: The script is located at `/home/rnd/studio-sdp-roulette/codebase_line.sh`
+2. **Execution**: Use `run_terminal_cmd` to execute the script
+3. **Output**: Display the full output from the script to the user
+
+### Execution Steps
+```
+1. Detect [line] pattern in user query
+2. Execute: bash /home/rnd/studio-sdp-roulette/codebase_line.sh
+3. Display the output to the user
+```
+
+### Examples
+
+**User query**: `[line]`
+- Action: Execute `codebase_line.sh` and display codebase statistics
+
+**User query**: `[line] show me the codebase stats`
+- Action: Execute `codebase_line.sh` and display codebase statistics
