@@ -44,6 +44,9 @@ CURRENT_LOG_FILE = os.path.join(STUDIO_SDP_DIR, "logs", "sdp_serial.log")
 # State file to track last read position in log file
 POSITION_FILE = os.path.join(STUDIO_SDP_DIR, ".last_position_speed_logs.json")
 
+# State file to track last read position in self-test-2api.log for syncing
+SELF_TEST_POSITION_FILE = os.path.join(STUDIO_SDP_DIR, ".last_position_self_test_sync_speed.json")
+
 # Monitoring interval in seconds
 MONITOR_INTERVAL = 5.0  # Check every 5 seconds
 
@@ -72,19 +75,343 @@ def signal_handler(sig, frame):
     running = False
 
 
+def find_today_start_position(log_file_path: str, today_date: datetime.date) -> int:
+    """
+    Find the file position where today's logs start
+    Optimized: reads from end backwards to find today's first log
+    
+    Args:
+        log_file_path: Path to the log file
+        today_date: Today's date
+        
+    Returns:
+        int: File position where today's logs start, or file size if not found
+    """
+    try:
+        file_size = os.path.getsize(log_file_path)
+        
+        # If file is small, just return 0 (read from beginning)
+        if file_size < 10000:  # Less than 10KB
+            return 0
+        
+        # Try multiple search strategies:
+        # 1. Read last 200MB (most common case - today's logs at end)
+        # 2. If not found, read last 500MB
+        # 3. If still not found, read last 1GB
+        # 4. If still not found, read entire file (fallback)
+        
+        search_sizes = [
+            200 * 1024 * 1024,  # 200MB
+            500 * 1024 * 1024,  # 500MB
+            1024 * 1024 * 1024,  # 1GB
+            file_size  # Entire file as last resort
+        ]
+        
+        earliest_today_position = file_size
+        found_today = False
+        
+        for search_size in search_sizes:
+            if search_size > file_size:
+                search_size = file_size
+            
+            start_position = max(0, file_size - search_size)
+            
+            print(f"   Searching in last {search_size / (1024*1024):.0f}MB (position {start_position:,} to {file_size:,})...")
+            
+            with open(log_file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                f.seek(start_position)
+                # Skip partial line
+                if start_position > 0:
+                    f.readline()
+                
+                lines_checked = 0
+                # Read lines and find today's first log
+                for _ in range(200000):  # Read up to 200k lines per search
+                    line_pos = f.tell()
+                    line = f.readline()
+                    if not line:
+                        break
+                    
+                    lines_checked += 1
+                    parsed = parse_log_line(line)
+                    if parsed:
+                        dt, _, _, _ = parsed
+                        if dt.date() == today_date:
+                            found_today = True
+                            earliest_today_position = min(earliest_today_position, line_pos)
+                            # Continue to find the earliest one
+                        elif dt.date() < today_date and found_today:
+                            # We found today's logs and now we're past them
+                            # Found the earliest position
+                            print(f"   Found today's logs starting at position {earliest_today_position:,} (checked {lines_checked:,} lines)")
+                            return earliest_today_position
+                        elif dt.date() > today_date:
+                            # Future date, skip
+                            continue
+                
+                if found_today:
+                    print(f"   Found today's logs starting at position {earliest_today_position:,} (checked {lines_checked:,} lines)")
+                    # Try to find the very first today log by searching backwards
+                    if earliest_today_position > start_position:
+                        # Search backwards from earliest position
+                        search_back = min(50 * 1024 * 1024, earliest_today_position)  # Search back 50MB
+                        search_start = max(0, earliest_today_position - search_back)
+                        
+                        with open(log_file_path, 'r', encoding='utf-8', errors='ignore') as f2:
+                            f2.seek(search_start)
+                            if search_start > 0:
+                                f2.readline()  # Skip partial line
+                            
+                            # Read forward to find the first today log
+                            for _ in range(50000):  # Read up to 50k lines
+                                line_pos = f2.tell()
+                                if line_pos >= earliest_today_position:
+                                    break
+                                
+                                line = f2.readline()
+                                if not line:
+                                    break
+                                
+                                parsed = parse_log_line(line)
+                                if parsed:
+                                    dt, _, _, _ = parsed
+                                    if dt.date() == today_date:
+                                        earliest_today_position = min(earliest_today_position, line_pos)
+                                    elif dt.date() > today_date:
+                                        # Past today, stop
+                                        break
+                    
+                    return earliest_today_position
+                else:
+                    # Not found in this chunk, try larger search
+                    if search_size >= file_size:
+                        # Already searched entire file, give up
+                        break
+                    continue
+        
+        # If we get here, we didn't find today's logs
+        print(f"   ⚠️  No logs found for today ({today_date}) in searched areas")
+        return file_size
+    except Exception as e:
+        print(f"⚠️  Error finding today's start position: {e}, using fallback")
+        import traceback
+        traceback.print_exc()
+        # Fallback: read from last 200MB
+        file_size = os.path.getsize(log_file_path)
+        return max(0, file_size - 200 * 1024 * 1024)  # Last 200MB
+
+
+def extract_today_logs_from_self_test() -> bool:
+    """
+    Extract today's logs from self-test-2api.log and create speed_{today}.log file
+    Optimized to only read from today's start position instead of entire file
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    today = datetime.now().strftime("%Y-%m-%d")
+    today_log_file = os.path.join(STUDIO_SDP_DIR, f"speed_{today}.log")
+    current_log_file = os.path.join(STUDIO_SDP_DIR, "self-test-2api.log")
+    
+    # Check if self-test-2api.log exists
+    if not os.path.exists(current_log_file):
+        return False
+    
+    try:
+        today_date = datetime.now().date()
+        lines_written = 0
+        current_size = os.path.getsize(current_log_file)
+        
+        # Find the position where today's logs start (much faster than reading entire file)
+        print(f"   Finding today's log start position in {current_log_file}...")
+        start_position = find_today_start_position(current_log_file, today_date)
+        
+        if start_position >= current_size:
+            # No logs found for today in search, but try reading last 200MB anyway
+            # to make sure we don't miss anything
+            print(f"   ⚠️  Today's start position not found, reading last 200MB as fallback...")
+            start_position = max(0, current_size - 200 * 1024 * 1024)
+        
+        print(f"   Reading from position {start_position:,} bytes (today's logs start here)")
+        
+        # Read only from today's start position to end of file
+        first_date_found = None
+        last_date_found = None
+        with open(current_log_file, 'r', encoding='utf-8', errors='ignore') as f_in:
+            f_in.seek(start_position)
+            with open(today_log_file, 'w', encoding='utf-8') as f_out:
+                line_count = 0
+                for line in f_in:
+                    line_count += 1
+                    # Show progress every 50k lines
+                    if line_count % 50000 == 0:
+                        print(f"   Processed {line_count:,} lines, found {lines_written:,} today logs...")
+                    
+                    # Parse log line to check date
+                    parsed = parse_log_line(line)
+                    if parsed:
+                        dt, _, _, _ = parsed
+                        date = dt.date()
+                        
+                        # Track date range for debugging
+                        if first_date_found is None:
+                            first_date_found = date
+                        last_date_found = date
+                        
+                        if date == today_date:
+                            f_out.write(line)
+                            lines_written += 1
+                        elif date > today_date:
+                            # Past today, stop reading
+                            break
+                
+                # Show date range found for debugging
+                if first_date_found:
+                    print(f"   Date range in read section: {first_date_found} to {last_date_found}")
+                    if first_date_found > today_date:
+                        print(f"   ⚠️  Warning: First date found ({first_date_found}) is after today ({today_date})")
+                    elif last_date_found < today_date:
+                        print(f"   ⚠️  Warning: Last date found ({last_date_found}) is before today ({today_date})")
+        
+        # Save sync position
+        try:
+            with open(SELF_TEST_POSITION_FILE, 'w', encoding='utf-8') as f:
+                json.dump({
+                    'position': current_size,
+                    'last_sync': datetime.now().isoformat()
+                }, f, indent=2)
+        except:
+            pass
+        
+        if lines_written > 0:
+            print(f"📝 Created {today_log_file} with {lines_written} log entries from self-test-2api.log")
+        else:
+            # Create empty file if no logs found for today
+            with open(today_log_file, 'w', encoding='utf-8') as f:
+                pass
+            print(f"📝 Created empty {today_log_file} (no logs found for today in self-test-2api.log)")
+        
+        return True
+    except Exception as e:
+        print(f"⚠️  Error extracting today's logs: {e}")
+        return False
+
+
+def sync_today_logs_from_self_test(today_log_file: str) -> int:
+    """
+    Sync today's logs from self-test-2api.log to speed_{today}.log file
+    Only appends new logs that haven't been synced yet
+    
+    Args:
+        today_log_file: Path to today's log file (speed_{today}.log)
+        
+    Returns:
+        int: Number of new log lines synced
+    """
+    current_log_file = os.path.join(STUDIO_SDP_DIR, "self-test-2api.log")
+    
+    # Check if self-test-2api.log exists
+    if not os.path.exists(current_log_file):
+        return 0
+    
+    try:
+        today_date = datetime.now().date()
+        lines_synced = 0
+        
+        # Load last sync position
+        last_sync_position = 0
+        if os.path.exists(SELF_TEST_POSITION_FILE):
+            try:
+                with open(SELF_TEST_POSITION_FILE, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    last_sync_position = data.get('position', 0)
+            except:
+                pass
+        
+        # Get current file size
+        current_size = os.path.getsize(current_log_file)
+        
+        # If file was truncated or is smaller, reset position
+        if current_size < last_sync_position:
+            print("⚠️  self-test-2api.log appears to have been rotated or truncated, resetting sync position")
+            last_sync_position = 0
+        
+        # If no new content, return
+        if current_size <= last_sync_position:
+            return 0
+        
+        # Read new content from self-test-2api.log
+        with open(current_log_file, 'r', encoding='utf-8', errors='ignore') as f_in:
+            f_in.seek(last_sync_position)
+            new_content = f_in.read()
+        
+        # Append today's logs to speed_{today}.log
+        if new_content.strip():
+            with open(today_log_file, 'a', encoding='utf-8') as f_out:
+                for line in new_content.split('\n'):
+                    if not line.strip():
+                        continue
+                    
+                    # Parse log line to check date
+                    parsed = parse_log_line(line)
+                    if parsed:
+                        dt, _, _, _ = parsed
+                        if dt.date() == today_date:
+                            f_out.write(line + '\n')
+                            lines_synced += 1
+        
+        # Save new sync position
+        try:
+            with open(SELF_TEST_POSITION_FILE, 'w', encoding='utf-8') as f:
+                json.dump({
+                    'position': current_size,
+                    'last_sync': datetime.now().isoformat()
+                }, f, indent=2)
+        except:
+            pass
+        
+        return lines_synced
+    except Exception as e:
+        print(f"⚠️  Error syncing today's logs: {e}")
+        return 0
+
+
 def find_latest_log_file() -> Optional[str]:
     """
     Find the latest log file to monitor
-    Priority: 1) logs/sdp_serial.log (current), 2) speed_{yyyy-mm-dd}.log files (legacy)
+    Priority: 1) speed_{today}.log (current day), 2) create it from self-test-2api.log if needed, 3) logs/sdp_serial.log (current), 4) latest speed_{yyyy-mm-dd}.log (legacy)
     
     Returns:
         str: Path to the latest log file, or None if not found
     """
-    # First, check if current log file exists (main_speed.py writes here)
+    today = datetime.now().strftime("%Y-%m-%d")
+    
+    # First, check if today's log file exists (speed_{today}.log)
+    today_log_file = os.path.join(STUDIO_SDP_DIR, f"speed_{today}.log")
+    if os.path.exists(today_log_file):
+        # Check if file is empty or very small (less than 100 bytes)
+        # Only re-extract if file is truly empty or very small
+        file_size = os.path.getsize(today_log_file)
+        if file_size < 100:
+            print(f"📋 Today's log file ({os.path.basename(today_log_file)}) exists but is empty or very small")
+            print(f"   Note: Will monitor existing file. Use generate_today_speed_log.py to regenerate from logs/sdp_serial.log")
+        # Return the existing file even if small - don't overwrite it
+        return today_log_file
+    
+    # Second, if today's file doesn't exist, try to create it from self-test-2api.log
+    current_log_file = os.path.join(STUDIO_SDP_DIR, "self-test-2api.log")
+    if os.path.exists(current_log_file):
+        print(f"📋 Today's log file ({os.path.basename(today_log_file)}) not found")
+        print(f"   Extracting today's logs from self-test-2api.log...")
+        if extract_today_logs_from_self_test():
+            # File created, return it
+            return today_log_file
+    
+    # Third, fallback to current log file (main_speed.py writes here)
     if os.path.exists(CURRENT_LOG_FILE):
         return CURRENT_LOG_FILE
     
-    # Fallback to date-split log files (legacy)
+    # Fourth, fallback to date-split log files (legacy)
     # Find all speed_*.log files matching pattern speed_{yyyy-mm-dd}.log
     pattern = os.path.join(STUDIO_SDP_DIR, LOG_FILE_PATTERN)
     found_files = glob(pattern)
@@ -268,7 +595,7 @@ def read_new_log_lines(log_file_path: str) -> List[Dict]:
             print("⚠️  Log file appears to have been rotated or truncated, resetting position")
             last_position = 0
         
-        # Check if saved position is too old (more than 6 hours)
+        # Check if saved position is too old (more than 2 hours)
         # If so, find a recent position instead
         if last_position > 0 and last_position < current_size:
             try:
@@ -286,11 +613,11 @@ def read_new_log_lines(log_file_path: str) -> List[Dict]:
                         parsed = parse_log_line(line)
                         if parsed:
                             dt, _, _, _ = parsed
-                            cutoff_time = datetime.now() - timedelta(hours=6)
+                            cutoff_time = datetime.now() - timedelta(hours=2)
                             if dt < cutoff_time:
                                 # Saved position is too old, find recent position
                                 print(f"⚠️  Saved position is too old (timestamp: {dt}), finding recent position...")
-                                last_position = find_recent_log_position(log_file_path, hours_back=6)
+                                last_position = find_recent_log_position(log_file_path, hours_back=2)
                                 break
             except Exception as e:
                 print(f"⚠️  Error checking saved position: {e}, using saved position")
@@ -356,9 +683,9 @@ def push_logs_to_loki(log_entries: List[Dict]) -> bool:
     try:
         # Filter out entries that are too old
         # Loki has a dynamic "oldest acceptable timestamp" that changes based on current time
-        # From error messages, Loki typically only accepts entries from the last 6 hours
-        # To be safe, we'll only keep entries from the last 6 hours
-        cutoff_time = datetime.now() - timedelta(hours=6)
+        # From error messages, Loki typically only accepts entries from the last 1-2 hours
+        # To be safe, we'll only keep entries from the last 2 hours
+        cutoff_time = datetime.now() - timedelta(hours=2)
         # Also filter out entries more than 1 hour in the future
         future_threshold = datetime.now() + timedelta(hours=1)
         
@@ -377,7 +704,7 @@ def push_logs_to_loki(log_entries: List[Dict]) -> bool:
             filtered_entries.append(entry)
         
         if skipped_old > 0:
-            print(f"   ⚠️  Skipped {skipped_old} entries older than 6 hours (Loki rejects old samples)")
+            print(f"   ⚠️  Skipped {skipped_old} entries older than 2 hours (Loki rejects old samples)")
         if skipped_future > 0:
             print(f"   ⚠️  Skipped {skipped_future} entries with future timestamps")
         
@@ -510,12 +837,35 @@ def monitor_log_file(log_file_path: str):
     print(f"   Press Ctrl+C to stop")
     print("-" * 60)
     
-    # Initialize position to end of file if starting fresh
-    if load_last_position() == 0:
+    # Initialize position
+    saved_data = {}
+    if os.path.exists(POSITION_FILE):
+        try:
+            with open(POSITION_FILE, 'r', encoding='utf-8') as f:
+                saved_data = json.load(f)
+        except:
+            pass
+    
+    # Check if we're monitoring a different file or starting fresh
+    saved_log_file = saved_data.get('log_file')
+    if saved_log_file != current_log_file or load_last_position() == 0:
         try:
             current_size = os.path.getsize(current_log_file)
-            save_last_position(current_size, current_log_file)
-            print(f"ℹ️  Initializing position at end of file ({current_size} bytes)")
+            
+            # If monitoring today's log file and it's a different file, 
+            # find position for today's logs
+            today = datetime.now().strftime("%Y-%m-%d")
+            today_log_file = os.path.join(STUDIO_SDP_DIR, f"speed_{today}.log")
+            if current_log_file == today_log_file:
+                # Find position for today's logs (last 2 hours)
+                initial_position = find_recent_log_position(current_log_file, hours_back=2)
+                save_last_position(initial_position, current_log_file)
+                print(f"ℹ️  Initializing position for today's logs ({initial_position} bytes)")
+            else:
+                # For date-split files, start from end
+                save_last_position(current_size, current_log_file)
+                print(f"ℹ️  Initializing position at end of file ({current_size} bytes)")
+            
             print(f"   (Only new log entries will be pushed)")
         except Exception as e:
             print(f"⚠️  Could not initialize position: {e}")
@@ -532,7 +882,30 @@ def monitor_log_file(log_file_path: str):
                 print(f"   Switching from: {current_log_file}")
                 current_log_file = latest_log_file
                 # Reset position when switching files
-                save_last_position(0, current_log_file)
+                try:
+                    current_size = os.path.getsize(current_log_file)
+                    # If switching to today's log file, find position for today's logs
+                    today = datetime.now().strftime("%Y-%m-%d")
+                    today_log_file = os.path.join(STUDIO_SDP_DIR, f"speed_{today}.log")
+                    if current_log_file == today_log_file:
+                        initial_position = find_recent_log_position(current_log_file, hours_back=2)
+                        save_last_position(initial_position, current_log_file)
+                        print(f"   Initialized position for today's logs ({initial_position} bytes)")
+                    else:
+                        # For other files, start from end
+                        save_last_position(current_size, current_log_file)
+                        print(f"   Initialized position at end of file ({current_size} bytes)")
+                except Exception as e:
+                    print(f"   ⚠️  Could not initialize position: {e}, starting from beginning")
+                    save_last_position(0, current_log_file)
+            
+            # If monitoring today's log file, sync new logs from self-test-2api.log
+            today = datetime.now().strftime("%Y-%m-%d")
+            today_log_file = os.path.join(STUDIO_SDP_DIR, f"speed_{today}.log")
+            if current_log_file == today_log_file:
+                synced_lines = sync_today_logs_from_self_test(today_log_file)
+                if synced_lines > 0:
+                    print(f"🔄 Synced {synced_lines} new log line(s) from self-test-2api.log to {os.path.basename(today_log_file)}")
             
             # Read new log lines from current log file
             new_logs = read_new_log_lines(current_log_file)
