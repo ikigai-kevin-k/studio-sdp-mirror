@@ -274,6 +274,18 @@ send_error_to_slack(
 - Use appropriate configuration files
 - Implement environment-specific functionality
 
+### 4. Roulette Parameter Reference
+- When users ask questions about roulette parameters, **ALWAYS** reference the **Cammegh SS2 Series Developers Guide (V2.10 05-22)** manual
+- The manual is available in the `Cammegh SS2 Series Developers Guide (V2.10 05-22)_pages` folder as JPG image files
+- **IMPORTANT**: When answering roulette parameter questions, you MUST:
+  1. Use `@Cammegh SS2 Series Developers Guide (V2.10 05-22)_pages` to attach the folder, OR
+  2. Use the `read_file` tool to read specific JPG pages from the folder, OR
+  3. Use `codebase_search` to search within the manual folder for relevant information
+- The Cursor agent/session can identify and read text and image content from these JPG files through OCR
+- Use the manual as the authoritative source for roulette parameter definitions, configurations, and specifications
+- When answering roulette parameter questions, actively search and reference the relevant pages from the manual to provide accurate information
+- Do not rely solely on code examples or configuration files - always verify against the official manual when providing parameter definitions or specifications
+
 ## Code Generation Guidelines
 
 When generating code, follow these principles:
@@ -304,3 +316,93 @@ When generating code, follow these principles:
    - Implement appropriate mock testing
 
 These rules will help you develop and maintain the Studio SDP Roulette system more effectively, reducing bugs and improving code quality.
+
+## Automatic Git Commit and Push
+
+### Commit Command Detection
+When the user includes the following pattern in their query:
+- `[commit]要commit <file/feature/fix>`
+- `[commit] commit <file/feature/fix>`
+- `[commit]<file/feature/fix>`
+
+The AI assistant MUST automatically execute the following git operations:
+
+1. **Parse the commit message**: Extract the file path, feature name, or fix description from the user's message
+2. **Execute git add**: Add the specified file(s) or all modified files if no specific file is mentioned
+3. **Execute git commit**: Create a commit with an appropriate message based on the context
+4. **Execute git push**: Push the changes to the remote repository
+
+### Implementation Rules
+
+1. **File Detection**:
+   - If a specific file path is mentioned (e.g., `serialIO.py`, `push_speed_log_continuous.py`), add only that file
+   - If a feature name is mentioned (e.g., `feature/log-monitoring`), add all files related to that feature
+   - If "fix" is mentioned, add all modified files related to the fix
+
+2. **Commit Message Format**:
+   - Use descriptive commit messages in English
+   - Include the type: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, etc.
+   - Include a brief description of what was changed
+   - Example: `fix: Reduce batch size in push_speed_log_continuous.py for faster updates`
+
+3. **Error Handling**:
+   - Check git status before committing
+   - Handle cases where files don't exist or have no changes
+   - Handle cases where there's nothing to commit
+   - Handle push failures gracefully
+
+4. **Execution Steps**:
+   ```
+   1. Parse user's commit request
+   2. Check git status
+   3. git add <files>
+   4. git commit -m "<message>"
+   5. git push
+   ```
+
+### Examples
+
+**User query**: `[commit]要commit push_speed_log_continuous.py`
+- Action: `git add push_speed_log_continuous.py`, then commit and push
+
+**User query**: `[commit] commit fix for log monitoring`
+- Action: Add all modified files, commit with fix message, then push
+
+**User query**: `[commit]feature/auto-commit`
+- Action: Add all files related to auto-commit feature, commit, then push
+
+## Codebase Line Count Command
+
+### Line Count Command Detection
+When the user includes the following pattern in their query:
+- `[line]`
+
+The AI assistant MUST automatically execute the following operation:
+
+1. **Execute codebase_line.sh**: Run the `codebase_line.sh` script to calculate and display codebase statistics
+2. **Display Results**: Show the output of the script which includes:
+   - Total lines of code by file type
+   - Total files count
+   - Code lines, comment lines, and blank lines breakdown
+   - Top 10 largest files
+
+### Implementation Rules
+
+1. **Script Location**: The script is located at `/home/rnd/studio-sdp-roulette/codebase_line.sh`
+2. **Execution**: Use `run_terminal_cmd` to execute the script
+3. **Output**: Display the full output from the script to the user
+
+### Execution Steps
+```
+1. Detect [line] pattern in user query
+2. Execute: bash /home/rnd/studio-sdp-roulette/codebase_line.sh
+3. Display the output to the user
+```
+
+### Examples
+
+**User query**: `[line]`
+- Action: Execute `codebase_line.sh` and display codebase statistics
+
+**User query**: `[line] show me the codebase stats`
+- Action: Execute `codebase_line.sh` and display codebase statistics
