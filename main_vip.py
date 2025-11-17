@@ -192,6 +192,11 @@ sensor_error_sent = False  # Flag to ensure sensor error is only sent once
 # Add program termination flag
 terminate_program = False  # Flag to terminate program when *X;6 sensor error is detected
 
+# Add mode management
+# Mode: "running" (normal operation) or "idle" (maintenance mode)
+current_mode = "running"  # Start in running mode
+mode_lock = threading.Lock()  # Lock for thread-safe mode access
+
 # Add variables for *P 1 monitoring
 p1_sent = False  # Flag to track if *P 1 has been sent
 x1_received = False  # Flag to track if *X;1 has been received after *P 1
@@ -268,11 +273,222 @@ websocket_thread = threading.Thread(target=start_websocket)
 websocket_thread.daemon = True
 websocket_thread.start()
 
+# StudioAPI WebSocket client for receiving "down" signals
+studio_api_ws_client = None
+studio_api_ws_connected = False
+
+
+async def init_studio_api_websocket():
+    """
+    Initialize WebSocket connection to StudioAPI to listen for "down" signals
+    """
+    global studio_api_ws_client, studio_api_ws_connected
+    
+    # Load configuration from ws.json
+    config_path = os.path.join(
+        os.path.dirname(__file__), "conf", "ws.json"
+    )
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        SERVER_URL = config.get("server_url", "wss://studio-api.iki-cit.cc/v1/ws")
+        TOKEN = config.get("token", "0000")
+        DEVICE_ID = "ARO-002-1"  # VIP roulette device ID
+    except Exception as e:
+        print(f"[{get_timestamp()}] Warning: Could not load ws.json config: {e}")
+        SERVER_URL = "wss://studio-api.iki-cit.cc/v1/ws"
+        TOKEN = "0000"
+        DEVICE_ID = "ARO-002-1"
+    
+    try:
+        from studio_api.ws_client import SmartStudioWebSocketClient
+        
+        # Create WebSocket client
+        studio_api_ws_client = SmartStudioWebSocketClient(
+            server_url=SERVER_URL,
+            table_id="ARO-002",
+            device_name=DEVICE_ID,
+            token=TOKEN,
+            fast_connect=True
+        )
+        
+        # Connect to StudioAPI
+        if await studio_api_ws_client.connect():
+            studio_api_ws_connected = True
+            print(f"[{get_timestamp()}] Connected to StudioAPI WebSocket")
+            log_to_file("Connected to StudioAPI WebSocket", "StudioAPI >>>")
+            
+            # Start listening for messages
+            await listen_for_studio_api_messages()
+        else:
+            print(f"[{get_timestamp()}] Failed to connect to StudioAPI WebSocket")
+            log_to_file("Failed to connect to StudioAPI WebSocket", "StudioAPI >>>")
+            studio_api_ws_connected = False
+    except Exception as e:
+        print(f"[{get_timestamp()}] Error initializing StudioAPI WebSocket: {e}")
+        log_to_file(f"Error initializing StudioAPI WebSocket: {e}", "StudioAPI >>>")
+        studio_api_ws_connected = False
+
+
+async def listen_for_studio_api_messages():
+    """
+    Listen for messages from StudioAPI WebSocket, specifically "down" signals
+    """
+    global current_mode, studio_api_ws_client, studio_api_ws_connected
+    
+    if not studio_api_ws_client or not studio_api_ws_client.websocket:
+        return
+    
+    try:
+        while studio_api_ws_connected:
+            try:
+                # Wait for message with timeout
+                message = await asyncio.wait_for(
+                    studio_api_ws_client.websocket.recv(), timeout=1.0
+                )
+                
+                if message:
+                    try:
+                        # Parse JSON message
+                        data = json.loads(message)
+                        print(f"[{get_timestamp()}] StudioAPI received message: {data}")
+                        log_to_file(f"StudioAPI received message: {data}", "StudioAPI >>>")
+                        
+                        # Check for "down" signal
+                        # Signal format can be: {"signal": {...}, "cmd": {...}} or {"sdp": "down", ...}
+                        if isinstance(data, dict):
+                            # Check for direct "down" status
+                            if data.get("sdp") == "down" or data.get("status") == "down":
+                                print(f"[{get_timestamp()}] Received 'down' signal from StudioAPI, switching to idle mode")
+                                log_to_file("Received 'down' signal from StudioAPI, switching to idle mode", "StudioAPI >>>")
+                                
+                                # Switch to idle mode
+                                with mode_lock:
+                                    if current_mode == "running":
+                                        current_mode = "idle"
+                                        print(f"[{get_timestamp()}] Mode switched to: {current_mode}")
+                                        log_to_file(f"Mode switched to: {current_mode}", "Mode >>>")
+                                        
+                                        # Trigger idle mode actions
+                                        threading.Thread(target=handle_idle_mode).start()
+                            
+                            # Check for signal in nested structure
+                            elif "signal" in data:
+                                signal = data.get("signal", {})
+                                if isinstance(signal, dict):
+                                    msg_id = signal.get("msgId", "")
+                                    if "DOWN" in msg_id.upper() or signal.get("content", "").upper() == "DOWN":
+                                        print(f"[{get_timestamp()}] Received 'down' signal from StudioAPI, switching to idle mode")
+                                        log_to_file("Received 'down' signal from StudioAPI, switching to idle mode", "StudioAPI >>>")
+                                        
+                                        # Switch to idle mode
+                                        with mode_lock:
+                                            if current_mode == "running":
+                                                current_mode = "idle"
+                                                print(f"[{get_timestamp()}] Mode switched to: {current_mode}")
+                                                log_to_file(f"Mode switched to: {current_mode}", "Mode >>>")
+                                                
+                                                # Trigger idle mode actions
+                                                threading.Thread(target=handle_idle_mode).start()
+                    
+                    except json.JSONDecodeError:
+                        # Non-JSON message, check if it contains "down"
+                        if isinstance(message, str) and "down" in message.lower():
+                            print(f"[{get_timestamp()}] Received 'down' message from StudioAPI, switching to idle mode")
+                            log_to_file("Received 'down' message from StudioAPI, switching to idle mode", "StudioAPI >>>")
+                            
+                            # Switch to idle mode
+                            with mode_lock:
+                                if current_mode == "running":
+                                    current_mode = "idle"
+                                    print(f"[{get_timestamp()}] Mode switched to: {current_mode}")
+                                    log_to_file(f"Mode switched to: {current_mode}", "Mode >>>")
+                                    
+                                    # Trigger idle mode actions
+                                    threading.Thread(target=handle_idle_mode).start()
+            
+            except asyncio.TimeoutError:
+                # Timeout is expected, continue listening
+                continue
+            except Exception as e:
+                print(f"[{get_timestamp()}] Error receiving StudioAPI message: {e}")
+                log_to_file(f"Error receiving StudioAPI message: {e}", "StudioAPI >>>")
+                await asyncio.sleep(1)
+    
+    except Exception as e:
+        print(f"[{get_timestamp()}] Error in StudioAPI message listener: {e}")
+        log_to_file(f"Error in StudioAPI message listener: {e}", "StudioAPI >>>")
+        studio_api_ws_connected = False
+
+
+def start_studio_api_websocket():
+    """Start StudioAPI WebSocket connection in a separate thread"""
+    asyncio.run(init_studio_api_websocket())
+
+
+def handle_idle_mode():
+    """
+    Handle idle mode operations:
+    1. Disable error scenario processing (already handled by mode check)
+    2. Disable tableAPI calls (already handled by mode check)
+    3. Execute ~/startup_vr.sh
+    4. Gracefully shutdown main_vip.py
+    """
+    global terminate_program, current_mode
+    
+    print(f"[{get_timestamp()}] Entering idle mode operations...")
+    log_to_file("Entering idle mode operations...", "Idle Mode >>>")
+    
+    # Execute ~/startup_vr.sh
+    startup_script = os.path.expanduser("~/startup_vr.sh")
+    print(f"[{get_timestamp()}] Executing {startup_script}...")
+    log_to_file(f"Executing {startup_script}...", "Idle Mode >>>")
+    
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["bash", startup_script],
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minute timeout
+        )
+        
+        if result.returncode == 0:
+            print(f"[{get_timestamp()}] {startup_script} executed successfully")
+            log_to_file(f"{startup_script} executed successfully", "Idle Mode >>>")
+            if result.stdout:
+                print(f"[{get_timestamp()}] Script output: {result.stdout}")
+                log_to_file(f"Script output: {result.stdout}", "Idle Mode >>>")
+        else:
+            print(f"[{get_timestamp()}] {startup_script} exited with code {result.returncode}")
+            log_to_file(f"{startup_script} exited with code {result.returncode}", "Idle Mode >>>")
+            if result.stderr:
+                print(f"[{get_timestamp()}] Script error: {result.stderr}")
+                log_to_file(f"Script error: {result.stderr}", "Idle Mode >>>")
+    
+    except subprocess.TimeoutExpired:
+        print(f"[{get_timestamp()}] {startup_script} execution timed out")
+        log_to_file(f"{startup_script} execution timed out", "Idle Mode >>>")
+    except Exception as e:
+        print(f"[{get_timestamp()}] Error executing {startup_script}: {e}")
+        log_to_file(f"Error executing {startup_script}: {e}", "Idle Mode >>>")
+    
+    # Gracefully shutdown main_vip.py
+    print(f"[{get_timestamp()}] Initiating graceful shutdown...")
+    log_to_file("Initiating graceful shutdown...", "Idle Mode >>>")
+    
+    terminate_program = True
+
 
 # Function to send sensor error notification to Slack
 def send_sensor_error_to_slack():
     """Send sensor error notification to Slack for VIP Roulette table"""
-    global sensor_error_sent
+    global sensor_error_sent, current_mode
+    
+    # Skip error handling in idle mode
+    with mode_lock:
+        if current_mode == "idle":
+            return False
 
     if sensor_error_sent:
         print(
@@ -326,7 +542,13 @@ def send_sensor_error_to_slack():
 # Function to send WebSocket error signal
 def send_websocket_error_signal():
     """Send WebSocket error signal for VIP Roulette table"""
-    global ws_connected, ws_client
+    global ws_connected, ws_client, current_mode
+    
+    # Skip error handling in idle mode
+    with mode_lock:
+        if current_mode == "idle":
+            return False
+    
     try:
         print(f"[{get_timestamp()}] Sending WebSocket error signal...")
         log_to_file("Sending WebSocket error signal...", "WebSocket >>>")
@@ -988,6 +1210,15 @@ def log_time_intervals(
 
 
 def execute_finish_post(table, token):
+    global current_mode
+    
+    # Skip tableAPI calls in idle mode
+    with mode_lock:
+        if current_mode == "idle":
+            print(f"[{get_timestamp()}] Skipping finish_post in idle mode")
+            log_to_file("Skipping finish_post in idle mode", "Idle Mode >>>")
+            return None
+    
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
         if table["name"] == "UAT":
@@ -1014,6 +1245,15 @@ def execute_finish_post(table, token):
 
 
 def execute_start_post(table, token):
+    global current_mode
+    
+    # Skip tableAPI calls in idle mode
+    with mode_lock:
+        if current_mode == "idle":
+            print(f"[{get_timestamp()}] Skipping start_post in idle mode")
+            log_to_file("Skipping start_post in idle mode", "Idle Mode >>>")
+            return None, -1, 0
+    
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
         if table["name"] == "UAT":
@@ -1048,6 +1288,15 @@ def execute_start_post(table, token):
 
 
 def execute_deal_post(table, token, win_num):
+    global current_mode
+    
+    # Skip tableAPI calls in idle mode
+    with mode_lock:
+        if current_mode == "idle":
+            print(f"[{get_timestamp()}] Skipping deal_post in idle mode")
+            log_to_file("Skipping deal_post in idle mode", "Idle Mode >>>")
+            return None
+    
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
         if table["name"] == "UAT":
@@ -1125,6 +1374,15 @@ def betStop_round_for_table(table, token):
 
 def execute_broadcast_post(table, token):
     """Execute broadcast_post to notify relaunch"""
+    global current_mode
+    
+    # Skip tableAPI calls in idle mode
+    with mode_lock:
+        if current_mode == "idle":
+            print(f"[{get_timestamp()}] Skipping broadcast_post in idle mode")
+            log_to_file("Skipping broadcast_post in idle mode", "Idle Mode >>>")
+            return None
+    
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
         if table["name"] == "UAT":
@@ -1215,6 +1473,13 @@ def main():
     """Main function for VIP Roulette Controller"""
     global terminate_program, ws_connected, ws_client, p1_sent, tables, ser
     
+    # Start StudioAPI WebSocket connection to listen for "down" signals
+    studio_api_ws_thread = threading.Thread(target=start_studio_api_websocket)
+    studio_api_ws_thread.daemon = True
+    studio_api_ws_thread.start()
+    print(f"[{get_timestamp()}] StudioAPI WebSocket listener started")
+    log_to_file("StudioAPI WebSocket listener started", "MAIN >>>")
+    
     # Load table configuration at startup
     try:
         tables = load_table_config()
@@ -1269,6 +1534,7 @@ def main():
         "isLaunch": isLaunch,
         "sensor_error_sent": sensor_error_sent,
         "terminate_program": terminate_program,
+        "current_mode": current_mode,  # Include mode in global_vars for access in read_from_serial
     }
 
     # Create a wrapper function for read_from_serial with all required parameters
