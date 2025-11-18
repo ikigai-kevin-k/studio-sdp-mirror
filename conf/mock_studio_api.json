@@ -1,0 +1,15 @@
+{
+    "mock_server": {
+        "enabled": true,
+        "host": "localhost",
+        "port": 8080,
+        "path": "/v1/ws"
+    },
+    "real_server": {
+        "url": "wss://studio-api.iki-cit.cc/v1/ws",
+        "token": "0000"
+    },
+    "use_mock": true,
+    "description": "Configuration for switching between mock and real StudioAPI server. Set 'use_mock' to false to use real server."
+}
+
