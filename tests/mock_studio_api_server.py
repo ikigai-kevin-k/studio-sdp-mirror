@@ -160,6 +160,10 @@ class MockStudioAPIServer:
                 "token": token,
                 "connected_at": datetime.now().isoformat(),
             }
+            logger.info(
+                f"✅ Client {client_id} added to clients list "
+                f"(total: {len(self.clients)})"
+            )
 
             # Send welcome message (optional, for compatibility)
             welcome_msg = {
@@ -171,13 +175,22 @@ class MockStudioAPIServer:
             logger.info(f"✅ Sent welcome message to {client_id}")
 
             # Handle incoming messages from client
+            logger.info(f"📨 Waiting for messages from {client_id}...")
             async for message in websocket:
                 await self._handle_client_message(websocket, client_id, message)
 
         except websockets.exceptions.ConnectionClosed:
-            logger.info(f"🔌 Connection closed: {client_id}")
+            logger.info(f"🔌 Connection closed: {client_id or 'unknown'}")
+            if client_id:
+                logger.info(
+                    f"📊 Connection duration: "
+                    f"{datetime.now().isoformat()} - "
+                    f"{self.client_info.get(client_id, {}).get('connected_at', 'unknown')}"
+                )
         except Exception as e:
-            logger.error(f"❌ Error handling connection {client_id}: {e}")
+            logger.error(f"❌ Error handling connection {client_id or 'unknown'}: {e}")
+            import traceback
+            logger.error(f"📋 Traceback: {traceback.format_exc()}")
         finally:
             # Clean up on disconnect
             if client_id and client_id in self.clients:
