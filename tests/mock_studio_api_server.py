@@ -19,7 +19,8 @@ from urllib.parse import parse_qs, urlparse
 from datetime import datetime
 
 import websockets
-from websockets.server import WebSocketServerProtocol
+# Note: WebSocketServerProtocol is deprecated in newer websockets versions
+# We use websockets.WebSocketServerProtocol for type hints, but it's optional
 
 # Configure logging
 logging.basicConfig(
@@ -71,7 +72,7 @@ class MockStudioAPIServer:
         return params
 
     async def handle_connection(
-        self, websocket: WebSocketServerProtocol, path: str
+        self, websocket, path: str
     ):
         """
         Handle new WebSocket connection.
@@ -329,15 +330,27 @@ class MockStudioAPIServer:
         server_url = f"ws://{self.host}:{self.port}{self.server_path}"
         logger.info(f"🚀 Starting Mock StudioAPI Server on {server_url}")
 
-        async with websockets.serve(
-            self.handle_connection, self.host, self.port
-        ):
-            logger.info(
-                f"✅ Mock StudioAPI Server is running on {server_url}"
-            )
-            logger.info("📋 Waiting for client connections...")
-            logger.info("💡 Use send_sdp_down() method or CLI to send signals")
-            await asyncio.Future()  # Run forever
+        try:
+            async with websockets.serve(
+                self.handle_connection, self.host, self.port
+            ):
+                logger.info(
+                    f"✅ Mock StudioAPI Server is running on {server_url}"
+                )
+                logger.info("📋 Waiting for client connections...")
+                logger.info("💡 Use send_sdp_down() method or CLI to send signals")
+                await asyncio.Future()  # Run forever
+        except OSError as e:
+            if e.errno == 98:  # Address already in use
+                logger.error(
+                    f"❌ Port {self.port} is already in use. "
+                    f"Please use a different port with --port option, "
+                    f"or stop the process using port {self.port}"
+                )
+                logger.info(f"💡 Try: python tests/mock_studio_api_server.py --port 8081")
+                raise
+            else:
+                raise
 
     async def stop(self):
         """Stop the WebSocket server."""
@@ -522,6 +535,15 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("\n👋 Server stopped by user")
+    except OSError as e:
+        if e.errno == 98:  # Address already in use
+            logger.error(
+                f"❌ Port is already in use. "
+                f"Please use --port option to specify a different port"
+            )
+        else:
+            logger.error(f"❌ Server error: {e}")
+        sys.exit(1)
     except Exception as e:
         logger.error(f"❌ Server error: {e}")
         sys.exit(1)
