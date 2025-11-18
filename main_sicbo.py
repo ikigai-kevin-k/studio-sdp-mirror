@@ -345,7 +345,7 @@ async def start_round_for_table(table, token):
                             table_name="SBO-001-1",
                             error_code="START_POST_FAILED",
                             mention_user="Kevin Kuo",
-                            channel="#ge-studio",
+                            channel="#alert-tw-studio",
                             action_message="None (can be auto-recovered)",
                         )
                         logger.warning(
@@ -368,7 +368,7 @@ async def start_round_for_table(table, token):
                         table_name="SBO-001-1",
                         error_code="START_POST_FAILED",
                         mention_user="Kevin Kuo",
-                        channel="#ge-studio",
+                        channel="#alert-tw-studio",
                         action_message="None (can be auto-recovered)",
                     )
                     logger.warning(
@@ -394,7 +394,7 @@ async def start_round_for_table(table, token):
                             table_name="SBO-001-1",
                             error_code="START_POST_FAILED",
                             mention_user="Kevin Kuo",
-                            channel="#ge-studio",
+                            channel="#alert-tw-studio",
                             action_message="None (can be auto-recovered)",
                         )
                         logger.warning(
@@ -415,7 +415,7 @@ async def start_round_for_table(table, token):
                         table_name="SBO-001-1",
                         error_code="START_POST_FAILED",
                         mention_user="Kevin Kuo",
-                        channel="#ge-studio",
+                        channel="#alert-tw-studio",
                         action_message="None (can be auto-recovered)",
                     )
                     logger.warning(
@@ -1309,7 +1309,7 @@ class SDPGame:
                                                 table_name="SBO-001",
                                                 error_code="JSON_PARSE_ERROR",
                                                 mention_user="Kevin Kuo",
-                                                channel="#ge-studio",
+                                                channel="#alert-tw-studio",
                                                 action_message="None (can be auto-recovered)",
                                             )
                                             self.logger.info(
@@ -1384,7 +1384,7 @@ class SDPGame:
                                                 table_name=table_name,
                                                 error_code="JSON_PARSE_ERROR",
                                                 mention_user="Kevin Kuo",
-                                                channel="#ge-studio",
+                                                channel="#alert-tw-studio",
                                                 action_message="None (can be auto-recovered)",
                                             )
                                             self.logger.info(

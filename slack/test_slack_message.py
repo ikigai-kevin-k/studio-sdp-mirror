@@ -97,7 +97,7 @@ def test_rich_message():
     ]
 
     success = notifier.send_rich_message(
-        channel="#alert-studio",  # 使用 Bot Token 發送到指定頻道
+        channel="#alert-ge-studio",  # 使用 Bot Token 發送到指定頻道
         blocks=blocks,
         text="SDP System Status Update",
     )

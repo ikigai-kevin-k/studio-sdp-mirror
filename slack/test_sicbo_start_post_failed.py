@@ -34,13 +34,13 @@ logger = logging.getLogger(__name__)
 
 
 def test_sicbo_start_post_failed_notification(
-    channel: str = "#alert-studio", mention_user: str = "Kevin Kuo", environment: str = "STG"
+    channel: str = "#alert-ge-studio", mention_user: str = "Kevin Kuo", environment: str = "STG"
 ):
     """
     Test sending Sicbo START_POST_FAILED error notification with new format
 
     Args:
-        channel: Channel to send to (e.g., "#alert-studio" or "#studio-rnd")
+        channel: Channel to send to (e.g., "#alert-ge-studio" or "#studio-rnd")
         mention_user: User to mention (e.g., "Kevin Kuo" or "Mark Bochkov")
         environment: Environment name (e.g., "STG", "PRD", "CIT")
     """
@@ -78,7 +78,7 @@ def test_sicbo_start_post_failed_notification(
         # 4. Error Code: "START_POST_FAILED"
         # 5. Action: "None (auto-recoverable)"
         # 6. Mention: User specified (Kevin Kuo or other)
-        # 7. Channel: Specified channel (#alert-studio or other)
+        # 7. Channel: Specified channel (#alert-ge-studio or other)
         success = send_error_to_slack(
             error_message=f"{environment} Start Post Failed",
             environment=environment,
@@ -176,8 +176,8 @@ def main():
     parser.add_argument(
         "--channel",
         type=str,
-        default="#alert-studio",
-        help="Slack channel to send to (default: #alert-studio)",
+        default="#alert-ge-studio",
+        help="Slack channel to send to (default: #alert-ge-studio)",
     )
     parser.add_argument(
         "--mention-user",

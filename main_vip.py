@@ -507,7 +507,7 @@ def send_sensor_error_to_slack():
             table_name="ARO-002-1 (vip - main)",
             error_code="SENSOR_STUCK",
             mention_user="Mark Bochkov",  # Mention Mark Bochkov for sensor errors
-            channel="#alert-studio",  # Send sensor errors to alert-studio channel
+            channel="#alert-ge-studio",  # Send sensor errors to alert-ge-studio channel
         )
 
         if success:
@@ -557,13 +557,13 @@ def send_relaunch_failed_to_slack():
 
         # Send roulette relaunch failed notification with specialized format
         # Action is None (can be auto-recovered)
-        # Auto-recoverable errors go to ge-studio with Kevin Kuo
+        # Auto-recoverable errors go to alert-tw-studio with Kevin Kuo
         success = send_roulette_sensor_error_to_slack(
             action_message="None (can be auto-recovered)",
             table_name="ARO-002-1 (vip - main)",
             error_code="ROULETTE_RELAUNCH_FAILED",
             mention_user="Kevin Kuo",  # Mention Kevin Kuo for auto-recoverable errors
-            channel="#ge-studio",  # Send auto-recoverable errors to ge-studio channel
+            channel="#alert-tw-studio",  # Send auto-recoverable errors to alert-tw-studio channel
         )
 
         if success:

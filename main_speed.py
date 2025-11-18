@@ -641,7 +641,7 @@ def send_sensor_error_to_slack():
             table_name=f"{DETECTED_DEVICE_ID} (speed - {DETECTED_DEVICE_ALIAS})",
             error_code="SENSOR_STUCK",
             mention_user="Mark Bochkov",  # Mention Mark Bochkov for sensor errors
-            channel="#alert-studio",  # Send sensor errors to alert-studio channel
+            channel="#alert-ge-studio",  # Send sensor errors to alert-ge-studio channel
         )
 
         if success:
@@ -695,13 +695,13 @@ def send_wrong_ball_dir_error_to_slack():
         from slack.slack_notifier import send_roulette_sensor_error_to_slack
 
         # Send wrong ball direction error notification with specialized format
-        # This error can be auto-recovered, so send to ge-studio with Kevin Kuo
+        # This error can be auto-recovered, so send to alert-tw-studio with Kevin Kuo
         success = send_roulette_sensor_error_to_slack(
             action_message="None (can be auto-recovered)",
             table_name=f"{DETECTED_DEVICE_ID} (speed - {DETECTED_DEVICE_ALIAS})",
             error_code="ROUELTTE_WRONG_BALL_DIR",  # Note: Using ErrorMsgId enum value (has typo in enum)
             mention_user="Kevin Kuo",  # Mention Kevin Kuo for auto-recoverable errors
-            channel="#ge-studio",  # Send auto-recoverable errors to ge-studio channel
+            channel="#alert-tw-studio",  # Send auto-recoverable errors to alert-tw-studio channel
         )
 
         if success:
@@ -755,13 +755,13 @@ def send_launch_fail_error_to_slack():
         from slack.slack_notifier import send_roulette_sensor_error_to_slack
 
         # Send launch fail error notification with specialized format
-        # This error can be auto-recovered, so send to ge-studio with Kevin Kuo
+        # This error can be auto-recovered, so send to alert-tw-studio with Kevin Kuo
         success = send_roulette_sensor_error_to_slack(
             action_message="None (can be auto-recovered)",
             table_name=f"{DETECTED_DEVICE_ID} (speed - {DETECTED_DEVICE_ALIAS})",
             error_code="ROULETTE_LAUNCH_FAIL",
             mention_user="Kevin Kuo",  # Mention Kevin Kuo for auto-recoverable errors
-            channel="#ge-studio",  # Send auto-recoverable errors to ge-studio channel
+            channel="#alert-tw-studio",  # Send auto-recoverable errors to alert-tw-studio channel
         )
 
         if success:
@@ -811,13 +811,13 @@ def send_relaunch_failed_to_slack():
 
         # Send roulette relaunch failed notification with specialized format
         # Action is None (can be auto-recovered)
-        # Auto-recoverable errors go to ge-studio with Kevin Kuo
+        # Auto-recoverable errors go to alert-tw-studio with Kevin Kuo
         success = send_roulette_sensor_error_to_slack(
             action_message="None (can be auto-recovered)",
             table_name=f"{DETECTED_DEVICE_ID} (speed - {DETECTED_DEVICE_ALIAS})",
             error_code="ROULETTE_RELAUNCH_FAILED",
             mention_user="Kevin Kuo",  # Mention Kevin Kuo for auto-recoverable errors
-            channel="#ge-studio",  # Send auto-recoverable errors to ge-studio channel
+            channel="#alert-tw-studio",  # Send auto-recoverable errors to alert-tw-studio channel
         )
 
         if success:

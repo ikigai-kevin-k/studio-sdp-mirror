@@ -37,7 +37,7 @@ def test_vip_roulette_sensor_error_notification(channel: str = "#studio-rnd", me
     Test sending VIP roulette sensor error notification with all required changes
     
     Args:
-        channel: Channel to send to (e.g., "#studio-rnd" or "#alert-studio")
+        channel: Channel to send to (e.g., "#studio-rnd" or "#alert-ge-studio")
         mention_user: User to mention (e.g., "Mark Bochkov" or "Kevin Kuo")
     """
     logger.info("=" * 60)
@@ -72,7 +72,7 @@ def test_vip_roulette_sensor_error_notification(channel: str = "#studio-rnd", me
         # 3. Table: "ARO-002-1 (vip - main)" (not "VIP Roulette")
         # 4. Action: "relaunch the wheel controller with *P 1" (not error message)
         # 5. Mention: User specified (Mark Bochkov or Kevin Kuo)
-        # 6. Channel: Specified channel (#studio-rnd or #alert-studio)
+        # 6. Channel: Specified channel (#studio-rnd or #alert-ge-studio)
         success = notifier.send_roulette_sensor_error_notification(
             action_message="relaunch the wheel controller with *P 1",
             table_name="ARO-002-1 (vip - main)",
@@ -116,7 +116,7 @@ def test_convenience_function(channel: str = "#studio-rnd", mention_user: str = 
     Test using convenience function send_roulette_sensor_error_to_slack for VIP
 
     Args:
-        channel: Channel to send to (e.g., "#studio-rnd" or "#alert-studio")
+        channel: Channel to send to (e.g., "#studio-rnd" or "#alert-ge-studio")
         mention_user: User to mention (e.g., "Mark Bochkov" or "Kevin Kuo")
     """
     logger.info("=" * 60)
@@ -220,10 +220,10 @@ def main():
     if len(sys.argv) > 1:
         channel_arg = sys.argv[1].lower()
         
-        if channel_arg == "alert-studio":
-            channel = "#alert-studio"
+        if channel_arg == "alert-ge-studio":
+            channel = "#alert-ge-studio"
             mention_user = "Kevin Kuo"
-            logger.info("📢 Using alert-studio channel with Kevin Kuo")
+            logger.info("📢 Using alert-ge-studio channel with Kevin Kuo")
         elif channel_arg in ["studio-rnd", "rnd-studio"]:
             channel = "#studio-rnd"
             mention_user = "Mark Bochkov"
@@ -231,10 +231,10 @@ def main():
         else:
             logger.warning(f"⚠️  Unknown channel argument: {channel_arg}")
             logger.info("   Using default: studio-rnd with Mark Bochkov")
-            logger.info("   Valid options: alert-studio, studio-rnd, rnd-studio")
+            logger.info("   Valid options: alert-ge-studio, studio-rnd, rnd-studio")
     else:
         logger.info("📢 No channel specified, using default: studio-rnd with Mark Bochkov")
-        logger.info("   Usage: python3 slack/test_vip_roulette_sensor_error.py [alert-studio|studio-rnd|rnd-studio]")
+        logger.info("   Usage: python3 slack/test_vip_roulette_sensor_error.py [alert-ge-studio|studio-rnd|rnd-studio]")
 
     logger.info("")
     logger.info("🚀 Starting VIP Roulette Sensor Error Notification Tests")
