@@ -176,8 +176,19 @@ class MockStudioAPIServer:
 
             # Handle incoming messages from client
             logger.info(f"📨 Waiting for messages from {client_id}...")
-            async for message in websocket:
-                await self._handle_client_message(websocket, client_id, message)
+            logger.info(f"📊 Current clients count: {len(self.clients)}")
+            
+            try:
+                async for message in websocket:
+                    await self._handle_client_message(websocket, client_id, message)
+            except websockets.exceptions.ConnectionClosed as e:
+                logger.info(f"🔌 Connection closed by client {client_id}: {e}")
+                raise
+            except Exception as e:
+                logger.error(f"❌ Error in message loop for {client_id}: {e}")
+                import traceback
+                logger.error(f"📋 Traceback: {traceback.format_exc()}")
+                raise
 
         except websockets.exceptions.ConnectionClosed:
             logger.info(f"🔌 Connection closed: {client_id or 'unknown'}")
@@ -366,7 +377,15 @@ class MockStudioAPIServer:
         Returns:
             Dict mapping client_id to client info
         """
-        return self.client_info.copy()
+        logger.debug(f"📊 list_connected_clients called: {len(self.clients)} clients in self.clients, {len(self.client_info)} in self.client_info")
+        # Only return clients that are still in self.clients (active connections)
+        active_clients = {
+            cid: info 
+            for cid, info in self.client_info.items() 
+            if cid in self.clients
+        }
+        logger.debug(f"📊 Active clients: {len(active_clients)}")
+        return active_clients
 
     async def start(self):
         """Start the WebSocket server."""
@@ -466,16 +485,23 @@ async def interactive_mode(server: MockStudioAPIServer):
                 logger.info("👋 Exiting interactive mode")
                 break
             elif command == "list":
+                # Show detailed connection status
+                logger.info(f"📊 Server status: {len(server.clients)} active connections")
                 clients = server.list_connected_clients()
                 if clients:
                     logger.info(f"📋 Connected clients ({len(clients)}):")
                     for cid, info in clients.items():
+                        is_active = cid in server.clients
                         logger.info(
                             f"  - {cid}: table_id={info.get('table_id')}, "
-                            f"device={info.get('device_name')}"
+                            f"device={info.get('device_name')}, "
+                            f"active={is_active}"
                         )
                 else:
                     logger.info("📋 No clients connected")
+                    logger.info(f"💡 Total clients in memory: {len(server.clients)}")
+                    if server.clients:
+                        logger.info(f"💡 Client IDs: {list(server.clients.keys())}")
             elif command.startswith("send "):
                 parts = command.split()
                 if len(parts) >= 2:
