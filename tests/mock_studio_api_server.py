@@ -259,24 +259,44 @@ class MockStudioAPIServer:
         targets = []
 
         # Find target clients
+        logger.info(f"🔍 Searching for clients: client_id={client_id}, table_id={table_id}, device_name={device_name}")
+        logger.info(f"🔍 Available clients: {list(self.clients.keys())}")
+        logger.info(f"🔍 Client info keys: {list(self.client_info.keys())}")
+        
         if client_id:
             if client_id in self.clients:
                 targets.append(client_id)
+                logger.info(f"✅ Found client by ID: {client_id}")
+            else:
+                logger.warning(f"⚠️  Client ID {client_id} not found in active connections")
         elif table_id or device_name:
             # Find clients matching table_id and/or device_name
+            logger.info(f"🔍 Searching by table_id={table_id}, device_name={device_name}")
             for cid, info in self.client_info.items():
-                if table_id and info.get("table_id") != table_id:
+                info_table_id = info.get("table_id")
+                info_device_name = info.get("device_name")
+                logger.debug(f"🔍 Checking client {cid}: table_id={info_table_id}, device_name={info_device_name}")
+                
+                if table_id and info_table_id != table_id:
+                    logger.debug(f"  ❌ Table ID mismatch: {info_table_id} != {table_id}")
                     continue
-                if device_name and info.get("device_name") != device_name:
+                if device_name and info_device_name != device_name:
+                    logger.debug(f"  ❌ Device name mismatch: {info_device_name} != {device_name}")
                     continue
                 if cid in self.clients:
                     targets.append(cid)
+                    logger.info(f"✅ Found matching client: {cid}")
+                else:
+                    logger.warning(f"⚠️  Client {cid} found in info but not in active connections")
         else:
             # Send to all connected clients
             targets = list(self.clients.keys())
+            logger.info(f"✅ Sending to all {len(targets)} clients")
 
         if not targets:
             logger.warning("⚠️  No clients found to send SDP down signal")
+            logger.info(f"💡 Available clients: {list(self.clients.keys())}")
+            logger.info(f"💡 Client info: {[(cid, info.get('table_id'), info.get('device_name')) for cid, info in self.client_info.items()]}")
             return False
 
         # Send SDP down signal in the format expected by main_speed.py
