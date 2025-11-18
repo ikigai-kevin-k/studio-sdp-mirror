@@ -493,6 +493,17 @@ async def main():
         "--device-name",
         help="Device name for sending SDP down signal (e.g., ARO-001-1)",
     )
+    parser.add_argument(
+        "--wait-time",
+        type=int,
+        default=10,
+        help="Wait time in seconds for clients to connect before sending signal (default: 10)",
+    )
+    parser.add_argument(
+        "--wait-until-connected",
+        action="store_true",
+        help="Wait until at least one client connects before sending signal",
+    )
 
     args = parser.parse_args()
 
@@ -509,14 +520,53 @@ async def main():
 
     # Handle CLI options
     if args.send_sdp_down:
-        # Wait for clients to connect
-        logger.info("⏳ Waiting 3 seconds for clients to connect...")
-        await asyncio.sleep(3)
+        if args.wait_until_connected:
+            # Wait until at least one client connects
+            logger.info("⏳ Waiting for clients to connect...")
+            logger.info("💡 Make sure main_speed.py is running and connected")
+            max_wait = 60  # Maximum 60 seconds
+            waited = 0
+            while waited < max_wait:
+                clients = _server_instance.list_connected_clients()
+                if clients:
+                    logger.info(
+                        f"✅ Found {len(clients)} connected client(s), proceeding to send signal..."
+                    )
+                    break
+                await asyncio.sleep(1)
+                waited += 1
+                if waited % 5 == 0:
+                    logger.info(f"⏳ Still waiting... ({waited}s/{max_wait}s)")
+            else:
+                logger.warning(
+                    f"⚠️  No clients connected after {max_wait} seconds"
+                )
+                logger.info("💡 Server will continue running. Connect a client and use interactive mode to send signal")
+        else:
+            # Wait for specified time
+            logger.info(
+                f"⏳ Waiting {args.wait_time} seconds for clients to connect..."
+            )
+            logger.info("💡 Make sure main_speed.py is running and connected")
+            await asyncio.sleep(args.wait_time)
 
         # Send SDP down signal
-        await _server_instance.send_sdp_down_signal(
+        clients_before = _server_instance.list_connected_clients()
+        if clients_before:
+            logger.info(
+                f"📤 Sending SDP down signal to {len(clients_before)} client(s)..."
+            )
+        success = await _server_instance.send_sdp_down_signal(
             table_id=args.table_id, device_name=args.device_name
         )
+        
+        if success:
+            logger.info("✅ SDP down signal sent successfully")
+            logger.info("💡 Check main_speed.py logs to verify mode switch")
+        else:
+            logger.warning("⚠️  No clients found to send SDP down signal")
+            logger.info("💡 Server will continue running. Connect a client and try again")
+            logger.info("💡 Or use interactive mode: python tests/mock_studio_api_server.py --interactive --port 8081")
 
     if args.interactive:
         # Run interactive mode
