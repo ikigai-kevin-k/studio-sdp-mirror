@@ -80,6 +80,13 @@ class MockStudioAPIServer:
         Args:
             websocket: WebSocket connection object
         """
+        # Log connection attempt immediately
+        try:
+            remote_addr = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
+        except Exception:
+            remote_addr = "unknown"
+        logger.info(f"🔌 New connection attempt from {remote_addr}")
+        
         client_id = None
         try:
             # Get path from websocket object (new websockets API)
@@ -88,21 +95,27 @@ class MockStudioAPIServer:
             try:
                 # New API (websockets 12.0+): path is an attribute
                 path = websocket.path
+                logger.debug(f"📋 Got path from websocket.path: {path}")
             except AttributeError:
                 # Fallback for older versions or if path attribute doesn't exist
                 # Try to get from request object
                 if hasattr(websocket, "request"):
                     path = websocket.request.path
+                    logger.debug(f"📋 Got path from websocket.request.path: {path}")
                 elif hasattr(websocket, "request_headers"):
                     # Try to get from headers (less reliable)
                     path = websocket.request_headers.get(":path", "/v1/ws")
+                    logger.debug(f"📋 Got path from request_headers: {path}")
                 else:
                     # Last resort: use default path
                     path = "/v1/ws"
                     logger.warning("⚠️  Could not get path from websocket, using default")
             
+            logger.info(f"📋 Connection path: {path}")
+            
             # Parse query parameters from path
             query_params = self._parse_query_params(path)
+            logger.info(f"📋 Parsed query params: {query_params}")
 
             # Extract connection information
             # Support multiple connection formats for compatibility:
