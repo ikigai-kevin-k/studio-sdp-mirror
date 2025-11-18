@@ -345,8 +345,8 @@ async def start_round_for_table(table, token):
                             table_name="SBO-001-1",
                             error_code="START_POST_FAILED",
                             mention_user="Kevin Kuo",
-                            channel="#alert-studio",
-                            action_message="None (auto-recoverable)",
+                            channel="#ge-studio",
+                            action_message="None (can be auto-recovered)",
                         )
                         logger.warning(
                             "PRD Start Post Failed - Slack notification sent"
@@ -368,8 +368,8 @@ async def start_round_for_table(table, token):
                         table_name="SBO-001-1",
                         error_code="START_POST_FAILED",
                         mention_user="Kevin Kuo",
-                        channel="#alert-studio",
-                        action_message="None (auto-recoverable)",
+                        channel="#ge-studio",
+                        action_message="None (can be auto-recovered)",
                     )
                     logger.warning(
                         "PRD Start Post Failed - Slack notification sent"
@@ -394,8 +394,8 @@ async def start_round_for_table(table, token):
                             table_name="SBO-001-1",
                             error_code="START_POST_FAILED",
                             mention_user="Kevin Kuo",
-                            channel="#alert-studio",
-                            action_message="None (auto-recoverable)",
+                            channel="#ge-studio",
+                            action_message="None (can be auto-recovered)",
                         )
                         logger.warning(
                             "STG Start Post Failed - Slack notification sent"
@@ -415,8 +415,8 @@ async def start_round_for_table(table, token):
                         table_name="SBO-001-1",
                         error_code="START_POST_FAILED",
                         mention_user="Kevin Kuo",
-                        channel="#alert-studio",
-                        action_message="None (auto-recoverable)",
+                        channel="#ge-studio",
+                        action_message="None (can be auto-recovered)",
                     )
                     logger.warning(
                         "STG Start Post Failed - Slack notification sent"
@@ -1309,7 +1309,8 @@ class SDPGame:
                                                 table_name="SBO-001",
                                                 error_code="JSON_PARSE_ERROR",
                                                 mention_user="Kevin Kuo",
-                                                channel="#alert-studio",
+                                                channel="#ge-studio",
+                                                action_message="None (can be auto-recovered)",
                                             )
                                             self.logger.info(
                                                 f"Slack notification sent for {table_name} JSON parsing error"
@@ -1383,7 +1384,8 @@ class SDPGame:
                                                 table_name=table_name,
                                                 error_code="JSON_PARSE_ERROR",
                                                 mention_user="Kevin Kuo",
-                                                channel="#alert-studio",
+                                                channel="#ge-studio",
+                                                action_message="None (can be auto-recovered)",
                                             )
                                             self.logger.info(
                                                 f"Slack notification sent for {table_name} finish round JSON parsing error"
