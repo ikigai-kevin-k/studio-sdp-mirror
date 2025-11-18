@@ -32,12 +32,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def test_roulette_relaunch_failed_notification(channel: str = "#ge-studio", mention_user: str = "Kevin Kuo"):
+def test_roulette_relaunch_failed_notification(channel: str = "#alert-studio", mention_user: str = "Kevin Kuo"):
     """
     Test sending roulette relaunch failed notification with all required changes
 
     Args:
-        channel: Channel to send to (e.g., "#ge-studio" or "#studio-rnd")
+        channel: Channel to send to (e.g., "#alert-studio" or "#studio-rnd")
         mention_user: User to mention (e.g., "Kevin Kuo" or "Mark Bochkov")
     """
     logger.info("=" * 60)
@@ -117,27 +117,27 @@ def main():
     Main test function
     """
     # Parse command line arguments
-    channel = "#ge-studio"
+    channel = "#alert-studio"
     mention_user = "Kevin Kuo"
     
     if len(sys.argv) > 1:
         channel_arg = sys.argv[1].lower()
         
-        if channel_arg == "ge-studio":
-            channel = "#ge-studio"
+        if channel_arg == "alert-studio":
+            channel = "#alert-studio"
             mention_user = "Kevin Kuo"
-            logger.info("📢 Using ge-studio channel with Kevin Kuo")
+            logger.info("📢 Using alert-studio channel with Kevin Kuo")
         elif channel_arg == "studio-rnd":
             channel = "#studio-rnd"
             mention_user = "Mark Bochkov"
             logger.info("📢 Using studio-rnd channel with Mark Bochkov")
         else:
             logger.warning(f"⚠️  Unknown channel argument: {channel_arg}")
-            logger.info("   Using default: ge-studio with Kevin Kuo")
-            logger.info("   Valid options: ge-studio, studio-rnd")
+            logger.info("   Using default: alert-studio with Kevin Kuo")
+            logger.info("   Valid options: alert-studio, studio-rnd")
     else:
-        logger.info("📢 No channel specified, using default: ge-studio with Kevin Kuo")
-        logger.info("   Usage: python3 slack/test_roulette_relaunch_failed.py [ge-studio|studio-rnd]")
+        logger.info("📢 No channel specified, using default: alert-studio with Kevin Kuo")
+        logger.info("   Usage: python3 slack/test_roulette_relaunch_failed.py [alert-studio|studio-rnd]")
 
     logger.info("")
     logger.info("🚀 Starting Roulette Relaunch Failed Notification Tests")

@@ -506,7 +506,7 @@ def send_sensor_error_to_slack():
             table_name="ARO-002-1 (vip - main)",
             error_code="SENSOR_STUCK",
             mention_user="Kevin Kuo",  # Mention Kevin Kuo for sensor errors
-            channel="#ge-studio",  # Send sensor errors to ge-studio channel
+            channel="#alert-studio",  # Send sensor errors to alert-studio channel
         )
 
         if success:

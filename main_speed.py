@@ -597,7 +597,7 @@ def send_sensor_error_to_slack():
             table_name="ARO-001-1 (speed - main)",
             error_code="SENSOR_STUCK",
             mention_user="Kevin Kuo",  # Mention Kevin Kuo for sensor errors
-            channel="#ge-studio",  # Send sensor errors to ge-studio channel
+            channel="#alert-studio",  # Send sensor errors to alert-studio channel
         )
 
         if success:
@@ -652,7 +652,7 @@ def send_relaunch_failed_to_slack():
             table_name="ARO-001-1 (speed - main)",
             error_code="ROULETTE_RELAUNCH_FAILED",
             mention_user="Kevin Kuo",  # Mention Kevin Kuo for relaunch failed errors
-            channel="#ge-studio",  # Send relaunch failed errors to ge-studio channel
+            channel="#alert-studio",  # Send relaunch failed errors to alert-studio channel
         )
 
         if success:
