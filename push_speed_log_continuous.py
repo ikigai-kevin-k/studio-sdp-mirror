@@ -20,6 +20,9 @@ from datetime import datetime, timedelta
 from glob import glob
 from typing import List, Dict, Optional, Tuple
 
+# Import environment detection module
+from env_detect import detect_environment, get_hostname
+
 # Force unbuffered output for real-time logging
 if sys.stdout.isatty():
     # If running in terminal, use line buffering
@@ -38,6 +41,19 @@ else:
 LOKI_URL = "http://100.64.0.113:3100/loki/api/v1/push"
 STUDIO_SDP_DIR = "/home/rnd/studio-sdp-roulette"
 LOG_FILE_PATTERN = "speed_*.log"
+
+# Detect environment and get hostname for Loki instance
+detected_table_code, detected_hostname, env_detection_success = detect_environment()
+if env_detection_success and detected_hostname:
+    LOKI_INSTANCE = detected_hostname
+else:
+    # Fallback to default if detection fails
+    LOKI_INSTANCE = get_hostname() or "GC-ARO-001-1"
+    if not env_detection_success:
+        print(
+            f"⚠️  Environment detection failed, using hostname '{LOKI_INSTANCE}' "
+            f"as Loki instance"
+        )
 # Current log file (main_speed.py writes to this)
 CURRENT_LOG_FILE = os.path.join(STUDIO_SDP_DIR, "logs", "sdp_serial.log")
 
@@ -738,7 +754,7 @@ def push_logs_to_loki(log_entries: List[Dict]) -> bool:
         stream = {
             "stream": {
                 "job": "speed_roulette_logs",
-                "instance": "GC-ARO-001-1",
+                "instance": LOKI_INSTANCE,
                 "game_type": "speed",
                 "log_type": "application_log",
                 "source": "speed_log_file",
@@ -832,6 +848,7 @@ def monitor_log_file(log_file_path: str):
     print(f"🔄 Starting continuous monitoring mode")
     print(f"   Monitoring: {current_log_file}")
     print(f"   Loki Server: {LOKI_URL}")
+    print(f"   Loki Instance: {LOKI_INSTANCE}")
     print(f"   Check interval: {MONITOR_INTERVAL}s")
     print(f"   Batch size: {BATCH_SIZE} log entries")
     print(f"   Press Ctrl+C to stop")
@@ -962,6 +979,9 @@ def main():
     print("Speed Roulette Log Monitor - Push to Loki Server")
     print("=" * 60)
     print(f"Loki Server: {LOKI_URL}")
+    print(f"Loki Instance: {LOKI_INSTANCE}")
+    if env_detection_success:
+        print(f"Detected Table Code: {detected_table_code}")
     print()
     
     # Find latest log file

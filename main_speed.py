@@ -122,6 +122,14 @@ from studio_api.ws_err_sig import (
 # Import network checker
 from networkChecker import networkChecker
 
+# Import environment detection module
+from env_detect import (
+    detect_environment,
+    get_table_id_from_table_code,
+    get_device_id_from_table_code,
+    get_device_alias,
+)
+
 # Import Roulette MQTT detect functionality
 from roulette_mqtt_detect import (
     initialize_roulette_mqtt_system,
@@ -170,6 +178,34 @@ device_config = load_device_config()
 
 # Get IDP enable/disable setting (default to True for backward compatibility)
 ENABLE_IDP = device_config.get("enable_idp", True)
+
+# Detect environment from hostname
+detected_table_code, detected_hostname, env_detection_success = detect_environment()
+
+# Set detected table code and table ID as global variables
+if env_detection_success:
+    DETECTED_TABLE_CODE = detected_table_code
+    DETECTED_TABLE_ID = get_table_id_from_table_code(detected_table_code)
+    DETECTED_DEVICE_ID = get_device_id_from_table_code(detected_table_code)
+    DETECTED_DEVICE_ALIAS = get_device_alias(DETECTED_DEVICE_ID)
+    log_console(
+        f"Environment detection successful: Table Code={DETECTED_TABLE_CODE}, "
+        f"Table ID={DETECTED_TABLE_ID}, Device ID={DETECTED_DEVICE_ID}, "
+        f"Device Alias={DETECTED_DEVICE_ALIAS}",
+        "ENV_DETECT >>>"
+    )
+else:
+    # Fallback to default values if detection fails
+    DETECTED_TABLE_CODE = "ARO-001-1"
+    DETECTED_TABLE_ID = "ARO-001"
+    DETECTED_DEVICE_ID = "ARO-001-1"
+    DETECTED_DEVICE_ALIAS = "main"
+    log_console(
+        f"Environment detection failed, using default values: "
+        f"Table Code={DETECTED_TABLE_CODE}, Table ID={DETECTED_TABLE_ID}, "
+        f"Device ID={DETECTED_DEVICE_ID}, Device Alias={DETECTED_DEVICE_ALIAS}",
+        "ENV_DETECT >>>"
+    )
 
 # Parse parity setting
 parity_map = {
@@ -390,12 +426,14 @@ async def init_studio_api_websocket():
             config = json.load(f)
         SERVER_URL = config.get("server_url", "wss://studio-api.iki-cit.cc/v1/ws")
         TOKEN = config.get("token", "0000")
-        DEVICE_ID = "ARO-001-1"  # Speed roulette device ID
+        # Use detected device ID, fallback to default if detection failed
+        DEVICE_ID = DETECTED_DEVICE_ID
     except Exception as e:
         print(f"[{get_timestamp()}] Warning: Could not load ws.json config: {e}")
         SERVER_URL = "wss://studio-api.iki-cit.cc/v1/ws"
         TOKEN = "0000"
-        DEVICE_ID = "ARO-001-1"
+        # Use detected device ID, fallback to default if detection failed
+        DEVICE_ID = DETECTED_DEVICE_ID
     
     try:
         from studio_api.ws_client import SmartStudioWebSocketClient
@@ -403,7 +441,7 @@ async def init_studio_api_websocket():
         # Create WebSocket client
         studio_api_ws_client = SmartStudioWebSocketClient(
             server_url=SERVER_URL,
-            table_id="ARO-001",
+            table_id=DETECTED_TABLE_ID,
             device_name=DEVICE_ID,
             token=TOKEN,
             fast_connect=True
@@ -600,7 +638,7 @@ def send_sensor_error_to_slack():
         # Send roulette sensor error notification with specialized format
         success = send_roulette_sensor_error_to_slack(
             action_message="relaunch the wheel controller with *P 1",
-            table_name="ARO-001-1 (speed - main)",
+            table_name=f"{DETECTED_DEVICE_ID} (speed - {DETECTED_DEVICE_ALIAS})",
             error_code="SENSOR_STUCK",
             mention_user="Mark Bochkov",  # Mention Mark Bochkov for sensor errors
             channel="#alert-studio",  # Send sensor errors to alert-studio channel
@@ -660,7 +698,7 @@ def send_wrong_ball_dir_error_to_slack():
         # This error can be auto-recovered, so send to ge-studio with Kevin Kuo
         success = send_roulette_sensor_error_to_slack(
             action_message="None (can be auto-recovered)",
-            table_name="ARO-001-1 (speed - main)",
+            table_name=f"{DETECTED_DEVICE_ID} (speed - {DETECTED_DEVICE_ALIAS})",
             error_code="ROUELTTE_WRONG_BALL_DIR",  # Note: Using ErrorMsgId enum value (has typo in enum)
             mention_user="Kevin Kuo",  # Mention Kevin Kuo for auto-recoverable errors
             channel="#ge-studio",  # Send auto-recoverable errors to ge-studio channel
@@ -720,7 +758,7 @@ def send_launch_fail_error_to_slack():
         # This error can be auto-recovered, so send to ge-studio with Kevin Kuo
         success = send_roulette_sensor_error_to_slack(
             action_message="None (can be auto-recovered)",
-            table_name="ARO-001-1 (speed - main)",
+            table_name=f"{DETECTED_DEVICE_ID} (speed - {DETECTED_DEVICE_ALIAS})",
             error_code="ROULETTE_LAUNCH_FAIL",
             mention_user="Kevin Kuo",  # Mention Kevin Kuo for auto-recoverable errors
             channel="#ge-studio",  # Send auto-recoverable errors to ge-studio channel
@@ -776,7 +814,7 @@ def send_relaunch_failed_to_slack():
         # Auto-recoverable errors go to ge-studio with Kevin Kuo
         success = send_roulette_sensor_error_to_slack(
             action_message="None (can be auto-recovered)",
-            table_name="ARO-001-1 (speed - main)",
+            table_name=f"{DETECTED_DEVICE_ID} (speed - {DETECTED_DEVICE_ALIAS})",
             error_code="ROULETTE_RELAUNCH_FAILED",
             mention_user="Kevin Kuo",  # Mention Kevin Kuo for auto-recoverable errors
             channel="#ge-studio",  # Send auto-recoverable errors to ge-studio channel
@@ -829,10 +867,10 @@ def send_websocket_wrong_ball_dir_error_signal():
         # Run the async function and wait for completion
         def send_ws_error():
             try:
-                # Send wrong ball direction error signal for Speed Roulette table (ARO-001-1 for primary device)
+                # Send wrong ball direction error signal for Speed Roulette table
                 result = asyncio.run(send_roulette_wrong_ball_dir_error(
-                    table_id="ARO-001",
-                    device_id="ARO-001-1"
+                    table_id=DETECTED_TABLE_ID,
+                    device_id=DETECTED_DEVICE_ID
                 ))
                 if result:
                     print(
@@ -899,10 +937,9 @@ def send_websocket_error_signal():
         def send_ws_error():
             try:
                 # Send error signal specifically for Speed Roulette table
-                # Use ARO-001-1 for primary device
                 result = asyncio.run(send_roulette_sensor_stuck_error(
-                    table_id="ARO-001", 
-                    device_id="ARO-001-1"
+                    table_id=DETECTED_TABLE_ID, 
+                    device_id=DETECTED_DEVICE_ID
                 ))
                 if result:
                     print(

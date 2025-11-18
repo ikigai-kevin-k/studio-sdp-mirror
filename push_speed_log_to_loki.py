@@ -19,6 +19,9 @@ import glob
 from datetime import datetime, timedelta
 from typing import List, Tuple, Optional
 
+# Import environment detection module
+from env_detect import detect_environment, get_hostname
+
 # Import progress bar
 try:
     from progress_bar import ProgressBar
@@ -30,6 +33,19 @@ except ImportError:
 # Configuration from loki.md
 LOKI_URL = "http://100.64.0.113:3100/loki/api/v1/push"
 STUDIO_SDP_DIR = "/home/rnd/studio-sdp-roulette"
+
+# Detect environment and get hostname for Loki instance
+detected_table_code, detected_hostname, env_detection_success = detect_environment()
+if env_detection_success and detected_hostname:
+    LOKI_INSTANCE = detected_hostname
+else:
+    # Fallback to default if detection fails
+    LOKI_INSTANCE = get_hostname() or "GC-ARO-001-1"
+    if not env_detection_success:
+        print(
+            f"⚠️  Environment detection failed, using hostname '{LOKI_INSTANCE}' "
+            f"as Loki instance"
+        )
 
 # Only push logs from the last week (7 days)
 # Loki rejects samples older than 7 days (reject_old_samples_max_age: 168h)
@@ -121,7 +137,7 @@ def push_batch_to_loki(
         stream = {
             "stream": {
                 "job": f"{game_type}_roulette_logs",
-                "instance": "GC-ARO-001-1",
+                "instance": LOKI_INSTANCE,
                 "game_type": game_type,
                 "log_type": "application_log",
                 "source": "speed_log_file",
@@ -355,6 +371,9 @@ def main():
     print("Push Speed Log Files to Loki Server")
     print("=" * 60)
     print(f"Loki Server: {LOKI_URL}")
+    print(f"Loki Instance: {LOKI_INSTANCE}")
+    if env_detection_success:
+        print(f"Detected Table Code: {detected_table_code}")
     print()
     
     # Determine log file to push
