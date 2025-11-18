@@ -344,9 +344,9 @@ async def start_round_for_table(table, token):
                             environment="PRD",
                             table_name="SBO-001-1",
                             error_code="START_POST_FAILED",
-                            mention_user="Aleksei Petkevich",
-                            channel="#alert-studio",
-                            action_message="None (auto-recoverable)",
+                            mention_user="Kevin Kuo",
+                            channel="#ge-studio",
+                            action_message="None (can be auto-recovered)",
                         )
                         logger.warning(
                             "PRD Start Post Failed - Slack notification sent"
@@ -367,9 +367,9 @@ async def start_round_for_table(table, token):
                         environment="PRD",
                         table_name="SBO-001-1",
                         error_code="START_POST_FAILED",
-                        mention_user="Aleksei Petkevich",
-                        channel="#alert-studio",
-                        action_message="None (auto-recoverable)",
+                        mention_user="Kevin Kuo",
+                        channel="#ge-studio",
+                        action_message="None (can be auto-recovered)",
                     )
                     logger.warning(
                         "PRD Start Post Failed - Slack notification sent"
@@ -393,9 +393,9 @@ async def start_round_for_table(table, token):
                             environment="STG",
                             table_name="SBO-001-1",
                             error_code="START_POST_FAILED",
-                            mention_user="Aleksei Petkevich",
-                            channel="#alert-studio",
-                            action_message="None (auto-recoverable)",
+                            mention_user="Kevin Kuo",
+                            channel="#ge-studio",
+                            action_message="None (can be auto-recovered)",
                         )
                         logger.warning(
                             "STG Start Post Failed - Slack notification sent"
@@ -414,9 +414,9 @@ async def start_round_for_table(table, token):
                         environment="STG",
                         table_name="SBO-001-1",
                         error_code="START_POST_FAILED",
-                        mention_user="Aleksei Petkevich",
-                        channel="#alert-studio",
-                        action_message="None (auto-recoverable)",
+                        mention_user="Kevin Kuo",
+                        channel="#ge-studio",
+                        action_message="None (can be auto-recovered)",
                     )
                     logger.warning(
                         "STG Start Post Failed - Slack notification sent"
@@ -1308,8 +1308,9 @@ class SDPGame:
                                                 environment=table_name,
                                                 table_name="SBO-001",
                                                 error_code="JSON_PARSE_ERROR",
-                                                mention_user="Aleksei Petkevich",
-                                                channel="#alert-studio",
+                                                mention_user="Kevin Kuo",
+                                                channel="#ge-studio",
+                                                action_message="None (can be auto-recovered)",
                                             )
                                             self.logger.info(
                                                 f"Slack notification sent for {table_name} JSON parsing error"
@@ -1382,8 +1383,9 @@ class SDPGame:
                                                 environment=table_name,
                                                 table_name=table_name,
                                                 error_code="JSON_PARSE_ERROR",
-                                                mention_user="Aleksei Petkevich",
-                                                channel="#alert-studio",
+                                                mention_user="Kevin Kuo",
+                                                channel="#ge-studio",
+                                                action_message="None (can be auto-recovered)",
                                             )
                                             self.logger.info(
                                                 f"Slack notification sent for {table_name} finish round JSON parsing error"
