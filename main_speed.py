@@ -600,8 +600,8 @@ def send_sensor_error_to_slack():
             action_message="relaunch the wheel controller with *P 1",
             table_name="ARO-001-1 (speed - main)",
             error_code="SENSOR_STUCK",
-            mention_user="Kevin Kuo",  # Mention Kevin Kuo for non-auto-recoverable errors
-            channel="#ge-studio",  # Send to ge-studio channel
+            mention_user="Mark Bochkov",  # Mention Mark Bochkov for sensor errors
+            channel="#alert-studio",  # Send sensor errors to alert-studio channel
         )
 
         if success:
@@ -651,11 +651,12 @@ def send_relaunch_failed_to_slack():
 
         # Send roulette relaunch failed notification with specialized format
         # Action is None (can be auto-recovered)
+        # Auto-recoverable errors go to ge-studio with Kevin Kuo
         success = send_roulette_sensor_error_to_slack(
             action_message="None (can be auto-recovered)",
             table_name="ARO-001-1 (speed - main)",
             error_code="ROULETTE_RELAUNCH_FAILED",
-            mention_user="Mark Bochkov",  # Mention Mark Bochkov for auto-recoverable errors
+            mention_user="Kevin Kuo",  # Mention Kevin Kuo for auto-recoverable errors
             channel="#ge-studio",  # Send auto-recoverable errors to ge-studio channel
         )
 
@@ -1340,8 +1341,6 @@ async def _execute_broadcast_post_async(table, token, broadcast_type="roulette.r
                     environment=table["name"],
                     table_name=table.get("game_code", "Unknown"),
                     error_code="ROULETTE_RELAUNCH",
-                    mention_user="Kevin Kuo",  # Mention Kevin Kuo for non-auto-recoverable errors
-                    channel="#ge-studio",  # Send to ge-studio channel
                 )
                 print(f"Slack notification sent for {table['name']} relaunch")
             except Exception as slack_error:
@@ -1387,8 +1386,6 @@ async def _execute_broadcast_post_async(table, token, broadcast_type="roulette.r
                 environment=table["name"],
                 table_name=table.get("game_code", "Unknown"),
                 error_code="BROADCAST_POST_EXCEPTION",
-                mention_user="Kevin Kuo",  # Mention Kevin Kuo for non-auto-recoverable errors
-                channel="#ge-studio",  # Send to ge-studio channel
             )
             print(f"Slack exception notification sent for {table['name']}")
         except Exception as slack_error:
