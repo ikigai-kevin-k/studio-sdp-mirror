@@ -277,10 +277,11 @@ class MockStudioAPIServer:
                 info_device_name = info.get("device_name")
                 logger.debug(f"🔍 Checking client {cid}: table_id={info_table_id}, device_name={info_device_name}")
                 
-                if table_id and info_table_id != table_id:
+                # Case-insensitive comparison for table_id and device_name
+                if table_id and info_table_id.upper() != table_id.upper():
                     logger.debug(f"  ❌ Table ID mismatch: {info_table_id} != {table_id}")
                     continue
-                if device_name and info_device_name != device_name:
+                if device_name and info_device_name.upper() != device_name.upper():
                     logger.debug(f"  ❌ Device name mismatch: {info_device_name} != {device_name}")
                     continue
                 if cid in self.clients:
@@ -499,12 +500,13 @@ async def interactive_mode(server: MockStudioAPIServer):
                 None, input, "\n> "
             )
 
-            command = command.strip().lower()
+            command_lower = command.strip().lower()
+            command = command.strip()  # Keep original case for parameters
 
-            if command == "quit" or command == "exit":
+            if command_lower == "quit" or command_lower == "exit":
                 logger.info("👋 Exiting interactive mode")
                 break
-            elif command == "list":
+            elif command_lower == "list":
                 # Show detailed connection status
                 logger.info(f"📊 Server status: {len(server.clients)} active connections")
                 clients = server.list_connected_clients()
@@ -522,17 +524,17 @@ async def interactive_mode(server: MockStudioAPIServer):
                     logger.info(f"💡 Total clients in memory: {len(server.clients)}")
                     if server.clients:
                         logger.info(f"💡 Client IDs: {list(server.clients.keys())}")
-            elif command.startswith("send "):
-                parts = command.split()
+            elif command_lower.startswith("send "):
+                parts = command.split()  # Use original case
                 if len(parts) >= 2:
-                    table_id = parts[1]
-                    device_name = parts[2] if len(parts) > 2 else None
+                    table_id = parts[1]  # Keep original case
+                    device_name = parts[2] if len(parts) > 2 else None  # Keep original case
                     await server.send_sdp_down_signal(
                         table_id=table_id, device_name=device_name
                     )
                 else:
                     logger.warning("⚠️  Usage: send <table_id> [device_name]")
-            elif command == "send-all":
+            elif command_lower == "send-all":
                 await server.send_sdp_down_signal()
             else:
                 logger.warning(f"⚠️  Unknown command: {command}")
