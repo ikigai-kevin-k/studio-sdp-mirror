@@ -188,6 +188,7 @@ ws_connected = False
 
 # Add Slack notification variables
 sensor_error_sent = False  # Flag to ensure sensor error is only sent once
+relaunch_failed_sent = False  # Flag to ensure relaunch failed error is only sent once
 
 # Add program termination flag
 terminate_program = False  # Flag to terminate program when *X;6 sensor error is detected
@@ -505,7 +506,7 @@ def send_sensor_error_to_slack():
             action_message="relaunch the wheel controller with *P 1",
             table_name="ARO-002-1 (vip - main)",
             error_code="SENSOR_STUCK",
-            mention_user="Kevin Kuo",  # Mention Kevin Kuo for sensor errors
+            mention_user="Mark Bochkov",  # Mention Mark Bochkov for sensor errors
             channel="#alert-studio",  # Send sensor errors to alert-studio channel
         )
 
@@ -535,6 +536,62 @@ def send_sensor_error_to_slack():
         )
         log_to_file(
             f"Error sending sensor error notification: {e}", "Slack >>>"
+        )
+        return False
+
+
+# Function to send relaunch failed notification to Slack
+def send_relaunch_failed_to_slack():
+    """Send relaunch failed notification to Slack with specialized format"""
+    global relaunch_failed_sent
+
+    if relaunch_failed_sent:
+        print(
+            f"[{get_timestamp()}] Relaunch failed error already sent to Slack, skipping..."
+        )
+        return False
+
+    try:
+        # Import the specialized roulette sensor error function
+        from slack.slack_notifier import send_roulette_sensor_error_to_slack
+
+        # Send roulette relaunch failed notification with specialized format
+        # Action is None (can be auto-recovered)
+        # Auto-recoverable errors go to ge-studio with Kevin Kuo
+        success = send_roulette_sensor_error_to_slack(
+            action_message="None (can be auto-recovered)",
+            table_name="ARO-002-1 (vip - main)",
+            error_code="ROULETTE_RELAUNCH_FAILED",
+            mention_user="Kevin Kuo",  # Mention Kevin Kuo for auto-recoverable errors
+            channel="#ge-studio",  # Send auto-recoverable errors to ge-studio channel
+        )
+
+        if success:
+            relaunch_failed_sent = True
+            print(
+                f"[{get_timestamp()}] Relaunch failed notification sent to Slack successfully (with mention)"
+            )
+            log_to_file(
+                "Relaunch failed notification sent to Slack successfully (with mention)",
+                "Slack >>>",
+            )
+            return True
+        else:
+            print(
+                f"[{get_timestamp()}] Failed to send relaunch failed notification to Slack"
+            )
+            log_to_file(
+                "Failed to send relaunch failed notification to Slack",
+                "Slack >>>",
+            )
+            return False
+
+    except Exception as e:
+        print(
+            f"[{get_timestamp()}] Error sending relaunch failed notification: {e}"
+        )
+        log_to_file(
+            f"Error sending relaunch failed notification: {e}", "Slack >>>"
         )
         return False
 
@@ -1417,13 +1474,52 @@ def execute_broadcast_post(table, token):
             result = broadcast_post_v2(
                 post_url, token, "roulette.relaunch", "players", 20
             )  # , None)
-        print(
-            f"Successfully sent broadcast_post (relaunch) for {table['name']}"
-        )
-        log_to_file(
-            f"Successfully sent broadcast_post (relaunch) for {table['name']}",
-            "Broadcast >>>",
-        )
+        if result:
+            print(
+                f"Successfully sent broadcast_post (relaunch) for {table['name']}"
+            )
+            log_to_file(
+                f"Successfully sent broadcast_post (relaunch) for {table['name']}",
+                "Broadcast >>>",
+            )
+
+            # Send Slack notification for successful relaunch
+            try:
+                send_error_to_slack(
+                    error_message="Roulette relaunch notification sent successfully",
+                    environment=table["name"],
+                    table_name=table.get("game_code", "Unknown"),
+                    error_code="ROULETTE_RELAUNCH",
+                )
+                print(f"Slack notification sent for {table['name']} relaunch")
+            except Exception as slack_error:
+                print(f"Failed to send Slack notification: {slack_error}")
+                log_to_file(
+                    f"Failed to send Slack notification: {slack_error}",
+                    "Slack >>>",
+                )
+        else:
+            print(
+                f"Failed to send broadcast_post (relaunch) for {table['name']}"
+            )
+            log_to_file(
+                f"Failed to send broadcast_post (relaunch) for {table['name']}",
+                "Broadcast >>>",
+            )
+
+            # Send Slack notification for failed relaunch (only once, regardless of how many tables fail)
+            # This will be called for each failed table, but the function itself handles deduplication
+            try:
+                send_relaunch_failed_to_slack()
+            except Exception as slack_error:
+                print(
+                    f"Failed to send Slack error notification: {slack_error}"
+                )
+                log_to_file(
+                    f"Failed to send Slack error notification: {slack_error}",
+                    "Slack >>>",
+                )
+
         return result
     except Exception as e:
         print(f"Error executing broadcast_post for {table['name']}: {e}")
@@ -1431,6 +1527,25 @@ def execute_broadcast_post(table, token):
             f"Error executing broadcast_post for {table['name']}: {e}",
             "Error >>>",
         )
+
+        # Send Slack notification for exception
+        try:
+            send_error_to_slack(
+                error_message=f"Exception during broadcast_post: {str(e)}",
+                environment=table["name"],
+                table_name=table.get("game_code", "Unknown"),
+                error_code="BROADCAST_POST_EXCEPTION",
+            )
+            print(f"Slack exception notification sent for {table['name']}")
+        except Exception as slack_error:
+            print(
+                f"Failed to send Slack exception notification: {slack_error}"
+            )
+            log_to_file(
+                f"Failed to send Slack exception notification: {slack_error}",
+                "Slack >>>",
+            )
+
         return None
 
 
