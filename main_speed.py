@@ -1,6 +1,7 @@
 import serial
 import threading
 import time
+import os
 from datetime import datetime
 import sys
 import json
@@ -166,6 +167,9 @@ def load_device_config():
     )
 
 device_config = load_device_config()
+
+# Get IDP enable/disable setting (default to True for backward compatibility)
+ENABLE_IDP = device_config.get("enable_idp", True)
 
 # Parse parity setting
 parity_map = {
@@ -596,8 +600,8 @@ def send_sensor_error_to_slack():
             action_message="relaunch the wheel controller with *P 1",
             table_name="ARO-001-1 (speed - main)",
             error_code="SENSOR_STUCK",
-            mention_user="Kevin Kuo",  # Mention Kevin Kuo for sensor errors
-            channel="#alert-studio",  # Send sensor errors to alert-studio channel
+            mention_user="Kevin Kuo",  # Mention Kevin Kuo for non-auto-recoverable errors
+            channel="#ge-studio",  # Send to ge-studio channel
         )
 
         if success:
@@ -651,8 +655,8 @@ def send_relaunch_failed_to_slack():
             action_message="None (can be auto-recovered)",
             table_name="ARO-001-1 (speed - main)",
             error_code="ROULETTE_RELAUNCH_FAILED",
-            mention_user="Kevin Kuo",  # Mention Kevin Kuo for relaunch failed errors
-            channel="#alert-studio",  # Send relaunch failed errors to alert-studio channel
+            mention_user="Mark Bochkov",  # Mention Mark Bochkov for auto-recoverable errors
+            channel="#ge-studio",  # Send auto-recoverable errors to ge-studio channel
         )
 
         if success:
@@ -1336,6 +1340,8 @@ async def _execute_broadcast_post_async(table, token, broadcast_type="roulette.r
                     environment=table["name"],
                     table_name=table.get("game_code", "Unknown"),
                     error_code="ROULETTE_RELAUNCH",
+                    mention_user="Kevin Kuo",  # Mention Kevin Kuo for non-auto-recoverable errors
+                    channel="#ge-studio",  # Send to ge-studio channel
                 )
                 print(f"Slack notification sent for {table['name']} relaunch")
             except Exception as slack_error:
@@ -1381,6 +1387,8 @@ async def _execute_broadcast_post_async(table, token, broadcast_type="roulette.r
                 environment=table["name"],
                 table_name=table.get("game_code", "Unknown"),
                 error_code="BROADCAST_POST_EXCEPTION",
+                mention_user="Kevin Kuo",  # Mention Kevin Kuo for non-auto-recoverable errors
+                channel="#ge-studio",  # Send to ge-studio channel
             )
             print(f"Slack exception notification sent for {table['name']}")
         except Exception as slack_error:
@@ -1421,9 +1429,13 @@ def main():
     else:
         log_console("Manual hot reload disabled", "MAIN >>>")
 
-    # Initialize Roulette MQTT system
-    log_mqtt("Starting Roulette MQTT system initialization...")
-    asyncio.run(initialize_roulette_mqtt_system())
+    # Initialize Roulette MQTT system (only if IDP is enabled)
+    if ENABLE_IDP:
+        log_mqtt("Starting Roulette MQTT system initialization...")
+        asyncio.run(initialize_roulette_mqtt_system())
+    else:
+        log_mqtt("IDP functionality is DISABLED - skipping Roulette MQTT system initialization")
+        log_console("IDP functionality is DISABLED", "MAIN >>>")
     
     # Start StudioAPI WebSocket connection to listen for "down" signals
     studio_api_ws_thread = threading.Thread(target=start_studio_api_websocket)
@@ -1451,6 +1463,7 @@ def main():
         "betStop_sent": betStop_sent,
         "finish_post_sent": finish_post_sent,
         "current_mode": current_mode,  # Include mode in global_vars for access in read_from_serial
+        "enable_idp": ENABLE_IDP,  # Include IDP enable flag for access in read_from_serial
     }
 
     # Create a wrapper function for read_from_serial with all required parameters
@@ -1547,12 +1560,13 @@ def main():
         if MANUAL_HOT_RELOAD_AVAILABLE:
             stop_manual_hot_reload()
             
-        # Cleanup Roulette MQTT system
-        try:
-            print(f"[{get_timestamp()}] Cleaning up Roulette MQTT system...")
-            asyncio.run(cleanup_roulette_mqtt_system())
-        except Exception as e:
-            print(f"[{get_timestamp()}] Error cleaning up Roulette MQTT system: {e}")
+        # Cleanup Roulette MQTT system (only if IDP is enabled)
+        if ENABLE_IDP:
+            try:
+                print(f"[{get_timestamp()}] Cleaning up Roulette MQTT system...")
+                asyncio.run(cleanup_roulette_mqtt_system())
+            except Exception as e:
+                print(f"[{get_timestamp()}] Error cleaning up Roulette MQTT system: {e}")
         
         # Ensure connections are closed even if not terminated gracefully
         if ser is not None:
