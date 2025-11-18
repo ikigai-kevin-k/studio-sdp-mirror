@@ -56,7 +56,7 @@ class MockStudioAPIServer:
         self.host = host
         self.port = port
         self.server_path = server_path
-        self.clients: Dict[str, WebSocketServerProtocol] = {}
+        self.clients: Dict = {}  # Store WebSocket connections
         self.client_info: Dict[str, Dict] = {}  # Store client metadata
         self.running = False
 
@@ -159,7 +159,7 @@ class MockStudioAPIServer:
                 )
 
     async def _handle_client_message(
-        self, websocket: WebSocketServerProtocol, client_id: str, message: str
+        self, websocket, client_id: str, message: str
     ):
         """
         Handle incoming message from client.
