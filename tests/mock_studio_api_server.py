@@ -72,17 +72,35 @@ class MockStudioAPIServer:
         return params
 
     async def handle_connection(
-        self, websocket, path: str
+        self, websocket
     ):
         """
         Handle new WebSocket connection.
 
         Args:
             websocket: WebSocket connection object
-            path: Connection path with query parameters
         """
         client_id = None
         try:
+            # Get path from websocket object (new websockets API)
+            # In websockets 12.0+, handler only receives connection object
+            # Path is available as connection.path attribute
+            try:
+                # New API (websockets 12.0+): path is an attribute
+                path = websocket.path
+            except AttributeError:
+                # Fallback for older versions or if path attribute doesn't exist
+                # Try to get from request object
+                if hasattr(websocket, "request"):
+                    path = websocket.request.path
+                elif hasattr(websocket, "request_headers"):
+                    # Try to get from headers (less reliable)
+                    path = websocket.request_headers.get(":path", "/v1/ws")
+                else:
+                    # Last resort: use default path
+                    path = "/v1/ws"
+                    logger.warning("⚠️  Could not get path from websocket, using default")
+            
             # Parse query parameters from path
             query_params = self._parse_query_params(path)
 
