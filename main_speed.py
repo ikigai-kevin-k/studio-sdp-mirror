@@ -255,6 +255,8 @@ ws_connected = False
 # Add Slack notification variables
 sensor_error_sent = False  # Flag to ensure sensor error is only sent once
 relaunch_failed_sent = False  # Flag to ensure relaunch failed error is only sent once
+wrong_ball_dir_error_sent = False  # Flag to ensure wrong ball direction error is only sent once
+launch_fail_error_sent = False  # Flag to ensure launch fail error is only sent once
 
 # Add program termination flag
 terminate_program = False  # Flag to terminate program when *X;6 sensor error is detected
@@ -630,6 +632,126 @@ def send_sensor_error_to_slack():
         )
         log_to_file(
             f"Error sending sensor error notification: {e}", "Slack >>>"
+        )
+        return False
+
+
+# Function to send wrong ball direction error notification to Slack
+def send_wrong_ball_dir_error_to_slack():
+    """Send wrong ball direction error notification to Slack for Speed Roulette table"""
+    global wrong_ball_dir_error_sent, current_mode
+    
+    # Skip error handling in idle mode
+    with mode_lock:
+        if current_mode == "idle":
+            return False
+
+    if wrong_ball_dir_error_sent:
+        print(
+            f"[{get_timestamp()}] Wrong ball direction error already sent to Slack, skipping..."
+        )
+        return False
+
+    try:
+        # Import the specialized roulette sensor error function
+        from slack.slack_notifier import send_roulette_sensor_error_to_slack
+
+        # Send wrong ball direction error notification with specialized format
+        # This error can be auto-recovered, so send to ge-studio with Kevin Kuo
+        success = send_roulette_sensor_error_to_slack(
+            action_message="None (can be auto-recovered)",
+            table_name="ARO-001-1 (speed - main)",
+            error_code="ROUELTTE_WRONG_BALL_DIR",  # Note: Using ErrorMsgId enum value (has typo in enum)
+            mention_user="Kevin Kuo",  # Mention Kevin Kuo for auto-recoverable errors
+            channel="#ge-studio",  # Send auto-recoverable errors to ge-studio channel
+        )
+
+        if success:
+            wrong_ball_dir_error_sent = True
+            print(
+                f"[{get_timestamp()}] Wrong ball direction error notification sent to Slack successfully (with mention)"
+            )
+            log_to_file(
+                "Wrong ball direction error notification sent to Slack successfully (with mention)",
+                "Slack >>>",
+            )
+            return True
+        else:
+            print(
+                f"[{get_timestamp()}] Failed to send wrong ball direction error notification to Slack"
+            )
+            log_to_file(
+                "Failed to send wrong ball direction error notification to Slack",
+                "Slack >>>",
+            )
+            return False
+
+    except Exception as e:
+        print(
+            f"[{get_timestamp()}] Error sending wrong ball direction error notification: {e}"
+        )
+        log_to_file(
+            f"Error sending wrong ball direction error notification: {e}", "Slack >>>"
+        )
+        return False
+
+
+# Function to send launch fail error notification to Slack
+def send_launch_fail_error_to_slack():
+    """Send launch fail error notification to Slack for Speed Roulette table"""
+    global launch_fail_error_sent, current_mode
+    
+    # Skip error handling in idle mode
+    with mode_lock:
+        if current_mode == "idle":
+            return False
+
+    if launch_fail_error_sent:
+        print(
+            f"[{get_timestamp()}] Launch fail error already sent to Slack, skipping..."
+        )
+        return False
+
+    try:
+        # Import the specialized roulette sensor error function
+        from slack.slack_notifier import send_roulette_sensor_error_to_slack
+
+        # Send launch fail error notification with specialized format
+        # This error can be auto-recovered, so send to ge-studio with Kevin Kuo
+        success = send_roulette_sensor_error_to_slack(
+            action_message="None (can be auto-recovered)",
+            table_name="ARO-001-1 (speed - main)",
+            error_code="ROULETTE_LAUNCH_FAIL",
+            mention_user="Kevin Kuo",  # Mention Kevin Kuo for auto-recoverable errors
+            channel="#ge-studio",  # Send auto-recoverable errors to ge-studio channel
+        )
+
+        if success:
+            launch_fail_error_sent = True
+            print(
+                f"[{get_timestamp()}] Launch fail error notification sent to Slack successfully (with mention)"
+            )
+            log_to_file(
+                "Launch fail error notification sent to Slack successfully (with mention)",
+                "Slack >>>",
+            )
+            return True
+        else:
+            print(
+                f"[{get_timestamp()}] Failed to send launch fail error notification to Slack"
+            )
+            log_to_file(
+                "Failed to send launch fail error notification to Slack",
+                "Slack >>>",
+            )
+            return False
+
+    except Exception as e:
+        print(
+            f"[{get_timestamp()}] Error sending launch fail error notification: {e}"
+        )
+        log_to_file(
+            f"Error sending launch fail error notification: {e}", "Slack >>>"
         )
         return False
 
@@ -1484,6 +1606,8 @@ def main():
             log_time_intervals=log_time_intervals,
             send_websocket_error_signal=send_websocket_error_signal,  # Pass WebSocket error signal callback (sensor stuck)
             send_websocket_wrong_ball_dir_error_signal=send_websocket_wrong_ball_dir_error_signal,  # Pass WebSocket wrong ball direction error signal callback
+            send_wrong_ball_dir_error_to_slack=send_wrong_ball_dir_error_to_slack,  # Pass wrong ball direction Slack notification callback
+            send_launch_fail_error_to_slack=send_launch_fail_error_to_slack,  # Pass launch fail Slack notification callback
         )
 
     # Create and start read thread

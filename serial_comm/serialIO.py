@@ -174,6 +174,8 @@ def read_from_serial(
     log_time_intervals,
     send_websocket_error_signal=None,  # Optional callback for WebSocket error signal (sensor stuck)
     send_websocket_wrong_ball_dir_error_signal=None,  # Optional callback for WebSocket wrong ball direction error signal
+    send_wrong_ball_dir_error_to_slack=None,  # Optional callback for wrong ball direction Slack notification
+    send_launch_fail_error_to_slack=None,  # Optional callback for launch fail Slack notification
 ):
     """
     Read and process serial data with non-blocking approach
@@ -471,14 +473,19 @@ def read_from_serial(
                                     # Use callback functions if provided, otherwise try to import
                                     # Choose error signal based on warning_flag
                                     try:
-                                        # Send sensor error notification to Slack (already passed as callback)
-                                        send_sensor_error_to_slack()
-
-                                        # Send WebSocket error signal based on warning_flag
-                                        # warning_flag == 2: Wrong ball direction error
-                                        # warning_flag == 4: Sensor stuck error
-                                        # Other: Use sensor stuck error (default)
+                                        # Send appropriate Slack notification based on warning_flag
+                                        # warning_flag == 2: Wrong ball direction error (auto-recoverable)
+                                        # warning_flag == 4: Sensor stuck error (non-recoverable)
+                                        # warning_flag == 8: Launch fail error (auto-recoverable)
+                                        # Other: Use sensor stuck error (default, non-recoverable)
                                         if warning_flag == "2":
+                                            # Send wrong ball direction error notification to Slack
+                                            if send_wrong_ball_dir_error_to_slack is not None:
+                                                send_wrong_ball_dir_error_to_slack()
+                                            else:
+                                                # Fallback to sensor error if wrong ball dir not available
+                                                send_sensor_error_to_slack()
+                                            
                                             # Send wrong ball direction error signal
                                             if send_websocket_wrong_ball_dir_error_signal is not None:
                                                 send_websocket_wrong_ball_dir_error_signal()
@@ -498,7 +505,34 @@ def read_from_serial(
                                                 )
                                                 from main_speed import send_websocket_error_signal as fallback_send_ws_error
                                                 fallback_send_ws_error()
+                                        elif warning_flag == "8":
+                                            # Send launch fail error notification to Slack
+                                            if send_launch_fail_error_to_slack is not None:
+                                                send_launch_fail_error_to_slack()
+                                            else:
+                                                # Fallback to sensor error if launch fail not available
+                                                send_sensor_error_to_slack()
+                                            
+                                            # Send sensor stuck error signal (launch fail uses same WebSocket signal)
+                                            if send_websocket_error_signal is not None:
+                                                send_websocket_error_signal()
+                                            else:
+                                                # Fallback: try to import from main_speed (for backward compatibility)
+                                                import sys
+                                                import os
+                                                sys.path.append(
+                                                    os.path.dirname(
+                                                        os.path.dirname(
+                                                            os.path.abspath(__file__)
+                                                        )
+                                                    )
+                                                )
+                                                from main_speed import send_websocket_error_signal as fallback_send_ws_error
+                                                fallback_send_ws_error()
                                         else:
+                                            # Send sensor stuck error notification to Slack (default for warning_flag 4 and others)
+                                            send_sensor_error_to_slack()
+                                            
                                             # Send sensor stuck error signal (default for warning_flag 4 and others)
                                             if send_websocket_error_signal is not None:
                                                 send_websocket_error_signal()
@@ -805,115 +839,124 @@ def read_from_serial(
 
                     # Handle *X;4 - Schedule delayed second Roulette detect (ONCE per round)
                     elif "*X;4" in data:
-                        # Check if we already started roulette detection for this round
-                        current_round_id = None
-                        if tables and len(tables) > 0 and "round_id" in tables[0]:
-                            current_round_id = tables[0]["round_id"]
+                        # Check if IDP is enabled
+                        enable_idp = global_vars.get('enable_idp', True)
                         
-                        # Use deal_post_sent as detection_sent flag (reset on new round)
-                        detection_key = f"roulette_detection_{current_round_id}"
-                        
-                        # Thread-safe check for detection scheduling
-                        with _detection_scheduling_lock:
-                            detection_status = global_vars.get('roulette_detection_sent', None)
-                            
-                            print(f"[{get_timestamp()}] Checking detection status for round {current_round_id}: current_status={detection_status}")
-                            log_mqtt(f"Checking detection status for round {current_round_id}: current_status={detection_status}")
-                            
-                            if detection_status != current_round_id:
-                                # Mark detection as scheduled immediately to prevent duplicates
-                                global_vars['roulette_detection_sent'] = current_round_id
-                                should_schedule = True
-                                print(f"[{get_timestamp()}] SCHEDULING detection for round {current_round_id}")
-                                log_mqtt(f"SCHEDULING detection for round {current_round_id}")
-                            else:
-                                should_schedule = False
-                                print(f"[{get_timestamp()}] SKIPPING duplicate detection for round {current_round_id}")
-                                log_mqtt(f"⚠️ SKIPPING duplicate detection for round {current_round_id} (already scheduled)")
-                        
-                        if should_schedule:
-                            try:
-                                # Import the roulette detect function from independent module
-                                from roulette_mqtt_detect import call_roulette_detect_async
-                                
-                                log_mqtt(f"Detected *X;4 - Scheduling SINGLE Roulette detect for round {current_round_id} after 15 seconds...")
-                                log_to_file(f"Detected *X;4 - Scheduling SINGLE Roulette detect for round {current_round_id} after 15 seconds...", "MQTT >>>")
-                                
-                                # Call detect with 15-second delay in a separate thread
-                                def call_delayed_second_detect():
-                                    try:
-                                        # Wait 15 seconds before calling detect (increased from 10s)
-                                        print(f"[{get_timestamp()}] Waiting 15 seconds before second Roulette detect...")
-                                        log_mqtt("Waiting 15 seconds before second Roulette detect...")
-                                        log_to_file("Waiting 15 seconds before second Roulette detect...", "MQTT >>>")
-                                        
-                                        # Check every second if *X;5 has started (deal post phase)
-                                        for i in range(15):
-                                            time.sleep(1)
-                                            # If *X;5 has started, cancel the detect command
-                                            if global_vars.get('x5_started', False):
-                                                print(f"[{get_timestamp()}] *X;5 detected - Cancelling delayed Roulette detect")
-                                                log_mqtt("🛑 *X;5 detected - Cancelling delayed Roulette detect (round ended)")
-                                                log_to_file("*X;5 detected - Cancelling delayed Roulette detect", "MQTT >>>")
-                                                return
-                                        
-                                        # Double check before executing detect
-                                        if global_vars.get('x5_started', False):
-                                            print(f"[{get_timestamp()}] *X;5 already started - Skipping delayed Roulette detect")
-                                            log_mqtt("🛑 *X;5 already started - Skipping delayed Roulette detect")
-                                            log_to_file("*X;5 already started - Skipping delayed Roulette detect", "MQTT >>>")
-                                            return
-                                        
-                                        print(f"[{get_timestamp()}] Starting SINGLE second Roulette detect...")
-                                        log_mqtt("Starting SINGLE second Roulette detect...")
-                                        log_to_file("Starting SINGLE second Roulette detect...", "MQTT >>>")
-                                        
-                                        success, result = call_roulette_detect_async(
-                                            round_id=current_round_id,
-                                            input_stream="rtmp://192.168.88.50:1935/live/r10_sr"
-                                        )
-                                        if success:
-                                            # Check different types of results
-                                            if (result is not None and result != "" and result != [] and result != [''] and 
-                                                not isinstance(result, dict) and str(result) != "null"):
-                                                # Valid result received (not empty, not dict, not null)
-                                                print(f"[{get_timestamp()}] Second Roulette detect completed: {result}")
-                                                log_mqtt(f"🎯 Second Roulette detect SUCCESS: {result}")
-                                                log_to_file(f"Second Roulette detect completed: {result}", "MQTT >>>")
-                                            elif result == [''] or result == []:
-                                                # IDP returned empty result (ball still moving or detection issues)
-                                                print(f"[{get_timestamp()}] Second Roulette detect completed but IDP returned empty result")
-                                                log_mqtt("⚠️ Second Roulette detect: IDP returned empty result (ball may still be moving)")
-                                                log_to_file("Second Roulette detect completed but IDP returned empty result", "MQTT >>>")
-                                            elif result is None or result == "null":
-                                                # IDP returned null (detection error or timing issue)
-                                                print(f"[{get_timestamp()}] Second Roulette detect completed but IDP returned null result")
-                                                log_mqtt("⚠️ Second Roulette detect: IDP returned null result (timing or detection issue)")
-                                                log_to_file("Second Roulette detect completed but IDP returned null result", "MQTT >>>")
-                                            else:
-                                                # Unknown result format
-                                                print(f"[{get_timestamp()}] Second Roulette detect completed with unknown result format: {result}")
-                                                log_mqtt(f"⚠️ Second Roulette detect: Unknown result format: {result}")
-                                                log_to_file(f"Second Roulette detect completed with unknown result format: {result}", "MQTT >>>")
-                                        else:
-                                            print(f"[{get_timestamp()}] Second Roulette detect failed")
-                                            log_mqtt("❌ Second Roulette detect FAILED")
-                                            log_to_file("Second Roulette detect failed", "MQTT >>>")
-                                    except Exception as e:
-                                        print(f"[{get_timestamp()}] Error in delayed second Roulette detect: {e}")
-                                        log_mqtt(f"Error in delayed second Roulette detect: {e}")
-                                        log_to_file(f"Error in delayed second Roulette detect: {e}", "MQTT >>>")
-                                
-                                # Start delayed detect call in separate thread
-                                threading.Thread(target=call_delayed_second_detect, daemon=True).start()
-                                
-                            except Exception as e:
-                                print(f"[{get_timestamp()}] Error scheduling delayed Roulette detect after *X;4: {e}")
-                                log_to_file(f"Error scheduling delayed Roulette detect after *X;4: {e}", "MQTT >>>")
+                        if not enable_idp:
+                            # IDP is disabled - skip detection
+                            print(f"[{get_timestamp()}] IDP functionality is DISABLED - skipping Roulette detect")
+                            log_mqtt("IDP functionality is DISABLED - skipping Roulette detect")
+                            log_to_file("IDP functionality is DISABLED - skipping Roulette detect", "MQTT >>>")
                         else:
-                            # Detection already scheduled for this round - skip duplicate
-                            # Note: This message is already logged in the lock section above
-                            pass
+                            # Check if we already started roulette detection for this round
+                            current_round_id = None
+                            if tables and len(tables) > 0 and "round_id" in tables[0]:
+                                current_round_id = tables[0]["round_id"]
+                            
+                            # Use deal_post_sent as detection_sent flag (reset on new round)
+                            detection_key = f"roulette_detection_{current_round_id}"
+                            
+                            # Thread-safe check for detection scheduling
+                            with _detection_scheduling_lock:
+                                detection_status = global_vars.get('roulette_detection_sent', None)
+                                
+                                print(f"[{get_timestamp()}] Checking detection status for round {current_round_id}: current_status={detection_status}")
+                                log_mqtt(f"Checking detection status for round {current_round_id}: current_status={detection_status}")
+                                
+                                if detection_status != current_round_id:
+                                    # Mark detection as scheduled immediately to prevent duplicates
+                                    global_vars['roulette_detection_sent'] = current_round_id
+                                    should_schedule = True
+                                    print(f"[{get_timestamp()}] SCHEDULING detection for round {current_round_id}")
+                                    log_mqtt(f"SCHEDULING detection for round {current_round_id}")
+                                else:
+                                    should_schedule = False
+                                    print(f"[{get_timestamp()}] SKIPPING duplicate detection for round {current_round_id}")
+                                    log_mqtt(f"⚠️ SKIPPING duplicate detection for round {current_round_id} (already scheduled)")
+                            
+                            if should_schedule:
+                                try:
+                                    # Import the roulette detect function from independent module
+                                    from roulette_mqtt_detect import call_roulette_detect_async
+                                    
+                                    log_mqtt(f"Detected *X;4 - Scheduling SINGLE Roulette detect for round {current_round_id} after 15 seconds...")
+                                    log_to_file(f"Detected *X;4 - Scheduling SINGLE Roulette detect for round {current_round_id} after 15 seconds...", "MQTT >>>")
+                                    
+                                    # Call detect with 15-second delay in a separate thread
+                                    def call_delayed_second_detect():
+                                        try:
+                                            # Wait 15 seconds before calling detect (increased from 10s)
+                                            print(f"[{get_timestamp()}] Waiting 15 seconds before second Roulette detect...")
+                                            log_mqtt("Waiting 15 seconds before second Roulette detect...")
+                                            log_to_file("Waiting 15 seconds before second Roulette detect...", "MQTT >>>")
+                                            
+                                            # Check every second if *X;5 has started (deal post phase)
+                                            for i in range(15):
+                                                time.sleep(1)
+                                                # If *X;5 has started, cancel the detect command
+                                                if global_vars.get('x5_started', False):
+                                                    print(f"[{get_timestamp()}] *X;5 detected - Cancelling delayed Roulette detect")
+                                                    log_mqtt("🛑 *X;5 detected - Cancelling delayed Roulette detect (round ended)")
+                                                    log_to_file("*X;5 detected - Cancelling delayed Roulette detect", "MQTT >>>")
+                                                    return
+                                            
+                                            # Double check before executing detect
+                                            if global_vars.get('x5_started', False):
+                                                print(f"[{get_timestamp()}] *X;5 already started - Skipping delayed Roulette detect")
+                                                log_mqtt("🛑 *X;5 already started - Skipping delayed Roulette detect")
+                                                log_to_file("*X;5 already started - Skipping delayed Roulette detect", "MQTT >>>")
+                                                return
+                                            
+                                            print(f"[{get_timestamp()}] Starting SINGLE second Roulette detect...")
+                                            log_mqtt("Starting SINGLE second Roulette detect...")
+                                            log_to_file("Starting SINGLE second Roulette detect...", "MQTT >>>")
+                                            
+                                            success, result = call_roulette_detect_async(
+                                                round_id=current_round_id,
+                                                input_stream="rtmp://192.168.88.50:1935/live/r10_sr"
+                                            )
+                                            if success:
+                                                # Check different types of results
+                                                if (result is not None and result != "" and result != [] and result != [''] and 
+                                                    not isinstance(result, dict) and str(result) != "null"):
+                                                    # Valid result received (not empty, not dict, not null)
+                                                    print(f"[{get_timestamp()}] Second Roulette detect completed: {result}")
+                                                    log_mqtt(f"🎯 Second Roulette detect SUCCESS: {result}")
+                                                    log_to_file(f"Second Roulette detect completed: {result}", "MQTT >>>")
+                                                elif result == [''] or result == []:
+                                                    # IDP returned empty result (ball still moving or detection issues)
+                                                    print(f"[{get_timestamp()}] Second Roulette detect completed but IDP returned empty result")
+                                                    log_mqtt("⚠️ Second Roulette detect: IDP returned empty result (ball may still be moving)")
+                                                    log_to_file("Second Roulette detect completed but IDP returned empty result", "MQTT >>>")
+                                                elif result is None or result == "null":
+                                                    # IDP returned null (detection error or timing issue)
+                                                    print(f"[{get_timestamp()}] Second Roulette detect completed but IDP returned null result")
+                                                    log_mqtt("⚠️ Second Roulette detect: IDP returned null result (timing or detection issue)")
+                                                    log_to_file("Second Roulette detect completed but IDP returned null result", "MQTT >>>")
+                                                else:
+                                                    # Unknown result format
+                                                    print(f"[{get_timestamp()}] Second Roulette detect completed with unknown result format: {result}")
+                                                    log_mqtt(f"⚠️ Second Roulette detect: Unknown result format: {result}")
+                                                    log_to_file(f"Second Roulette detect completed with unknown result format: {result}", "MQTT >>>")
+                                            else:
+                                                print(f"[{get_timestamp()}] Second Roulette detect failed")
+                                                log_mqtt("❌ Second Roulette detect FAILED")
+                                                log_to_file("Second Roulette detect failed", "MQTT >>>")
+                                        except Exception as e:
+                                            print(f"[{get_timestamp()}] Error in delayed second Roulette detect: {e}")
+                                            log_mqtt(f"Error in delayed second Roulette detect: {e}")
+                                            log_to_file(f"Error in delayed second Roulette detect: {e}", "MQTT >>>")
+                                    
+                                    # Start delayed detect call in separate thread
+                                    threading.Thread(target=call_delayed_second_detect, daemon=True).start()
+                                    
+                                except Exception as e:
+                                    print(f"[{get_timestamp()}] Error scheduling delayed Roulette detect after *X;4: {e}")
+                                    log_to_file(f"Error scheduling delayed Roulette detect after *X;4: {e}", "MQTT >>>")
+                            else:
+                                # Detection already scheduled for this round - skip duplicate
+                                # Note: This message is already logged in the lock section above
+                                pass
 
                     # Handle *X;5 count
                     elif "*X;5" in data and not global_vars["deal_post_sent"]:
