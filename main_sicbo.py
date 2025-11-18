@@ -344,7 +344,7 @@ async def start_round_for_table(table, token):
                             environment="PRD",
                             table_name="SBO-001-1",
                             error_code="START_POST_FAILED",
-                            mention_user="Kevin Kuo",
+                            mention_user="Aleksei Petkevich",
                             channel="#alert-studio",
                             action_message="None (auto-recoverable)",
                         )
@@ -367,7 +367,7 @@ async def start_round_for_table(table, token):
                         environment="PRD",
                         table_name="SBO-001-1",
                         error_code="START_POST_FAILED",
-                        mention_user="Kevin Kuo",
+                        mention_user="Aleksei Petkevich",
                         channel="#alert-studio",
                         action_message="None (auto-recoverable)",
                     )
@@ -393,7 +393,7 @@ async def start_round_for_table(table, token):
                             environment="STG",
                             table_name="SBO-001-1",
                             error_code="START_POST_FAILED",
-                            mention_user="Kevin Kuo",
+                            mention_user="Aleksei Petkevich",
                             channel="#alert-studio",
                             action_message="None (auto-recoverable)",
                         )
@@ -414,7 +414,7 @@ async def start_round_for_table(table, token):
                         environment="STG",
                         table_name="SBO-001-1",
                         error_code="START_POST_FAILED",
-                        mention_user="Kevin Kuo",
+                        mention_user="Aleksei Petkevich",
                         channel="#alert-studio",
                         action_message="None (auto-recoverable)",
                     )
@@ -1308,7 +1308,7 @@ class SDPGame:
                                                 environment=table_name,
                                                 table_name="SBO-001",
                                                 error_code="JSON_PARSE_ERROR",
-                                                mention_user="Kevin Kuo",
+                                                mention_user="Aleksei Petkevich",
                                                 channel="#alert-studio",
                                             )
                                             self.logger.info(
@@ -1382,7 +1382,7 @@ class SDPGame:
                                                 environment=table_name,
                                                 table_name=table_name,
                                                 error_code="JSON_PARSE_ERROR",
-                                                mention_user="Kevin Kuo",
+                                                mention_user="Aleksei Petkevich",
                                                 channel="#alert-studio",
                                             )
                                             self.logger.info(
