@@ -14,15 +14,19 @@ from studio_api.ws_err_sig import ErrorMsgId
 
 # CIT SBO-001 - SicBo Game API Module for CIT Environment
 # Remove hardcoded accessToken and create a function to get fresh token
-def get_access_token():
-    """Get a fresh access token from the API for CIT environment"""
+def get_access_token(game_code="SBO-001"):
+    """Get a fresh access token from the API for CIT environment
+    
+    Args:
+        game_code (str): The game code to use (default: SBO-001)
+    """
     url = "https://crystal-table.iki-cit.cc/v2/service/sessions"
     headers = {
         "accept": "application/json",
         "x-signature": "los-local-signature",
         "Content-Type": "application/json",
     }
-    data = {"gameCode": "SBO-001", "role": "sdp"}
+    data = {"gameCode": game_code, "role": "sdp"}
 
     try:
         response = requests.post(url, headers=headers, json=data, verify=False)

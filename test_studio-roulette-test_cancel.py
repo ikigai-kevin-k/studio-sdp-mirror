@@ -1,7 +1,7 @@
 """
-Test script for canceling STUDIO-ROULETTE-TEST table in CIT environment
+Test script for canceling Studio-Roulette-Test table in CIT environment
 
-This script sends a cancel_post request to the STUDIO-ROULETTE-TEST table
+This script sends a cancel_post request to the Studio-Roulette-Test table
 in the CIT environment.
 """
 
@@ -15,18 +15,18 @@ from api_v2_cit_sb import cancel_post, get_access_token
 
 
 def main():
-    """Main function to test cancel_post for STUDIO-ROULETTE-TEST table"""
+    """Main function to test cancel_post for Studio-Roulette-Test table"""
     
     # CIT environment configuration
     base_url = "https://crystal-table.iki-cit.cc/v2/service/tables/"
-    game_code = "STUDIO-ROULETTE-TEST"
+    game_code = "Studio-Roulette-Test"
     post_url = base_url + game_code
     
     # Get access token
     print("=" * 60)
     print("Getting access token for CIT environment...")
     print("=" * 60)
-    token = get_access_token()
+    token = get_access_token(game_code)
     
     if not token:
         print("ERROR: Failed to get access token. Exiting.")
