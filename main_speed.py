@@ -640,7 +640,7 @@ def send_sensor_error_to_slack():
             action_message="relaunch the wheel controller with *P 1",
             table_name=f"{DETECTED_DEVICE_ID} (speed - {DETECTED_DEVICE_ALIAS})",
             error_code="SENSOR_STUCK",
-            mention_user="Mark Bochkov",  # Mention Mark Bochkov for sensor errors
+            mention_user="Kevin Kuo",  # Mention Kevin Kuo for sensor errors
             channel="#alert-ge-studio",  # Send sensor errors to alert-ge-studio channel
         )
 
