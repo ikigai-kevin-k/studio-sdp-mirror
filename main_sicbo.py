@@ -39,6 +39,7 @@ from table_api.sb.api_v2_sb import (
     get_roundID_v2,
     broadcast_post_v2,
     bet_stop_post,
+    cancel_post as cancel_post_v2,
 )
 from table_api.sb.api_v2_uat_sb import (
     start_post_v2_uat,
@@ -49,6 +50,7 @@ from table_api.sb.api_v2_uat_sb import (
     broadcast_post_v2_uat,
     bet_stop_post_uat,
     get_sdp_config_v2_uat,
+    cancel_post_v2_uat,
 )
 from table_api.sb.api_v2_prd_sb import (
     start_post_v2_prd,
@@ -58,6 +60,7 @@ from table_api.sb.api_v2_prd_sb import (
     get_roundID_v2_prd,
     broadcast_post_v2_prd,
     bet_stop_post_prd,
+    cancel_post_v2_prd,
 )
 from table_api.sb.api_v2_stg_sb import (
     start_post_v2_stg,
@@ -67,6 +70,7 @@ from table_api.sb.api_v2_stg_sb import (
     get_roundID_v2_stg,
     broadcast_post_v2_stg,
     bet_stop_post_stg,
+    cancel_post_v2_stg,
 )
 from table_api.sb.api_v2_qat_sb import (
     start_post_v2_qat,
@@ -76,6 +80,7 @@ from table_api.sb.api_v2_qat_sb import (
     get_roundID_v2_qat,
     broadcast_post_v2_qat,
     bet_stop_post_qat,
+    cancel_post_v2_qat,
 )
 from table_api.sb.api_v2_glc_sb import (
     start_post_v2_glc,
@@ -85,6 +90,7 @@ from table_api.sb.api_v2_glc_sb import (
     get_roundID_v2_glc,
     broadcast_post_v2_glc,
     bet_stop_post_glc,
+    cancel_post_v2_glc,
 )
 from networkChecker import networkChecker
 from datetime import datetime
@@ -97,6 +103,7 @@ from state_machine import (
     handle_broadcast_result,
     GameState,
 )
+from state_machine.table_api_state_machine import api_status_to_game_state
 
 # Global error notification state tracker to prevent duplicate Slack messages
 # Key: environment_name, Value: last_error_time
@@ -896,6 +903,17 @@ class SDPGame:
             f"Loaded {len(self.table_configs)} table configurations"
         )
         
+        # Initialize state machines for all tables
+        self.state_machines = {}
+        for table in self.table_configs:
+            table_name = table.get("name", "unknown")
+            self.state_machines[table_name] = create_state_machine_for_table(
+                table_name
+            )
+            self.logger.info(
+                f"Initialized state machine for table: {table_name}"
+            )
+        
         # Set table_configs and token for IDP controller to enable broadcast_post
         self.idp_controller.table_configs = self.table_configs
         self.idp_controller.token = self.token
@@ -1083,7 +1101,8 @@ class SDPGame:
                 # check previous round status
                 self.logger.info("Checking previous round status...")
                 try:
-                    # check status for all tables
+                    # check status for all tables and finish incomplete rounds
+                    tables_to_finish = []
                     for table in self.table_configs:
                         get_url = f"{table['get_url']}{table['game_code']}"
                         if table["name"] == "CIT":
@@ -1137,6 +1156,461 @@ class SDPGame:
                         self.logger.info(
                             f"Table {table['name']} - round_id: {round_id}, status: {status}, bet_period: {bet_period}"
                         )
+                        
+                        # If previous round is not finished or cancelled, handle it
+                        if status and status.lower() not in ["finished", "cancelled"]:
+                            normalized_status = status.lower().strip()
+                            # Store status in table dict for later use
+                            table["_last_status"] = status
+                            table["_last_round_id"] = round_id
+                            table["_last_bet_period"] = bet_period
+                            if normalized_status == "opened":
+                                # For "opened" status, we need to bet_stop first, then finish
+                                # Cannot cancel during betting period
+                                self.logger.info(
+                                    f"Previous round for {table['name']} is opened "
+                                    f"(status: {status}), will bet_stop then finish it..."
+                                )
+                                table["_action"] = "bet_stop_then_finish"
+                            else:
+                                # For other statuses (bet-stopped, deal), finish the round
+                                self.logger.info(
+                                    f"Previous round for {table['name']} is not finished "
+                                    f"(status: {status}), finishing it now..."
+                                )
+                                table["_action"] = "finish"
+                            tables_to_finish.append(table)
+                    
+                    # Handle incomplete rounds before starting new ones
+                    if tables_to_finish:
+                        bet_stop_then_finish_tables = [t for t in tables_to_finish if t.get("_action") == "bet_stop_then_finish"]
+                        cancel_tables = [t for t in tables_to_finish if t.get("_action") == "cancel"]
+                        finish_tables = [t for t in tables_to_finish if t.get("_action") == "finish"]
+                        
+                        # Handle opened rounds: deal first, then bet_stop, then finish
+                        if bet_stop_then_finish_tables:
+                            self.logger.info(
+                                f"Handling {len(bet_stop_then_finish_tables)} opened rounds (deal -> bet_stop -> finish)..."
+                            )
+                            for table in bet_stop_then_finish_tables:
+                                state_machine = self.state_machines.get(table["name"])
+                                round_id = table.get("_last_round_id")
+                                api_status = table.get("_last_status")
+                                
+                                # For opened status, we need to send deal first (with default result)
+                                # because opened means the round has started but not yet dealt
+                                # Use default dice result [1, 1, 1] if we don't have actual result
+                                default_dice_result = [1, 1, 1]
+                                self.logger.info(
+                                    f"Opened round for {table['name']} needs deal first. "
+                                    f"Using default result: {default_dice_result} (round {round_id})"
+                                )
+                                
+                                # First, sync state machine to API state (opened -> START)
+                                if state_machine and api_status:
+                                    try:
+                                        # Sync state machine to match API state
+                                        api_state = api_status_to_game_state(api_status)
+                                        if api_state == GameState.START:
+                                            # Transition to DEAL state before sending deal API
+                                            try:
+                                                state_machine.transition_to(
+                                                    GameState.DEAL,
+                                                    reason="Opened round needs to send deal first"
+                                                )
+                                                self.logger.info(
+                                                    f"Transitioned {table['name']} from START to DEAL for opened round"
+                                                )
+                                            except Exception as e:
+                                                self.logger.warning(
+                                                    f"Failed to transition {table['name']} to DEAL: {e}, "
+                                                    f"trying to sync from API state..."
+                                                )
+                                                # Try to sync from API state
+                                                state_machine.sync_from_api_state(
+                                                    api_status,
+                                                    "Syncing state machine to API opened status"
+                                                )
+                                                # Then try to transition to DEAL again
+                                                try:
+                                                    state_machine.transition_to(
+                                                        GameState.DEAL,
+                                                        reason="Opened round needs to send deal first"
+                                                    )
+                                                except Exception as e2:
+                                                    self.logger.warning(
+                                                        f"Failed to transition {table['name']} to DEAL after sync: {e2}"
+                                                    )
+                                    except Exception as e:
+                                        self.logger.warning(
+                                            f"Failed to prepare {table['name']} state machine: {e}"
+                                        )
+                                
+                                # Step 1: Send deal with default result
+                                try:
+                                    self.logger.info(
+                                        f"Sending deal for {table['name']} (round {round_id}) with result {default_dice_result}..."
+                                    )
+                                    deal_result = await deal_round_for_table(
+                                        table, self.token, round_id, default_dice_result, state_machine
+                                    )
+                                    if deal_result and deal_result[1]:
+                                        self.logger.info(
+                                            f"Successfully sent deal for {table['name']}"
+                                        )
+                                        # Wait a bit for deal to take effect
+                                        await asyncio.sleep(1)
+                                    else:
+                                        self.logger.warning(
+                                            f"Deal may have failed for {table['name']}, continuing anyway..."
+                                        )
+                                except Exception as e:
+                                    self.logger.warning(
+                                        f"Error sending deal for {table['name']}: {e}, continuing to bet_stop..."
+                                    )
+                                
+                                # Step 2: Call bet_stop
+                                self.logger.info(
+                                    f"Calling bet_stop for {table['name']} (round {round_id})..."
+                                )
+                                try:
+                                    # Transition to BET_STOPPED state before calling bet_stop API
+                                    if state_machine and state_machine.current_state == GameState.DEAL:
+                                        try:
+                                            state_machine.transition_to(
+                                                GameState.BET_STOPPED,
+                                                reason="Deal completed, now bet_stop"
+                                            )
+                                        except Exception as e:
+                                            self.logger.warning(
+                                                f"Failed to transition {table['name']} to BET_STOPPED: {e}"
+                                            )
+                                    
+                                    bet_stop_result = await betStop_round_for_table(
+                                        table, self.token, state_machine
+                                    )
+                                    if bet_stop_result and bet_stop_result[1]:
+                                        self.logger.info(
+                                            f"Successfully stopped betting for {table['name']}"
+                                        )
+                                        # Wait a bit for bet_stop to take effect
+                                        await asyncio.sleep(1)
+                                    else:
+                                        self.logger.warning(
+                                            f"Bet stop may have failed for {table['name']}, continuing anyway..."
+                                        )
+                                except Exception as e:
+                                    self.logger.warning(
+                                        f"Error calling bet_stop for {table['name']}: {e}, continuing to finish..."
+                                    )
+                                
+                                # Step 3: Prepare state machine and call finish
+                                if state_machine:
+                                    try:
+                                        # Ensure we're in BET_STOPPED state before finish
+                                        if state_machine.current_state != GameState.BET_STOPPED:
+                                            try:
+                                                state_machine.transition_to(
+                                                    GameState.BET_STOPPED,
+                                                    reason="Bet stopped before finish"
+                                                )
+                                            except Exception as e:
+                                                self.logger.warning(
+                                                    f"Failed to transition {table['name']} to BET_STOPPED: {e}"
+                                                )
+                                    except Exception as e:
+                                        self.logger.warning(
+                                            f"Failed to prepare {table['name']} state for finish: {e}"
+                                        )
+                                
+                                # Call finish
+                                try:
+                                    finish_result = await finish_round_for_table(
+                                        table, self.token, state_machine
+                                    )
+                                    if finish_result and finish_result[1]:
+                                        self.logger.info(
+                                            f"Successfully finished opened round for {table['name']}"
+                                        )
+                                    else:
+                                        self.logger.warning(
+                                            f"Failed to finish opened round for {table['name']}"
+                                        )
+                                except Exception as e:
+                                    self.logger.error(
+                                        f"Error finishing opened round for {table['name']}: {e}"
+                                    )
+                        
+                        # Cancel opened rounds (legacy, should not be used for opened status)
+                        if cancel_tables:
+                            self.logger.info(
+                                f"Cancelling {len(cancel_tables)} opened rounds..."
+                            )
+                            cancel_tasks = []
+                            for table in cancel_tables:
+                                state_machine = self.state_machines.get(table["name"])
+                                # For cancel, we can transition to CANCEL state
+                                # According to state machine rules: BROADCAST -> PAUSE -> CANCEL
+                                # Or CANCEL -> START (which allows starting new round)
+                                if state_machine:
+                                    try:
+                                        current_state = state_machine.current_state
+                                        if current_state != GameState.CANCEL:
+                                            # If current state is FINISHED, transition to START first
+                                            if current_state == GameState.FINISHED:
+                                                try:
+                                                    state_machine.transition_to(
+                                                        GameState.START,
+                                                        reason="Resetting for cancel"
+                                                    )
+                                                    current_state = GameState.START
+                                                except Exception as e:
+                                                    self.logger.warning(
+                                                        f"Failed to reset {table['name']} from FINISHED to START: {e}"
+                                                    )
+                                            
+                                            # Transition through BROADCAST -> PAUSE -> CANCEL if needed
+                                            if current_state not in [GameState.BROADCAST, GameState.PAUSE, GameState.CANCEL]:
+                                                try:
+                                                    state_machine.transition_to(
+                                                        GameState.BROADCAST,
+                                                        reason="Preparing to cancel opened round"
+                                                    )
+                                                    current_state = GameState.BROADCAST
+                                                except Exception as e:
+                                                    self.logger.warning(
+                                                        f"Failed to transition {table['name']} to BROADCAST: {e}"
+                                                    )
+                                            
+                                            # Transition to PAUSE if in BROADCAST
+                                            if current_state == GameState.BROADCAST:
+                                                try:
+                                                    state_machine.transition_to(
+                                                        GameState.PAUSE,
+                                                        reason="Preparing to cancel opened round"
+                                                    )
+                                                    current_state = GameState.PAUSE
+                                                except Exception as e:
+                                                    self.logger.warning(
+                                                        f"Failed to transition {table['name']} to PAUSE: {e}"
+                                                    )
+                                            
+                                            # Finally transition to CANCEL
+                                            if current_state == GameState.PAUSE:
+                                                try:
+                                                    state_machine.transition_to(
+                                                        GameState.CANCEL,
+                                                        reason="Cancelling opened round"
+                                                    )
+                                                    self.logger.info(
+                                                        f"Transitioned {table['name']} state to CANCEL"
+                                                    )
+                                                except Exception as e:
+                                                    self.logger.warning(
+                                                        f"Failed to transition {table['name']} to CANCEL: {e}"
+                                                    )
+                                    except Exception as e:
+                                        self.logger.warning(
+                                            f"Failed to prepare {table['name']} state for cancel: {e}"
+                                        )
+                                
+                                # Create cancel task
+                                post_url = f"{table['post_url']}{table['game_code']}"
+                                if table["name"] == "CIT":
+                                    task = retry_with_network_check(cancel_post_v2, post_url, self.token)
+                                elif table["name"] == "UAT":
+                                    task = retry_with_network_check(cancel_post_v2_uat, post_url, self.token)
+                                elif table["name"] == "PRD":
+                                    task = retry_with_network_check(cancel_post_v2_prd, post_url, self.token)
+                                elif table["name"] == "STG":
+                                    task = retry_with_network_check(cancel_post_v2_stg, post_url, self.token)
+                                elif table["name"] == "QAT":
+                                    task = retry_with_network_check(cancel_post_v2_qat, post_url, self.token)
+                                elif table["name"] == "GLC":
+                                    task = retry_with_network_check(cancel_post_v2_glc, post_url, self.token)
+                                else:
+                                    task = None
+                                
+                                if task:
+                                    cancel_tasks.append((table, task))
+                            
+                            # Execute cancel tasks concurrently
+                            if cancel_tasks:
+                                cancel_results = await asyncio.gather(
+                                    *[task for _, task in cancel_tasks], return_exceptions=True
+                                )
+                                
+                                # Log cancel results
+                                for i, (table, _) in enumerate(cancel_tasks):
+                                    if isinstance(cancel_results[i], Exception):
+                                        self.logger.error(
+                                            f"Error cancelling opened round for {table['name']}: {cancel_results[i]}"
+                                        )
+                                    else:
+                                        self.logger.info(
+                                            f"Successfully cancelled opened round for {table['name']}"
+                                        )
+                        
+                        # Finish incomplete rounds (bet-stopped, deal)
+                        if finish_tables:
+                            self.logger.info(
+                                f"Finishing {len(finish_tables)} incomplete rounds..."
+                            )
+                            finish_tasks = []
+                            for table in finish_tables:
+                                state_machine = self.state_machines.get(table["name"])
+                                round_id = table.get("_last_round_id")
+                                api_status = table.get("_last_status")
+                                
+                                # Check if we need to send deal first for bet-stopped status
+                                if api_status and api_status.lower() == "bet-stopped":
+                                    # If state machine is in START or DEAL state, we need to send deal first
+                                    if state_machine and state_machine.current_state in [GameState.START, GameState.DEAL]:
+                                        self.logger.info(
+                                            f"Table {table['name']} is bet-stopped but state machine is {state_machine.current_state}, "
+                                            f"need to send deal first (round {round_id})"
+                                        )
+                                        # Use default dice result since we don't have actual result
+                                        default_dice_result = [1, 1, 1]
+                                        
+                                        # Transition to DEAL state if in START
+                                        if state_machine.current_state == GameState.START:
+                                            try:
+                                                state_machine.transition_to(
+                                                    GameState.DEAL,
+                                                    reason="Need to send deal for bet-stopped round"
+                                                )
+                                            except Exception as e:
+                                                self.logger.warning(
+                                                    f"Failed to transition {table['name']} to DEAL: {e}"
+                                                )
+                                        
+                                        # Send deal with default result
+                                        # If already in DEAL state, skip state validation and call API directly
+                                        try:
+                                            self.logger.info(
+                                                f"Sending deal for {table['name']} (round {round_id}) with default result {default_dice_result}..."
+                                            )
+                                            
+                                            # If state machine is already in DEAL, we need to call deal API directly
+                                            # without state validation to avoid deal -> deal transition error
+                                            if state_machine and state_machine.current_state == GameState.DEAL:
+                                                # Call deal API directly without state validation
+                                                post_url = f"{table['post_url']}{table['game_code']}"
+                                                if table["name"] == "CIT":
+                                                    await retry_with_network_check(
+                                                        deal_post_v2, post_url, self.token, round_id, default_dice_result
+                                                    )
+                                                elif table["name"] == "UAT":
+                                                    await retry_with_network_check(
+                                                        deal_post_v2_uat, post_url, self.token, round_id, default_dice_result
+                                                    )
+                                                elif table["name"] == "PRD":
+                                                    await retry_with_network_check(
+                                                        deal_post_v2_prd, post_url, self.token, round_id, default_dice_result,
+                                                        max_retries=5, error_type="NO_DEAL", table_name="PRD"
+                                                    )
+                                                elif table["name"] == "STG":
+                                                    await retry_with_network_check(
+                                                        deal_post_v2_stg, post_url, self.token, round_id, default_dice_result
+                                                    )
+                                                elif table["name"] == "QAT":
+                                                    await retry_with_network_check(
+                                                        deal_post_v2_qat, post_url, self.token, round_id, default_dice_result
+                                                    )
+                                                elif table["name"] == "GLC":
+                                                    await retry_with_network_check(
+                                                        deal_post_v2_glc, post_url, self.token, round_id, default_dice_result
+                                                    )
+                                                self.logger.info(f"Successfully sent deal for {table['name']} (direct API call)")
+                                            else:
+                                                # Use normal deal_round_for_table which includes state validation
+                                                deal_result = await deal_round_for_table(
+                                                    table, self.token, round_id, default_dice_result, state_machine
+                                                )
+                                                if deal_result and deal_result[1]:
+                                                    self.logger.info(
+                                                        f"Successfully sent deal for {table['name']}"
+                                                    )
+                                                else:
+                                                    self.logger.warning(
+                                                        f"Deal may have failed for {table['name']}, continuing anyway..."
+                                                    )
+                                            
+                                            # Wait a bit for deal to take effect
+                                            await asyncio.sleep(1)
+                                        except Exception as e:
+                                            self.logger.warning(
+                                                f"Error sending deal for {table['name']}: {e}, continuing to finish..."
+                                            )
+                                        
+                                        # Transition to BET_STOPPED after deal
+                                        if state_machine and state_machine.current_state == GameState.DEAL:
+                                            try:
+                                                state_machine.transition_to(
+                                                    GameState.BET_STOPPED,
+                                                    reason="Deal sent, now bet-stopped"
+                                                )
+                                            except Exception as e:
+                                                self.logger.warning(
+                                                    f"Failed to transition {table['name']} to BET_STOPPED: {e}"
+                                                )
+                                
+                                if state_machine:
+                                    # Use the status we already retrieved
+                                    if api_status:
+                                        api_state = api_status_to_game_state(api_status)
+                                        # Handle different API states to prepare for finish
+                                        if api_state == GameState.DEAL:
+                                            # Transition from DEAL to BET_STOPPED
+                                            try:
+                                                state_machine.transition_to(
+                                                    GameState.BET_STOPPED,
+                                                    reason="Finishing incomplete round"
+                                                )
+                                                self.logger.info(
+                                                    f"Transitioned {table['name']} state from DEAL to BET_STOPPED"
+                                                )
+                                            except Exception as e:
+                                                self.logger.warning(
+                                                    f"Failed to transition {table['name']} to BET_STOPPED: {e}"
+                                                )
+                                        elif api_state == GameState.BET_STOPPED:
+                                            # State machine should already be in BET_STOPPED or can transition to it
+                                            if state_machine.current_state != GameState.BET_STOPPED:
+                                                try:
+                                                    # Try to sync state
+                                                    state_machine.sync_from_api_state(api_status, "Syncing before finish")
+                                                except Exception as e:
+                                                    self.logger.warning(
+                                                        f"Failed to sync {table['name']} state: {e}"
+                                                    )
+                                task = finish_round_for_table(table, self.token, state_machine)
+                                finish_tasks.append(task)
+                            
+                            # Execute finish tasks concurrently
+                            finish_results = await asyncio.gather(
+                                *finish_tasks, return_exceptions=True
+                            )
+                            
+                            # Log finish results
+                            for i, result in enumerate(finish_results):
+                                if isinstance(result, Exception):
+                                    self.logger.error(
+                                        f"Error finishing incomplete round for {finish_tables[i]['name']}: {result}"
+                                    )
+                                elif result and result[1]:
+                                    self.logger.info(
+                                        f"Successfully finished incomplete round for {finish_tables[i]['name']}"
+                                    )
+                                else:
+                                    self.logger.warning(
+                                        f"Failed to finish incomplete round for {finish_tables[i]['name']}"
+                                    )
+                        
+                        # Wait a bit after handling rounds before starting new ones
+                        await asyncio.sleep(1)
+                        
                 except Exception as e:
                     self.logger.error(f"Error checking previous round: {e}")
                     await asyncio.sleep(5)
@@ -1264,8 +1738,7 @@ class SDPGame:
                     )
 
                 # Detect command
-                # max_retries = 3
-                max_retries = 10000
+                max_retries = 3  # Limit retries to prevent infinite loops
                 retry_count = 0
 
                 while retry_count < max_retries:
@@ -1276,10 +1749,10 @@ class SDPGame:
                     # Log timing information
                     self.logger.info("====================")
                     self.logger.info("[DEBUG] detect command, time:")
+                    timestamp_ms = int(time.time() * 1000)
+                    timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
                     self.logger.info(
-                        str(int(time.time() * 1000)),
-                        "HH:MM:SS.msmsms",
-                        str(datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")),
+                        f"{timestamp_ms} HH:MM:SS.msmsms {timestamp_str}"
                     )
                     self.logger.info("====================")
 
@@ -1317,12 +1790,10 @@ class SDPGame:
                         await asyncio.sleep(2.5)
                         self.logger.info("====================")
                         self.logger.info("[DEBUG] send dice result, time:")
+                        timestamp_ms = int(time.time() * 1000)
+                        timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
                         self.logger.info(
-                            str(int(time.time() * 1000)),
-                            "HH:MM:SS.msmsms",
-                            str(
-                                datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-                            ),
+                            f"{timestamp_ms} HH:MM:SS.msmsms {timestamp_str}"
                         )
                         self.logger.info("====================")
                         # Deal round for all tables using thread pool for parallel execution
@@ -1450,6 +1921,22 @@ class SDPGame:
                         finish_tasks = []
                         for table, round_id, _ in round_ids:
                             state_machine = self.state_machines.get(table["name"])
+                            # If state machine is in DEAL state, transition to BET_STOPPED first
+                            # This is needed because the normal flow is: deal -> bet-stopped -> finished
+                            if state_machine and state_machine.current_state == GameState.DEAL:
+                                try:
+                                    # Transition to BET_STOPPED state (bet_stop API may have already been called)
+                                    state_machine.transition_to(
+                                        GameState.BET_STOPPED,
+                                        reason="Bet stop completed before finish"
+                                    )
+                                    self.logger.info(
+                                        f"Transitioned {table['name']} state from DEAL to BET_STOPPED before finish"
+                                    )
+                                except Exception as e:
+                                    self.logger.warning(
+                                        f"Failed to transition {table['name']} to BET_STOPPED: {e}"
+                                    )
                             task = finish_round_for_table(table, self.token, state_machine)
                             finish_tasks.append(task)
 
@@ -1537,9 +2024,39 @@ class SDPGame:
                         break  # if get valid result, break the loop
 
                     else:
-                        self.logger.info(
-                            "Invalid result received, retrying shake and detect..."
+                        retry_count += 1
+                        self.logger.warning(
+                            f"Invalid result received (attempt {retry_count}/{max_retries}), "
+                            f"retrying shake and detect..."
                         )
+                        
+                        # If max retries reached, break the loop
+                        if retry_count >= max_retries:
+                            self.logger.error(
+                                f"Max retries ({max_retries}) reached. "
+                                f"Unable to get valid IDP result. Stopping game loop."
+                            )
+                            # Send error notification
+                            try:
+                                send_error_to_slack(
+                                    error_message=(
+                                        f"🚨 *SDP Error Alert*\n"
+                                        f"*Error:* Max IDP retries reached\n"
+                                        f"*Details:* Unable to get valid dice result after {max_retries} attempts\n"
+                                        f"*Time:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                                        f"*Table:* SBO-001"
+                                    ),
+                                    environment="ALL",
+                                    table_name="SBO-001",
+                                    error_code="MAX_IDP_RETRIES",
+                                    mention_user="Kevin Kuo",
+                                    channel="#alert-tw-studio",
+                                    action_message="Manual intervention required",
+                                )
+                            except Exception as e:
+                                self.logger.error(f"Failed to send Slack notification: {e}")
+                            break
+                        
                         # re-shake
                         for table in self.table_configs:
                             post_url = (
@@ -1602,7 +2119,7 @@ class SDPGame:
                         # Reset error signal flag for reshake cycle
                         self.idp_controller.reset_error_signal_flag()
                         await self.shaker_controller.shake(first_round_id)
-                        retry_count += 1
+                        # Note: retry_count is already incremented above, no need to increment again
                         if retry_count >= max_retries:
                             # self.logger.error("Max retries reached, cancelling round")
                             self.logger.info(
