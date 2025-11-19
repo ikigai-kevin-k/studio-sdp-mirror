@@ -90,6 +90,14 @@ from networkChecker import networkChecker
 from datetime import datetime
 from slack import send_error_to_slack
 
+# Import state machine module
+from state_machine import (
+    create_state_machine_for_table,
+    validate_and_transition,
+    handle_broadcast_result,
+    GameState,
+)
+
 # Global error notification state tracker to prevent duplicate Slack messages
 # Key: environment_name, Value: last_error_time
 error_notification_state = {}
@@ -297,8 +305,28 @@ def load_table_config(config_file="conf/table-config-sicbo-v2.json"):
         return []
 
 
-async def start_round_for_table(table, token):
+async def start_round_for_table(table, token, state_machine=None):
     """Start round for a single table - helper function for thread pool execution"""
+    # Validate state before API call
+    if state_machine:
+        success, error = validate_and_transition(
+            state_machine,
+            "start_post",
+            reason="Starting new round"
+        )
+        if not success:
+            logger.error(
+                f"State validation failed for start_post on {table['name']}: {error}"
+            )
+            # Transition to broadcast on validation failure
+            validate_and_transition(
+                state_machine,
+                "broadcast_post",
+                reason=f"Start post validation failed: {error}",
+                auto_resolved=False
+            )
+            return None, None
+    
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
 
@@ -440,15 +468,51 @@ async def start_round_for_table(table, token):
         if round_id != -1:
             return table, round_id, bet_period
         else:
+            # API call failed, transition to broadcast
+            if state_machine:
+                validate_and_transition(
+                    state_machine,
+                    "broadcast_post",
+                    reason="Start post returned -1",
+                    auto_resolved=False
+                )
             return None, None
 
     except Exception as e:
         logger.error(f"Error starting round for table {table['name']}: {e}")
+        # Transition to broadcast on error
+        if state_machine:
+            validate_and_transition(
+                state_machine,
+                "broadcast_post",
+                reason=f"Start post exception: {e}",
+                auto_resolved=False
+            )
         return None, None
 
 
-async def deal_round_for_table(table, token, round_id, dice_result):
+async def deal_round_for_table(table, token, round_id, dice_result, state_machine=None):
     """Deal round for a single table - helper function for thread pool execution"""
+    # Validate state before API call
+    if state_machine:
+        success, error = validate_and_transition(
+            state_machine,
+            "deal_post",
+            reason="Posting deal result"
+        )
+        if not success:
+            logger.error(
+                f"State validation failed for deal_post on {table['name']}: {error}"
+            )
+            # Transition to broadcast on validation failure
+            validate_and_transition(
+                state_machine,
+                "broadcast_post",
+                reason=f"Deal post validation failed: {error}",
+                auto_resolved=False
+            )
+            return table["name"], False
+    
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
 
@@ -530,8 +594,28 @@ async def deal_round_for_table(table, token, round_id, dice_result):
         return table["name"], False
 
 
-async def finish_round_for_table(table, token):
+async def finish_round_for_table(table, token, state_machine=None):
     """Finish round for a single table - helper function for thread pool execution"""
+    # Validate state before API call
+    if state_machine:
+        success, error = validate_and_transition(
+            state_machine,
+            "finish_post",
+            reason="Finishing round"
+        )
+        if not success:
+            logger.error(
+                f"State validation failed for finish_post on {table['name']}: {error}"
+            )
+            # Transition to broadcast on validation failure
+            validate_and_transition(
+                state_machine,
+                "broadcast_post",
+                reason=f"Finish post validation failed: {error}",
+                auto_resolved=False
+            )
+            return table["name"], False
+    
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
 
@@ -594,12 +678,35 @@ async def finish_round_for_table(table, token):
                 f"-H 'Connection: close'"
             )
             logger.error(f"Expected CURL command: {curl_command}")
+        
+        # Transition to broadcast on error
+        if state_machine:
+            validate_and_transition(
+                state_machine,
+                "broadcast_post",
+                reason=f"Deal post exception: {e}",
+                auto_resolved=False
+            )
 
         return table["name"], False
 
 
-async def betStop_round_for_table(table, token):
+async def betStop_round_for_table(table, token, state_machine=None):
     """Stop betting for a single table - helper function for thread pool execution"""
+    # Validate state before API call
+    if state_machine:
+        success, error = validate_and_transition(
+            state_machine,
+            "bet_stop_post",
+            reason="Betting stopped"
+        )
+        if not success:
+            logger.error(
+                f"State validation failed for bet_stop_post on {table['name']}: {error}"
+            )
+            # Don't transition to broadcast for bet_stop failures, just log
+            return table["name"], False
+    
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
 
@@ -933,7 +1040,8 @@ class SDPGame:
             self.logger.info(
                 f"Calling bet stop for {table['name']} (round {round_id})"
             )
-            result = await betStop_round_for_table(table, self.token)
+            state_machine = self.state_machines.get(table["name"])
+            result = await betStop_round_for_table(table, self.token, state_machine)
 
             if result[1]:  # Check if successful
                 self.logger.info(
@@ -1063,7 +1171,8 @@ class SDPGame:
                 # Create tasks for all tables
                 tasks = []
                 for table in self.table_configs:
-                    task = start_round_for_table(table, self.token)
+                    state_machine = self.state_machines.get(table["name"])
+                    task = start_round_for_table(table, self.token, state_machine)
                     tasks.append(task)
 
                 # Execute all tasks concurrently
@@ -1224,8 +1333,9 @@ class SDPGame:
                         # Create tasks for all tables
                         deal_tasks = []
                         for table, round_id, _ in round_ids:
+                            state_machine = self.state_machines.get(table["name"])
                             task = deal_round_for_table(
-                                table, self.token, round_id, dice_result
+                                table, self.token, round_id, dice_result, state_machine
                             )
                             deal_tasks.append(task)
 
@@ -1339,7 +1449,8 @@ class SDPGame:
                         # Create tasks for all tables
                         finish_tasks = []
                         for table, round_id, _ in round_ids:
-                            task = finish_round_for_table(table, self.token)
+                            state_machine = self.state_machines.get(table["name"])
+                            task = finish_round_for_table(table, self.token, state_machine)
                             finish_tasks.append(task)
 
                         # Execute all finish tasks concurrently
