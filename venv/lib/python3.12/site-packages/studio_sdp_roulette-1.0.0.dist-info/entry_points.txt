@@ -1,0 +1,5 @@
+[console_scripts]
+roulette-baccarat = main_baccarat:main
+roulette-scibo = main_scibo:main
+roulette-speed = main_speed:main
+roulette-vip = main_vip:main
