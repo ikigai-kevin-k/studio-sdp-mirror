@@ -1,10 +1,10 @@
-# Studio SDP Roulette System
+# Studio SDP System
 
-Welcome to the comprehensive documentation for the **Studio SDP Roulette System** - a sophisticated gaming platform that manages multiple casino games through different communication protocols and hardware integrations.
+Welcome to the comprehensive documentation for the **Studio SDP System** - a sophisticated gaming platform that manages multiple casino games through different communication protocols and hardware integrations.
 
 ## Overview
 
-The Studio SDP Roulette System is a multi-game type casino control system that provides real-time control and management for:
+The Studio SDP System is a multi-game type casino control system that provides real-time control and management for:
 
 - **Roulette (Speed & VIP)**: RS232-controlled roulette wheels with LOS integration
 - **SicBo**: MQTT-controlled dice shakers with IDP (Image Detection Processor) integration
@@ -130,10 +130,6 @@ For questions, issues, or contributions:
 - **GitHub Issues**: [Report Issues](https://github.com/studio-sdp/studio-sdp-roulette/issues)
 - **Documentation**: Browse the guides and API reference
 - **Email**: kevin.k@ikigai.team
-
-## License
-
-This project is licensed under the MIT License.
 
 ---
 
