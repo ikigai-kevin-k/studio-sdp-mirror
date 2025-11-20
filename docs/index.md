@@ -1,12 +1,12 @@
-# Studio SDP System
+# Studio SDP Roulette System
 
-Welcome to the comprehensive documentation for the **Studio SDP System** - a sophisticated gaming platform that manages multiple casino games through different communication protocols and hardware integrations.
+Welcome to the comprehensive documentation for the **Studio SDP Roulette System** - a sophisticated gaming platform that manages multiple casino games through different communication protocols and hardware integrations.
 
 ## Overview
 
-The Studio SDP System is a multi-game type casino control system that provides real-time control and management for:
+The Studio SDP Roulette System is a multi-game type casino control system that provides real-time control and management for:
 
-- **Roulette (Speed & VIP)**: RS232-controlled roulette wheels with Live Backend Service integration
+- **Roulette (Speed & VIP)**: RS232-controlled roulette wheels with LOS integration
 - **SicBo**: MQTT-controlled dice shakers with IDP (Image Detection Processor) integration
 - **Baccarat**: HID barcode scanner integration for card detection and game management
 
@@ -15,7 +15,7 @@ The Studio SDP System is a multi-game type casino control system that provides r
 - **Multi-Game Support**: Unified system for managing different casino games
 - **Real-time Communication**: WebSocket and MQTT protocols for instant updates
 - **Hardware Integration**: Support for RS232, MQTT, HID, and camera-based detection
-- **Live Backend Service integration**: Seamless integration with Live Backend Service
+- **LOS Integration**: Seamless integration with Live Operations System
 - **State Machine Architecture**: Robust state management with error handling
 - **Docker Support**: Containerized deployment options
 - **Comprehensive Logging**: Detailed logging and monitoring capabilities
@@ -77,19 +77,19 @@ The system follows a hierarchical state machine pattern with the following main 
 
 ### Game Controllers
 
-#### Roulette Controller (RS232 + Live Backend Service integration)
+#### Roulette Controller (RS232 + LOS Integration)
 - Manages roulette wheel via RS232 communication
 - Controls game rounds and result detection
 - Handles wheel speed and positioning
-- Integrates with Live Backend Service API for round management
+- Integrates with LOS API for round management
 
-#### SicBo Controller (MQTT + IDP + Live Backend Service integration)
+#### SicBo Controller (MQTT + IDP + LOS Integration)
 - Controls dice shaker via MQTT protocol
 - Uses IDP for dice detection and validation
 - Manages shake patterns and result processing
-- Real-time integration with Live Backend Service system
+- Real-time integration with LOS system
 
-#### Baccarat controller (HID + Live Backend Service integration, WIP)
+#### Baccarat Controller (HID + LOS Integration)
 - Uses HID barcode scanner for card detection
 - Manages game rounds and player turns
 - Handles card validation and game rules
@@ -107,8 +107,8 @@ The system follows a hierarchical state machine pattern with the following main 
 - Device status monitoring and control
 - Failover and redundancy support
 
-### WebSocket (Live Backend Service integration)
-- Real-time communication with Live Backend Service
+### WebSocket (LOS Integration)
+- Real-time communication with Live Operations System
 - Status updates and game state synchronization
 - Authentication and session management
 
@@ -129,11 +129,14 @@ For questions, issues, or contributions:
 
 - **GitHub Issues**: [Report Issues](https://github.com/studio-sdp/studio-sdp-roulette/issues)
 - **Documentation**: Browse the guides and API reference
-- **Email**: kevin.k@ikigai.team
+- **Email**: team@studio-sdp.com
+
+## License
+
+This project is licensed under the MIT License.
 
 ---
 
-**Last Updated**: 2025-11-20  
+**Last Updated**: 2025-01-13  
 **Version**: 1.0.0
 
-# Trigger deployment

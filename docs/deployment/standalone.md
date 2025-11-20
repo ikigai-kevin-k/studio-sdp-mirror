@@ -136,7 +136,7 @@ source ~/sdp-env/bin/activate
 ./sdp-sicbo.pyz --enable-logging --log-dir ./logs
 
 # 指定配置 URL 和 Token
-./sdp-sicbo.pyz --get-url https://live-backend-service-api-uat.sdp.com.tw/api/v2/sdp/config --token YOUR_TOKEN
+./sdp-sicbo.pyz --get-url https://los-api-uat.sdp.com.tw/api/v2/sdp/config --token YOUR_TOKEN
 
 # 重新啟動前執行初始化
 ./sdp-sicbo.pyz -r
@@ -153,7 +153,7 @@ source ~/sdp-env/bin/activate
   --game-type sicbo \
   --enable-logging \
   --log-dir /var/log/sdp \
-  --get-url https://live-backend-service-api-prd.sdp.com.tw/api/v2/sdp/config \
+  --get-url https://los-api-prd.sdp.com.tw/api/v2/sdp/config \
   --token YOUR_PRODUCTION_TOKEN \
   -r
 ```
@@ -345,7 +345,7 @@ exclude = ["tests*", "setup*", "proto*", "self_test*"]
 
 如有問題，請聯繫：
 - 開發團隊：Studio SDP Team
-- Email: kevin.k@ikigai.team
+- Email: team@studio-sdp.com
 
 ---
 

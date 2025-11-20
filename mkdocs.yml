@@ -1,5 +1,5 @@
-site_name: Studio SDP System Documentation
-site_description: Comprehensive documentation for the Studio SDP System gaming system
+site_name: Studio SDP Roulette System Documentation
+site_description: Comprehensive documentation for the Studio SDP Roulette gaming system
 site_author: Studio SDP Team
 site_url: https://studio-sdp.github.io/studio-sdp-roulette
 
@@ -43,6 +43,7 @@ markdown_extensions:
         - name: mermaid
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
+          validator: !!python/name:pymdownx.superfences.fence_code_validator
   - admonition
   - pymdownx.details
   - pymdownx.tabbed:
@@ -72,7 +73,6 @@ nav:
     - api-reference/mqtt-api.md
     - api-reference/serial-api.md
     - api-reference/websocket-api.md
-    - api-reference/studio-api.md
     - api-reference/table-api.md
   - Deployment:
     - deployment/overview.md

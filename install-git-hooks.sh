@@ -1,12 +1,12 @@
 #!/bin/bash
 #
-# Install Git Hooks for Studio SDP System
+# Install Git Hooks for Studio SDP Roulette
 # This script sets up pre-commit and pre-push hooks for code quality
 #
 
 set -e
 
-echo "🚀 Installing Git Hooks for Studio SDP System..."
+echo "🚀 Installing Git Hooks for Studio SDP Roulette..."
 
 # Colors for output
 RED='\033[0;31m'

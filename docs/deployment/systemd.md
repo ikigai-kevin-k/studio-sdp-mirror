@@ -1,6 +1,6 @@
 # Systemd Service Deployment
 
-This guide explains how to deploy the Studio SDP System as systemd services.
+This guide explains how to deploy the Studio SDP Roulette System as systemd services.
 
 ## Overview
 
@@ -166,7 +166,7 @@ sudo journalctl -u sdp-sicbo -f
 sudo journalctl -u sdp-sicbo -b
 
 # View logs for specific time range
-sudo journalctl -u sdp-sicbo --since "2025-11-20 10:00:00" --until "2025-11-20 11:00:00"
+sudo journalctl -u sdp-sicbo --since "2025-01-13 10:00:00" --until "2025-01-13 11:00:00"
 ```
 
 ### Log Rotation

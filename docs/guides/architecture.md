@@ -1,10 +1,10 @@
 # System Architecture
 
-This document describes the architecture of the Studio SDP System.
+This document describes the architecture of the Studio SDP Roulette System.
 
 ## Overview
 
-The Studio SDP System follows a hierarchical state machine pattern with modular components for different game types.
+The Studio SDP Roulette System follows a hierarchical state machine pattern with modular components for different game types.
 
 ## System Components
 
@@ -40,7 +40,7 @@ ERROR → STOPPING → STOPPED
 
 - RS232 serial communication
 - Wheel speed and position monitoring
-- Live Backend Service API integration
+- LOS API integration
 
 ### SicBo Controller
 
@@ -68,7 +68,7 @@ ERROR → STOPPING → STOPPED
 - Failover support
 - Device status monitoring
 
-### WebSocket (Live Backend Service integration)
+### WebSocket (LOS Integration)
 
 - Real-time communication
 - Status updates

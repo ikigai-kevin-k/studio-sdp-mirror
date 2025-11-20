@@ -1,6 +1,6 @@
 # Configuration Guide
 
-This guide explains how to configure the Studio SDP System for different environments and use cases.
+This guide explains how to configure the Studio SDP Roulette System for different environments and use cases.
 
 ## Configuration Files
 
@@ -23,9 +23,9 @@ MQTT_PORT=1883
 MQTT_USERNAME=PFC
 MQTT_PASSWORD=wago
 
-# Live Backend Service API Configuration
-LIVE_BACKEND_SERVICE_API_URL=https://live-backend-service-api-uat.sdp.com.tw/api/v2/sdp/config
-LIVE_BACKEND_SERVICE_API_TOKEN=YOUR_TOKEN
+# LOS API Configuration
+LOS_API_URL=https://los-api-uat.sdp.com.tw/api/v2/sdp/config
+LOS_API_TOKEN=YOUR_TOKEN
 
 # WebSocket Configuration
 WS_SERVER_URL=ws://your-server:port
@@ -180,14 +180,14 @@ Configure WebSocket connection in `conf/ws.json`:
 ```
 logs/
 ├── sicbo/
-│   ├── sicbo_2025-11-20.log
-│   └── sicbo_errors_2025-11-20.log
+│   ├── sicbo_2025-01-13.log
+│   └── sicbo_errors_2025-01-13.log
 ├── speed/
-│   ├── speed_2025-11-20.log
-│   └── speed_errors_2025-11-20.log
+│   ├── speed_2025-01-13.log
+│   └── speed_errors_2025-01-13.log
 └── vip/
-    ├── vip_2025-11-20.log
-    └── vip_errors_2025-11-20.log
+    ├── vip_2025-01-13.log
+    └── vip_errors_2025-01-13.log
 ```
 
 ## Environment-Specific Configuration
@@ -196,7 +196,7 @@ logs/
 
 ```bash
 # .env.development
-LIVE_BACKEND_SERVICE_API_URL=https://live-backend-service-api-dev.sdp.com.tw/api/v2/sdp/config
+LOS_API_URL=https://los-api-dev.sdp.com.tw/api/v2/sdp/config
 LOG_LEVEL=DEBUG
 ```
 
@@ -204,7 +204,7 @@ LOG_LEVEL=DEBUG
 
 ```bash
 # .env.staging
-LIVE_BACKEND_SERVICE_API_URL=https://live-backend-service-api-uat.sdp.com.tw/api/v2/sdp/config
+LOS_API_URL=https://los-api-uat.sdp.com.tw/api/v2/sdp/config
 LOG_LEVEL=INFO
 ```
 
@@ -212,7 +212,7 @@ LOG_LEVEL=INFO
 
 ```bash
 # .env.production
-LIVE_BACKEND_SERVICE_API_URL=https://live-backend-service-api-prd.sdp.com.tw/api/v2/sdp/config
+LOS_API_URL=https://los-api-prd.sdp.com.tw/api/v2/sdp/config
 LOG_LEVEL=WARNING
 ```
 
@@ -246,8 +246,8 @@ You can override configuration via command-line arguments:
 # Override MQTT broker
 sdp-sicbo --broker 192.168.88.54 --port 1883
 
-# Override Live Backend Service API URL
-sdp-sicbo --get-url https://live-backend-service-api-prd.sdp.com.tw/api/v2/sdp/config --token YOUR_TOKEN
+# Override LOS API URL
+sdp-sicbo --get-url https://los-api-prd.sdp.com.tw/api/v2/sdp/config --token YOUR_TOKEN
 
 # Override log directory
 sdp-sicbo --log-dir /var/log/sdp

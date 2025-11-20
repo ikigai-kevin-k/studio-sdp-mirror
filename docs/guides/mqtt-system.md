@@ -1,6 +1,6 @@
 # MQTT System Guide
 
-This guide explains the unified MQTT system used in the Studio SDP System.
+This guide explains the unified MQTT system used in the Studio SDP Roulette System.
 
 ## Overview
 

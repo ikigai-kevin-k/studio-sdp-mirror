@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-This guide will help you get started with the Studio SDP System quickly.
+This guide will help you get started with the Studio SDP Roulette System quickly.
 
 ## Running Your First Game
 
@@ -61,7 +61,7 @@ sdp-sicbo \
   --game-type sicbo \
   --enable-logging \
   --log-dir ./logs \
-  --get-url https://live-backend-service-api-uat.sdp.com.tw/api/v2/sdp/config \
+  --get-url https://los-api-uat.sdp.com.tw/api/v2/sdp/config \
   --token YOUR_TOKEN \
   -r
 ```
@@ -86,13 +86,13 @@ For SicBo games, configure MQTT broker:
 sdp-sicbo --broker 192.168.88.54 --port 1883
 ```
 
-### Live Backend Service API Configuration
+### LOS API Configuration
 
-Configure Live Backend Service API endpoint and token:
+Configure LOS API endpoint and token:
 
 ```bash
 sdp-sicbo \
-  --get-url https://live-backend-service-api-uat.sdp.com.tw/api/v2/sdp/config \
+  --get-url https://los-api-uat.sdp.com.tw/api/v2/sdp/config \
   --token YOUR_TOKEN
 ```
 
@@ -235,5 +235,5 @@ For additional help:
 
 - **Documentation**: Browse the full documentation
 - **GitHub Issues**: [Report Issues](https://github.com/studio-sdp/studio-sdp-roulette/issues)
-- **Email**: kevin.k@ikigai.team
+- **Email**: team@studio-sdp.com
 

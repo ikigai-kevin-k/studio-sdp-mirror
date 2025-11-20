@@ -19,14 +19,14 @@ The system provides comprehensive logging for debugging and monitoring.
 ```
 logs/
 ├── sicbo/
-│   ├── sicbo_2025-11-20.log
-│   └── sicbo_errors_2025-11-20.log
+│   ├── sicbo_2025-01-13.log
+│   └── sicbo_errors_2025-01-13.log
 ├── speed/
-│   ├── speed_2025-11-20.log
-│   └── speed_errors_2025-11-20.log
+│   ├── speed_2025-01-13.log
+│   └── speed_errors_2025-01-13.log
 └── vip/
-    ├── vip_2025-11-20.log
-    └── vip_errors_2025-11-20.log
+    ├── vip_2025-01-13.log
+    └── vip_errors_2025-01-13.log
 ```
 
 ## Usage
