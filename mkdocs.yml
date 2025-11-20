@@ -1,0 +1,108 @@
+site_name: Studio SDP Roulette System Documentation
+site_description: Comprehensive documentation for the Studio SDP Roulette gaming system
+site_author: Studio SDP Team
+site_url: https://studio-sdp.github.io/studio-sdp-roulette
+
+repo_name: studio-sdp/studio-sdp-roulette
+repo_url: https://github.com/studio-sdp/studio-sdp-roulette
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.annotate
+    - content.code.copy
+    - content.code.select
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+          validator: !!python/name:pymdownx.superfences.fence_code_validator
+  - admonition
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - getting-started/installation.md
+    - getting-started/quick-start.md
+    - getting-started/configuration.md
+  - Guides:
+    - guides/architecture.md
+    - guides/game-controllers.md
+    - guides/mqtt-system.md
+    - guides/serial-communication.md
+    - guides/websocket-api.md
+    - guides/state-machine.md
+    - guides/logging.md
+  - API Reference:
+    - api-reference/overview.md
+    - api-reference/mqtt-api.md
+    - api-reference/serial-api.md
+    - api-reference/websocket-api.md
+    - api-reference/table-api.md
+  - Deployment:
+    - deployment/overview.md
+    - deployment/docker.md
+    - deployment/standalone.md
+    - deployment/systemd.md
+    - deployment/ci-cd.md
+  - Development:
+    - development/setup.md
+    - development/code-style.md
+    - development/testing.md
+    - development/contributing.md
+  - Troubleshooting:
+    - troubleshooting/common-issues.md
+    - troubleshooting/debugging.md
+    - troubleshooting/faq.md
+  - Additional Resources:
+    - resources/slack-integration.md
+    - resources/monitoring.md
+    - resources/security.md
+
+plugins:
+  - search
+  - git-revision-date-localized:
+      enable_creation_date: true
+
+extra:
+  version:
+    provider: mike
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/studio-sdp/studio-sdp-roulette
+
