@@ -23,9 +23,9 @@ MQTT_PORT=1883
 MQTT_USERNAME=PFC
 MQTT_PASSWORD=wago
 
-# LOS API Configuration
-LOS_API_URL=https://los-api-uat.sdp.com.tw/api/v2/sdp/config
-LOS_API_TOKEN=YOUR_TOKEN
+# Live Backend Service API Configuration
+LIVE_BACKEND_SERVICE_API_URL=https://live-backend-service-api-uat.sdp.com.tw/api/v2/sdp/config
+LIVE_BACKEND_SERVICE_API_TOKEN=YOUR_TOKEN
 
 # WebSocket Configuration
 WS_SERVER_URL=ws://your-server:port
@@ -196,7 +196,7 @@ logs/
 
 ```bash
 # .env.development
-LOS_API_URL=https://los-api-dev.sdp.com.tw/api/v2/sdp/config
+LIVE_BACKEND_SERVICE_API_URL=https://live-backend-service-api-dev.sdp.com.tw/api/v2/sdp/config
 LOG_LEVEL=DEBUG
 ```
 
@@ -204,7 +204,7 @@ LOG_LEVEL=DEBUG
 
 ```bash
 # .env.staging
-LOS_API_URL=https://los-api-uat.sdp.com.tw/api/v2/sdp/config
+LIVE_BACKEND_SERVICE_API_URL=https://live-backend-service-api-uat.sdp.com.tw/api/v2/sdp/config
 LOG_LEVEL=INFO
 ```
 
@@ -212,7 +212,7 @@ LOG_LEVEL=INFO
 
 ```bash
 # .env.production
-LOS_API_URL=https://los-api-prd.sdp.com.tw/api/v2/sdp/config
+LIVE_BACKEND_SERVICE_API_URL=https://live-backend-service-api-prd.sdp.com.tw/api/v2/sdp/config
 LOG_LEVEL=WARNING
 ```
 
@@ -246,8 +246,8 @@ You can override configuration via command-line arguments:
 # Override MQTT broker
 sdp-sicbo --broker 192.168.88.54 --port 1883
 
-# Override LOS API URL
-sdp-sicbo --get-url https://los-api-prd.sdp.com.tw/api/v2/sdp/config --token YOUR_TOKEN
+# Override Live Backend Service API URL
+sdp-sicbo --get-url https://live-backend-service-api-prd.sdp.com.tw/api/v2/sdp/config --token YOUR_TOKEN
 
 # Override log directory
 sdp-sicbo --log-dir /var/log/sdp

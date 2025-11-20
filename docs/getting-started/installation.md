@@ -81,9 +81,9 @@ Create a `.env` file in the project root for environment-specific settings:
 MQTT_BROKER=192.168.88.54
 MQTT_PORT=1883
 
-# LOS API Configuration
-LOS_API_URL=https://los-api-uat.sdp.com.tw/api/v2/sdp/config
-LOS_API_TOKEN=YOUR_TOKEN
+# Live Backend Service API Configuration
+LIVE_BACKEND_SERVICE_API_URL=https://live-backend-service-api-uat.sdp.com.tw/api/v2/sdp/config
+LIVE_BACKEND_SERVICE_API_TOKEN=YOUR_TOKEN
 
 # Slack Configuration (optional)
 SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL

@@ -61,7 +61,7 @@ sdp-sicbo \
   --game-type sicbo \
   --enable-logging \
   --log-dir ./logs \
-  --get-url https://los-api-uat.sdp.com.tw/api/v2/sdp/config \
+  --get-url https://live-backend-service-api-uat.sdp.com.tw/api/v2/sdp/config \
   --token YOUR_TOKEN \
   -r
 ```
@@ -86,13 +86,13 @@ For SicBo games, configure MQTT broker:
 sdp-sicbo --broker 192.168.88.54 --port 1883
 ```
 
-### LOS API Configuration
+### Live Backend Service API Configuration
 
-Configure LOS API endpoint and token:
+Configure Live Backend Service API endpoint and token:
 
 ```bash
 sdp-sicbo \
-  --get-url https://los-api-uat.sdp.com.tw/api/v2/sdp/config \
+  --get-url https://live-backend-service-api-uat.sdp.com.tw/api/v2/sdp/config \
   --token YOUR_TOKEN
 ```
 

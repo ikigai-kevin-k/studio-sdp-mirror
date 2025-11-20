@@ -40,7 +40,7 @@ ERROR → STOPPING → STOPPED
 
 - RS232 serial communication
 - Wheel speed and position monitoring
-- LOS API integration
+- Live Backend Service API integration
 
 ### SicBo Controller
 
@@ -68,7 +68,7 @@ ERROR → STOPPING → STOPPED
 - Failover support
 - Device status monitoring
 
-### WebSocket (LOS Integration)
+### WebSocket (Live Backend Service integration)
 
 - Real-time communication
 - Status updates

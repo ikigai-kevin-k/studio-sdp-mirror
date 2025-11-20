@@ -6,7 +6,7 @@ Welcome to the comprehensive documentation for the **Studio SDP System** - a sop
 
 The Studio SDP System is a multi-game type casino control system that provides real-time control and management for:
 
-- **Roulette (Speed & VIP)**: RS232-controlled roulette wheels with LOS integration
+- **Roulette (Speed & VIP)**: RS232-controlled roulette wheels with Live Backend Service integration
 - **SicBo**: MQTT-controlled dice shakers with IDP (Image Detection Processor) integration
 - **Baccarat**: HID barcode scanner integration for card detection and game management
 
@@ -15,7 +15,7 @@ The Studio SDP System is a multi-game type casino control system that provides r
 - **Multi-Game Support**: Unified system for managing different casino games
 - **Real-time Communication**: WebSocket and MQTT protocols for instant updates
 - **Hardware Integration**: Support for RS232, MQTT, HID, and camera-based detection
-- **LOS Integration**: Seamless integration with Live Operations System
+- **Live Backend Service integration**: Seamless integration with Live Backend Service
 - **State Machine Architecture**: Robust state management with error handling
 - **Docker Support**: Containerized deployment options
 - **Comprehensive Logging**: Detailed logging and monitoring capabilities
@@ -77,19 +77,19 @@ The system follows a hierarchical state machine pattern with the following main 
 
 ### Game Controllers
 
-#### Roulette Controller (RS232 + LOS Integration)
+#### Roulette Controller (RS232 + Live Backend Service integration)
 - Manages roulette wheel via RS232 communication
 - Controls game rounds and result detection
 - Handles wheel speed and positioning
-- Integrates with LOS API for round management
+- Integrates with Live Backend Service API for round management
 
-#### SicBo Controller (MQTT + IDP + LOS Integration)
+#### SicBo Controller (MQTT + IDP + Live Backend Service integration)
 - Controls dice shaker via MQTT protocol
 - Uses IDP for dice detection and validation
 - Manages shake patterns and result processing
-- Real-time integration with LOS system
+- Real-time integration with Live Backend Service system
 
-#### Baccarat controller (HID + LOS Integration, WIP)
+#### Baccarat controller (HID + Live Backend Service integration, WIP)
 - Uses HID barcode scanner for card detection
 - Manages game rounds and player turns
 - Handles card validation and game rules
@@ -107,8 +107,8 @@ The system follows a hierarchical state machine pattern with the following main 
 - Device status monitoring and control
 - Failover and redundancy support
 
-### WebSocket (LOS Integration)
-- Real-time communication with Live Operations System
+### WebSocket (Live Backend Service integration)
+- Real-time communication with Live Backend Service
 - Status updates and game state synchronization
 - Authentication and session management
 
