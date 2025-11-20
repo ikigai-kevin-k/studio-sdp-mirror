@@ -333,6 +333,3 @@ environment:
 - Service runs as root user
 - Recommend limiting permissions and network access in production environments
 
-## License
-
-This project is for development and testing purposes only.
