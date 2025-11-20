@@ -89,7 +89,7 @@ The system follows a hierarchical state machine pattern with the following main 
 - Manages shake patterns and result processing
 - Real-time integration with LOS system
 
-#### Baccarat Controller (HID + LOS Integration)
+#### Baccarat controller (HID + LOS Integration, WIP)
 - Uses HID barcode scanner for card detection
 - Manages game rounds and player turns
 - Handles card validation and game rules
@@ -129,7 +129,7 @@ For questions, issues, or contributions:
 
 - **GitHub Issues**: [Report Issues](https://github.com/studio-sdp/studio-sdp-roulette/issues)
 - **Documentation**: Browse the guides and API reference
-- **Email**: team@studio-sdp.com
+- **Email**: kevin.k@ikigai.team
 
 ## License
 
@@ -137,7 +137,7 @@ This project is licensed under the MIT License.
 
 ---
 
-**Last Updated**: 2025-01-13  
+**Last Updated**: 2025-11-20  
 **Version**: 1.0.0
 
 # Trigger deployment

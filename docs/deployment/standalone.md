@@ -345,7 +345,7 @@ exclude = ["tests*", "setup*", "proto*", "self_test*"]
 
 如有問題，請聯繫：
 - 開發團隊：Studio SDP Team
-- Email: team@studio-sdp.com
+- Email: kevin.k@ikigai.team
 
 ---
 

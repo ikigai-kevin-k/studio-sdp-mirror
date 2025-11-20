@@ -235,5 +235,5 @@ For additional help:
 
 - **Documentation**: Browse the full documentation
 - **GitHub Issues**: [Report Issues](https://github.com/studio-sdp/studio-sdp-roulette/issues)
-- **Email**: team@studio-sdp.com
+- **Email**: kevin.k@ikigai.team
 

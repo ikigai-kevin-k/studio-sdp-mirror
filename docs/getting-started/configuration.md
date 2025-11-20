@@ -180,14 +180,14 @@ Configure WebSocket connection in `conf/ws.json`:
 ```
 logs/
 ├── sicbo/
-│   ├── sicbo_2025-01-13.log
-│   └── sicbo_errors_2025-01-13.log
+│   ├── sicbo_2025-11-20.log
+│   └── sicbo_errors_2025-11-20.log
 ├── speed/
-│   ├── speed_2025-01-13.log
-│   └── speed_errors_2025-01-13.log
+│   ├── speed_2025-11-20.log
+│   └── speed_errors_2025-11-20.log
 └── vip/
-    ├── vip_2025-01-13.log
-    └── vip_errors_2025-01-13.log
+    ├── vip_2025-11-20.log
+    └── vip_errors_2025-11-20.log
 ```
 
 ## Environment-Specific Configuration
