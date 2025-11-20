@@ -1,6 +1,6 @@
 # CI/CD Deployment Guide
 
-This guide explains the CI/CD process for the Studio SDP Roulette System.
+This guide explains the CI/CD process for the Studio SDP System.
 
 ## Overview
 

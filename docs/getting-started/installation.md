@@ -1,6 +1,6 @@
 # Installation Guide
 
-This guide will help you install and set up the Studio SDP Roulette System.
+This guide will help you install and set up the Studio SDP System.
 
 ## Prerequisites
 

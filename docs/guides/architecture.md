@@ -1,10 +1,10 @@
 # System Architecture
 
-This document describes the architecture of the Studio SDP Roulette System.
+This document describes the architecture of the Studio SDP System.
 
 ## Overview
 
-The Studio SDP Roulette System follows a hierarchical state machine pattern with modular components for different game types.
+The Studio SDP System follows a hierarchical state machine pattern with modular components for different game types.
 
 ## System Components
 

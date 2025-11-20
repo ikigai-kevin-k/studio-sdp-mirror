@@ -1,6 +1,6 @@
 # API Reference Overview
 
-This section provides complete API documentation for the Studio SDP Roulette System.
+This section provides complete API documentation for the Studio SDP System.
 
 ## API Categories
 

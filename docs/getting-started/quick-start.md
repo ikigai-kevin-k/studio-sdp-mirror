@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-This guide will help you get started with the Studio SDP Roulette System quickly.
+This guide will help you get started with the Studio SDP System quickly.
 
 ## Running Your First Game
 

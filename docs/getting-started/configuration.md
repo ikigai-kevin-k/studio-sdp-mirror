@@ -1,6 +1,6 @@
 # Configuration Guide
 
-This guide explains how to configure the Studio SDP Roulette System for different environments and use cases.
+This guide explains how to configure the Studio SDP System for different environments and use cases.
 
 ## Configuration Files
 

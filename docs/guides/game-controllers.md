@@ -1,6 +1,6 @@
 # Game Controllers Guide
 
-This guide explains the game controllers in the Studio SDP Roulette System.
+This guide explains the game controllers in the Studio SDP System.
 
 ## Overview
 

@@ -1,6 +1,6 @@
 # Contributing Guide
 
-Thank you for your interest in contributing to the Studio SDP Roulette System!
+Thank you for your interest in contributing to the Studio SDP System!
 
 ## Getting Started
 

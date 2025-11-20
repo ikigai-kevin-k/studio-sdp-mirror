@@ -1,6 +1,6 @@
 # Documentation
 
-This directory contains the complete documentation for the Studio SDP Roulette System.
+This directory contains the complete documentation for the Studio SDP System.
 
 ## Documentation Structure
 

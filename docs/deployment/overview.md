@@ -1,6 +1,6 @@
 # Deployment Overview
 
-This guide covers deployment options for the Studio SDP Roulette System.
+This guide covers deployment options for the Studio SDP System.
 
 ## Deployment Options
 

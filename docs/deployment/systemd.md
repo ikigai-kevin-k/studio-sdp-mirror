@@ -1,6 +1,6 @@
 # Systemd Service Deployment
 
-This guide explains how to deploy the Studio SDP Roulette System as systemd services.
+This guide explains how to deploy the Studio SDP System as systemd services.
 
 ## Overview
 
