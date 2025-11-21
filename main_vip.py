@@ -84,6 +84,10 @@ from slack import send_error_to_slack
 # Import WebSocket error signal module
 from studio_api.ws_err_sig import send_roulette_sensor_stuck_error
 
+# Import HTTP service status module
+sys.path.append("studio_api/http")  # ensure studio_api/http module can be imported
+from studio_api.http.status import get_sdp_status
+
 # Try to load environment variables from .env file
 try:
     from dotenv import load_dotenv
@@ -481,6 +485,86 @@ def handle_idle_mode():
     terminate_program = True
 
 
+def check_service_status_and_switch_mode():
+    """
+    Check service status from HTTP API and switch mode based on SDP status.
+    This function runs in a separate thread to periodically check the service status.
+    
+    Mode switching logic:
+    - "down_pause" or "down_cancel" -> switch to idle mode
+    - "up_cancel" or "up_resume" -> switch to running mode
+    """
+    global current_mode
+    
+    try:
+        # Use ARO-002 as table_id for VIP roulette
+        table_id = "ARO-002"
+        
+        # Get SDP status from service status API
+        sdp_status = get_sdp_status(table_id)
+        
+        if sdp_status is None:
+            # API call failed, log but don't change mode
+            log_to_file(
+                f"Failed to get SDP status from service status API for table {table_id}",
+                "HTTP API >>>"
+            )
+            return
+        
+        log_to_file(
+            f"Service status check: SDP status = {sdp_status} (current mode = {current_mode})",
+            "HTTP API >>>"
+        )
+        
+        # Check if we need to switch to idle mode
+        if sdp_status in ["down_pause", "down_cancel"]:
+            with mode_lock:
+                if current_mode == "running":
+                    current_mode = "idle"
+                    print(f"[{get_timestamp()}] Mode switched to idle (SDP status: {sdp_status})")
+                    log_to_file(
+                        f"Mode switched to idle mode due to SDP status: {sdp_status}",
+                        "Mode >>>"
+                    )
+        
+        # Check if we need to switch to running mode
+        elif sdp_status in ["up_cancel", "up_resume"]:
+            with mode_lock:
+                if current_mode == "idle":
+                    current_mode = "running"
+                    print(f"[{get_timestamp()}] Mode switched to running (SDP status: {sdp_status})")
+                    log_to_file(
+                        f"Mode switched to running mode due to SDP status: {sdp_status}",
+                        "Mode >>>"
+                    )
+        
+    except Exception as e:
+        log_to_file(
+            f"Error checking service status and switching mode: {e}",
+            "HTTP API >>>"
+        )
+        print(f"[{get_timestamp()}] Error checking service status: {e}")
+
+
+def service_status_monitor():
+    """
+    Monitor service status periodically in a separate thread.
+    Checks service status every 5 seconds.
+    """
+    while not terminate_program:
+        try:
+            check_service_status_and_switch_mode()
+            # Wait 5 seconds before next check
+            time.sleep(5)
+        except Exception as e:
+            log_to_file(
+                f"Error in service status monitor: {e}",
+                "HTTP API >>>"
+            )
+            # Wait 5 seconds before retry even on error
+            time.sleep(5)
+
+
 # Function to send sensor error notification to Slack
 def send_sensor_error_to_slack():
     """Send sensor error notification to Slack for VIP Roulette table"""
@@ -696,7 +780,7 @@ def send_stop_recording():
 
 def read_from_serial():
     global x2_count, x5_count, last_x2_time, last_x5_time, start_post_sent, deal_post_sent, start_time, deal_post_time, finish_post_time, isLaunch
-    global p1_sent, x1_received, x1_to_x6_timer, x1_received_time, terminate_program
+    global p1_sent, x1_received, x1_to_x6_timer, x1_received_time, terminate_program, current_mode, mode_lock
     while not terminate_program:
         if ser.in_waiting > 0:
             data = ser.readline().decode("utf-8").strip()
@@ -733,6 +817,13 @@ def read_from_serial():
 
             # Handle *X;6 sensor error messages
             if "*X;6" in data:
+                # Check if we're in idle mode - skip error handling in idle mode
+                with mode_lock:
+                    if current_mode == "idle":
+                        print(f"[{get_timestamp()}] Skipping *X;6 error handling in idle mode")
+                        log_to_file("Skipping *X;6 error handling in idle mode", "Idle Mode >>>")
+                        continue
+                
                 try:
                     parts = data.split(";")
                     if (
@@ -949,9 +1040,15 @@ def read_from_serial():
                                 log_to_file(f"Started bet stop countdown for {table['name']} (round {round_id}, {bet_period}s)", "Bet Stop >>>")
 
                         print("\nSending *u 1 command...")
-                        ser.write(("*u 1\r\n").encode())
-                        log_to_file("*u 1", "Send <<<")
-                        print("*u 1 command sent\n")
+                        # Check if we're in idle mode - skip *u 1 in idle mode
+                        with mode_lock:
+                            if current_mode == "idle":
+                                print(f"[{get_timestamp()}] Skipping *u 1 command in idle mode")
+                                log_to_file("Skipping *u 1 command in idle mode", "Idle Mode >>>")
+                            else:
+                                ser.write(("*u 1\r\n").encode())
+                                log_to_file("*u 1", "Send <<<")
+                                print("*u 1 command sent\n")
 
                         # Start recording two seconds after sending *u 1 command
                         if (
@@ -1594,6 +1691,13 @@ def main():
     studio_api_ws_thread.start()
     print(f"[{get_timestamp()}] StudioAPI WebSocket listener started")
     log_to_file("StudioAPI WebSocket listener started", "MAIN >>>")
+    
+    # Start service status monitor to check HTTP API and switch mode
+    service_status_thread = threading.Thread(target=service_status_monitor)
+    service_status_thread.daemon = True
+    service_status_thread.start()
+    print(f"[{get_timestamp()}] Service status monitor started")
+    log_to_file("Service status monitor started", "MAIN >>>")
     
     # Load table configuration at startup
     try:
