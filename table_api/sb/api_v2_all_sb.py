@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 class APIv2AllRunner:
     """並行執行六個 API 環境的執行器"""
 
-    def __init__(self):
+    def __init__(self, deal_result: List[int] = None):
         self.script_dir = Path(__file__).parent
         self.api_scripts = {
             "CIT": "api_v2_sb.py",
@@ -45,6 +45,7 @@ class APIv2AllRunner:
         }
         self.results = {}
         self.execution_times = {}
+        self.deal_result = deal_result
 
     def run_single_api_script(
         self, env_name: str, script_name: str
@@ -67,9 +68,18 @@ class APIv2AllRunner:
         start_time = time.time()
 
         try:
+            # 構建命令參數
+            cmd = [sys.executable, str(script_path)]
+            
+            # 如果有 deal_result，添加 --result 參數
+            if self.deal_result is not None:
+                # 將列表轉換為字符串格式，例如 [1,6,6] -> "1,6,6"
+                result_str = ",".join(map(str, self.deal_result))
+                cmd.extend(["--result", result_str])
+            
             # 執行 Python 腳本
             result = subprocess.run(
-                [sys.executable, str(script_path)],
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=60,  # 60 秒超時
@@ -237,10 +247,35 @@ def main():
         default="api_outputs",
         help="輸出檔案目錄 (預設: api_outputs)",
     )
+    parser.add_argument(
+        "--result",
+        type=str,
+        default=None,
+        help="Deal result to pass to deal post (e.g., '1,6,6' or '[1,6,6]')",
+    )
 
     args = parser.parse_args()
 
-    runner = APIv2AllRunner()
+    # 解析 deal_result 參數
+    deal_result = None
+    if args.result:
+        try:
+            # 處理不同的輸入格式
+            result_str = args.result.strip()
+            # 移除可能的方括號
+            if result_str.startswith("[") and result_str.endswith("]"):
+                result_str = result_str[1:-1]
+            # 分割並轉換為整數列表
+            deal_result = [int(x.strip()) for x in result_str.split(",")]
+            logger.info(f"Deal result parsed: {deal_result}")
+        except ValueError as e:
+            logger.error(
+                f"Invalid --result format: {args.result}. "
+                f"Expected format: '1,6,6' or '[1,6,6]'. Error: {e}"
+            )
+            sys.exit(1)
+
+    runner = APIv2AllRunner(deal_result=deal_result)
 
     try:
         if args.mode == "parallel":
