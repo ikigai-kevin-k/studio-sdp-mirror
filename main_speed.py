@@ -122,6 +122,10 @@ from studio_api.ws_err_sig import (
     send_roulette_wrong_ball_dir_error,
 )
 
+# Import HTTP service status module
+sys.path.append("studio_api/http")  # ensure studio_api/http module can be imported
+from studio_api.http.status import get_sdp_status
+
 # Import network checker
 from networkChecker import networkChecker
 
@@ -616,6 +620,83 @@ def handle_idle_mode():
     log_to_file("Initiating graceful shutdown...", "Idle Mode >>>")
     
     terminate_program = True
+
+
+def check_service_status_and_switch_mode():
+    """
+    Check service status from HTTP API and switch mode based on SDP status.
+    This function runs in a separate thread to periodically check the service status.
+    
+    Mode switching logic:
+    - "down_pause" or "down_cancel" -> switch to idle mode
+    - "up_cancel" or "up_resume" -> switch to running mode
+    """
+    global current_mode
+    
+    try:
+        # Get SDP status from service status API
+        sdp_status = get_sdp_status(DETECTED_TABLE_ID)
+        
+        if sdp_status is None:
+            # API call failed, log but don't change mode
+            log_to_file(
+                f"Failed to get SDP status from service status API for table {DETECTED_TABLE_ID}",
+                "HTTP API >>>"
+            )
+            return
+        
+        log_to_file(
+            f"Service status check: SDP status = {sdp_status} (current mode = {current_mode})",
+            "HTTP API >>>"
+        )
+        
+        # Check if we need to switch to idle mode
+        if sdp_status in ["down_pause", "down_cancel"]:
+            with mode_lock:
+                if current_mode == "running":
+                    current_mode = "idle"
+                    print(f"[{get_timestamp()}] Mode switched to idle (SDP status: {sdp_status})")
+                    log_to_file(
+                        f"Mode switched to idle mode due to SDP status: {sdp_status}",
+                        "Mode >>>"
+                    )
+        
+        # Check if we need to switch to running mode
+        elif sdp_status in ["up_cancel", "up_resume"]:
+            with mode_lock:
+                if current_mode == "idle":
+                    current_mode = "running"
+                    print(f"[{get_timestamp()}] Mode switched to running (SDP status: {sdp_status})")
+                    log_to_file(
+                        f"Mode switched to running mode due to SDP status: {sdp_status}",
+                        "Mode >>>"
+                    )
+        
+    except Exception as e:
+        log_to_file(
+            f"Error checking service status and switching mode: {e}",
+            "HTTP API >>>"
+        )
+        print(f"[{get_timestamp()}] Error checking service status: {e}")
+
+
+def service_status_monitor():
+    """
+    Monitor service status periodically in a separate thread.
+    Checks service status every 5 seconds.
+    """
+    while not terminate_program:
+        try:
+            check_service_status_and_switch_mode()
+            # Wait 5 seconds before next check
+            time.sleep(5)
+        except Exception as e:
+            log_to_file(
+                f"Error in service status monitor: {e}",
+                "HTTP API >>>"
+            )
+            # Wait 5 seconds before retry even on error
+            time.sleep(5)
 
 
 # Function to send sensor error notification to Slack
@@ -1660,6 +1741,12 @@ def main():
         log_console("TableAPI error summary scheduler started", "MAIN >>>")
     except Exception as e:
         log_console(f"Failed to start summary scheduler: {e}", "MAIN >>>")
+    
+    # Start service status monitor to check HTTP API and switch mode
+    service_status_thread = threading.Thread(target=service_status_monitor)
+    service_status_thread.daemon = True
+    service_status_thread.start()
+    log_console("Service status monitor started", "MAIN >>>")
 
     # Create a dictionary containing all global state variables
     global_vars = {

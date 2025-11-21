@@ -109,8 +109,13 @@ def _continue_game_from_state(
             print(f"[{get_timestamp()}] Resuming from start: sending *u 1 (betStop, deal, finish will follow)")
             log_to_file("Resuming from start: sending *u 1 (betStop, deal, finish will follow)", "Auto-Recovery >>>")
             
+            # Check if we're in idle mode - skip *u 1 in idle mode
+            current_mode = global_vars.get("current_mode", "running")
+            if current_mode == "idle":
+                print(f"[{get_timestamp()}] Skipping *u 1 command in idle mode")
+                log_to_file("Skipping *u 1 command in idle mode", "Idle Mode >>>")
             # Send *u 1
-            if ser is not None:
+            elif ser is not None:
                 ser.write(("*u 1\r\n").encode())
                 log_to_file("*u 1", "Send <<<")
                 print(f"[{get_timestamp()}] Sent *u 1 command")
@@ -229,6 +234,13 @@ def read_from_serial(
 
                     # Handle *X;6 sensor error messages - trigger on ANY *X;6 message
                     if "*X;6" in data:
+                        # Check if we're in idle mode - skip error handling in idle mode
+                        current_mode = global_vars.get("current_mode", "running")
+                        if current_mode == "idle":
+                            print(f"[{get_timestamp()}] Skipping *X;6 error handling in idle mode")
+                            log_to_file("Skipping *X;6 error handling in idle mode", "Idle Mode >>>")
+                            continue
+                        
                         try:
                             parts = data.split(";")
                             warning_flag = parts[4] if len(parts) >= 5 else "unknown"
@@ -778,8 +790,13 @@ def read_from_serial(
                                         log_to_file(f"Started bet stop countdown for {table['name']} (round {round_id}, {bet_period}s)", "Bet Stop >>>")
 
                                 print("\nSending *u 1 command...")
+                                # Check if we're in idle mode - skip *u 1 in idle mode
+                                current_mode = global_vars.get("current_mode", "running")
+                                if current_mode == "idle":
+                                    print(f"[{get_timestamp()}] Skipping *u 1 command in idle mode")
+                                    log_to_file("Skipping *u 1 command in idle mode", "Idle Mode >>>")
                                 # Check if serial connection is available
-                                if ser is not None:
+                                elif ser is not None:
                                     ser.write(("*u 1\r\n").encode())
                                     log_to_file("*u 1", "Send <<<")
                                     print("*u 1 command sent\n")
