@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 class APIv2AllVRRunner:
     """parallel execution of eight VIP Roulette API environments' executor"""
 
-    def __init__(self):
+    def __init__(self, deal_result: str = None):
         self.script_dir = Path(__file__).parent
         self.api_scripts = {
             "CIT": "api_v2_vr.py",
@@ -49,6 +49,7 @@ class APIv2AllVRRunner:
         }
         self.results = {}
         self.execution_times = {}
+        self.deal_result = deal_result
 
     def run_single_api_script(
         self, env_name: str, script_name: str
@@ -71,9 +72,16 @@ class APIv2AllVRRunner:
         start_time = time.time()
 
         try:
+            # build command arguments
+            cmd = [sys.executable, str(script_path)]
+            
+            # if deal_result exists, add --result parameter
+            if self.deal_result is not None:
+                cmd.extend(["--result", self.deal_result])
+            
             # execute Python script
             result = subprocess.run(
-                [sys.executable, str(script_path)],
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=60,  # 60 seconds timeout
@@ -251,10 +259,31 @@ def main():
         default="vr_api_outputs",
         help="output file directory (default: vr_api_outputs)",
     )
+    parser.add_argument(
+        "--result",
+        type=str,
+        default=None,
+        help="Deal result to pass to deal post (e.g., '0')",
+    )
 
     args = parser.parse_args()
 
-    runner = APIv2AllVRRunner()
+    # parse deal_result parameter
+    deal_result = None
+    if args.result:
+        deal_result = args.result.strip()
+        # validate that it's a valid number string
+        try:
+            int(deal_result)  # validate it's a number
+            logger.info(f"Deal result parsed: {deal_result}")
+        except ValueError as e:
+            logger.error(
+                f"Invalid --result format: {args.result}. "
+                f"Expected format: a number string (e.g., '0'). Error: {e}"
+            )
+            sys.exit(1)
+
+    runner = APIv2AllVRRunner(deal_result=deal_result)
 
     try:
         if args.mode == "parallel":
