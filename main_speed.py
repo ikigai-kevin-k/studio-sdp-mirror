@@ -112,6 +112,9 @@ from concurrent.futures import ThreadPoolExecutor
 sys.path.append("slack")  # ensure slack module can be imported
 from slack import send_error_to_slack
 
+# Import TableAPI error summary module
+from slack.summary import record_table_api_error, start_summary_scheduler
+
 # Import WebSocket error signal module
 sys.path.append("studio_api")  # ensure studio_api module can be imported
 from studio_api.ws_err_sig import (
@@ -1203,6 +1206,16 @@ async def _execute_finish_post_async(table, token):
     except Exception as e:
         error_msg = str(e)
         log_api(f"Error executing finish_post for {table['name']}: {error_msg}", "API >>>")
+        # Record error to summary instead of sending Slack notification immediately
+        try:
+            record_table_api_error(
+                environment=table["name"],
+                api_type="finish",
+                table_name=table.get("game_code", "Unknown"),
+                error_message=error_msg,
+            )
+        except Exception as summary_error:
+            log_api(f"Error recording to summary: {summary_error}", "API >>>")
         return table["name"], False
 
 
@@ -1284,9 +1297,30 @@ async def _execute_start_post_async(table, token):
             return table, round_id, bet_period
         else:
             log_api(f"Failed to call start_post for {table['name']}", "API >>>")
+            # Record error to summary instead of sending Slack notification immediately
+            try:
+                record_table_api_error(
+                    environment=table["name"],
+                    api_type="start",
+                    table_name=table.get("game_code", "Unknown"),
+                    error_message="Failed to call start_post (round_id == -1)",
+                )
+            except Exception as summary_error:
+                log_api(f"Error recording to summary: {summary_error}", "API >>>")
             return None, None
     except Exception as e:
-        log_api(f"Error executing start_post for {table['name']}: {e}", "API >>>")
+        error_msg = str(e)
+        log_api(f"Error executing start_post for {table['name']}: {error_msg}", "API >>>")
+        # Record error to summary instead of sending Slack notification immediately
+        try:
+            record_table_api_error(
+                environment=table["name"],
+                api_type="start",
+                table_name=table.get("game_code", "Unknown"),
+                error_message=error_msg,
+            )
+        except Exception as summary_error:
+            log_api(f"Error recording to summary: {summary_error}", "API >>>")
         return None, None
 
 
@@ -1368,6 +1402,16 @@ async def _execute_deal_post_async(table, token, win_num):
     except Exception as e:
         error_msg = str(e)
         log_api(f"Error executing deal_post for {table['name']}: {error_msg}", "API >>>")
+        # Record error to summary instead of sending Slack notification immediately
+        try:
+            record_table_api_error(
+                environment=table["name"],
+                api_type="deal",
+                table_name=table.get("game_code", "Unknown"),
+                error_message=error_msg,
+            )
+        except Exception as summary_error:
+            log_api(f"Error recording to summary: {summary_error}", "API >>>")
         return table["name"], False
 
 
@@ -1421,6 +1465,17 @@ async def _betStop_round_for_table_async(table, token):
     except Exception as e:
         error_msg = str(e)
         print(f"Error stopping betting for table {table['name']}: {error_msg}")
+        log_api(f"Error executing bet_stop_post for {table['name']}: {error_msg}", "API >>>")
+        # Record error to summary instead of sending Slack notification immediately
+        try:
+            record_table_api_error(
+                environment=table["name"],
+                api_type="betStop",
+                table_name=table.get("game_code", "Unknown"),
+                error_message=error_msg,
+            )
+        except Exception as summary_error:
+            log_api(f"Error recording to summary: {summary_error}", "API >>>")
         return table["name"], False
 
 
@@ -1598,6 +1653,13 @@ def main():
     studio_api_ws_thread.daemon = True
     studio_api_ws_thread.start()
     log_console("StudioAPI WebSocket listener started", "MAIN >>>")
+    
+    # Start TableAPI error summary scheduler (sends summary at 6 AM and 6 PM)
+    try:
+        start_summary_scheduler()
+        log_console("TableAPI error summary scheduler started", "MAIN >>>")
+    except Exception as e:
+        log_console(f"Failed to start summary scheduler: {e}", "MAIN >>>")
 
     # Create a dictionary containing all global state variables
     global_vars = {
