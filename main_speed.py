@@ -9,6 +9,8 @@ import asyncio
 import websockets
 import urllib3
 from requests.exceptions import ConnectionError
+from pathlib import Path
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # Import manual hot reload manager
 try:
@@ -124,7 +126,7 @@ from studio_api.ws_err_sig import (
 
 # Import HTTP service status module
 sys.path.append("studio_api/http")  # ensure studio_api/http module can be imported
-from studio_api.http.status import get_sdp_status
+from studio_api.http.status import get_sdp_status, set_sdp_status_via_http
 
 # Import network checker
 from networkChecker import networkChecker
@@ -622,6 +624,67 @@ def handle_idle_mode():
     terminate_program = True
 
 
+def get_system_boot_time():
+    """
+    Get system boot time (last reboot time).
+    
+    Returns:
+        datetime: System boot time, or None if error
+    """
+    try:
+        # Get system uptime and calculate boot time
+        uptime_sec = float(Path("/proc/uptime").read_text().split()[0])
+        boot_time = datetime.now().timestamp() - uptime_sec
+        return datetime.fromtimestamp(boot_time)
+    except Exception as e:
+        print(f"[{get_timestamp()}] Error getting system boot time: {e}")
+        log_to_file(f"Error getting system boot time: {e}", "Boot Check >>>")
+        return None
+
+
+def check_recent_reboot_and_send_up():
+    """
+    Check if system was rebooted within the last 5 minutes.
+    If so, automatically send sdp: up request.
+    
+    This handles the scenario where another host's main_speed.py
+    received sdp: down, SSH'd to this host, and executed reboot.
+    """
+    boot_time = get_system_boot_time()
+    if boot_time is None:
+        print(f"[{get_timestamp()}] Could not determine boot time, skipping reboot check")
+        log_to_file("Could not determine boot time, skipping reboot check", "Boot Check >>>")
+        return
+    
+    current_time = datetime.now()
+    time_since_boot = (current_time - boot_time).total_seconds()
+    minutes_since_boot = time_since_boot / 60.0
+    
+    print(f"[{get_timestamp()}] System boot time: {boot_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"[{get_timestamp()}] Time since boot: {minutes_since_boot:.2f} minutes")
+    log_to_file(f"System boot time: {boot_time.strftime('%Y-%m-%d %H:%M:%S')}", "Boot Check >>>")
+    log_to_file(f"Time since boot: {minutes_since_boot:.2f} minutes", "Boot Check >>>")
+    
+    # Check if reboot was within last 5 minutes
+    if minutes_since_boot <= 5.0:
+        print(f"[{get_timestamp()}] System rebooted within last 5 minutes, sending sdp: up request")
+        log_to_file("System rebooted within last 5 minutes, sending sdp: up request", "Boot Check >>>")
+        
+        # Send sdp: up request using detected table ID
+        table_id = DETECTED_TABLE_ID
+        success = set_sdp_status_via_http(table_id, "up")
+        
+        if success:
+            print(f"[{get_timestamp()}] Successfully sent sdp: up request after reboot detection")
+            log_to_file("Successfully sent sdp: up request after reboot detection", "Boot Check >>>")
+        else:
+            print(f"[{get_timestamp()}] Failed to send sdp: up request after reboot detection")
+            log_to_file("Failed to send sdp: up request after reboot detection", "Boot Check >>>")
+    else:
+        print(f"[{get_timestamp()}] System boot time is more than 5 minutes ago, no action needed")
+        log_to_file(f"System boot time is more than 5 minutes ago ({minutes_since_boot:.2f} minutes), no action needed", "Boot Check >>>")
+
+
 def check_service_status_and_switch_mode():
     """
     Check service status from HTTP API and switch mode based on SDP status.
@@ -697,6 +760,170 @@ def service_status_monitor():
             )
             # Wait 5 seconds before retry even on error
             time.sleep(5)
+
+
+# HTTP server for receiving PATCH requests
+class StatusRequestHandler(BaseHTTPRequestHandler):
+    """HTTP request handler for receiving service status PATCH requests"""
+    
+    def do_PATCH(self):
+        """Handle PATCH requests for service status updates"""
+        global current_mode, mode_lock
+        
+        # Only handle /v1/service/status endpoint
+        if self.path != "/v1/service/status":
+            self.send_response(404)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            response = json.dumps({"error": {"code": 404, "message": "Not found"}})
+            self.wfile.write(response.encode())
+            return
+        
+        # Check headers
+        content_length = int(self.headers.get("Content-Length", 0))
+        content_type = self.headers.get("Content-Type", "")
+        x_signature = self.headers.get("x-signature", "")
+        
+        # Verify signature (optional, but recommended)
+        if x_signature != "rgs-local-signature":
+            print(f"[{get_timestamp()}] Invalid signature in PATCH request: {x_signature}")
+            log_to_file(f"Invalid signature in PATCH request: {x_signature}", "HTTP Server >>>")
+            # Continue anyway for now, but log it
+        
+        # Read request body
+        try:
+            body = self.rfile.read(content_length)
+            data = json.loads(body.decode("utf-8"))
+            
+            print(f"[{get_timestamp()}] Received PATCH request: {data}")
+            log_to_file(f"Received PATCH request: {data}", "HTTP Server >>>")
+            
+            # Check if this is for detected table ID and sdp is "up"
+            table_id = data.get("tableId", "")
+            sdp_status = data.get("sdp", "")
+            
+            if table_id == DETECTED_TABLE_ID and sdp_status == "up":
+                print(f"[{get_timestamp()}] Received sdp: up request for {DETECTED_TABLE_ID}, switching to running mode")
+                log_to_file(f"Received sdp: up request for {DETECTED_TABLE_ID}, switching to running mode", "HTTP Server >>>")
+                
+                # Switch to running mode
+                with mode_lock:
+                    if current_mode == "idle":
+                        current_mode = "running"
+                        print(f"[{get_timestamp()}] Mode switched to: {current_mode}")
+                        log_to_file(f"Mode switched to: {current_mode}", "Mode >>>")
+                    else:
+                        print(f"[{get_timestamp()}] Already in {current_mode} mode, no change needed")
+                        log_to_file(f"Already in {current_mode} mode, no change needed", "Mode >>>")
+                
+                # Send success response
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                response_data = {
+                    "error": None,
+                    "data": {
+                        "tableId": table_id,
+                        "sdp": sdp_status
+                    }
+                }
+                response = json.dumps(response_data)
+                self.wfile.write(response.encode())
+                return
+            else:
+                # Not the request we're looking for, but respond anyway
+                print(f"[{get_timestamp()}] Received PATCH request for {table_id} with sdp: {sdp_status} (not {DETECTED_TABLE_ID} up)")
+                log_to_file(f"Received PATCH request for {table_id} with sdp: {sdp_status} (not {DETECTED_TABLE_ID} up)", "HTTP Server >>>")
+                
+                # Send success response anyway
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                response_data = {
+                    "error": None,
+                    "data": {
+                        "tableId": table_id,
+                        "sdp": sdp_status
+                    }
+                }
+                response = json.dumps(response_data)
+                self.wfile.write(response.encode())
+                return
+                
+        except json.JSONDecodeError as e:
+            print(f"[{get_timestamp()}] Error parsing JSON in PATCH request: {e}")
+            log_to_file(f"Error parsing JSON in PATCH request: {e}", "HTTP Server >>>")
+            self.send_response(400)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            response = json.dumps({"error": {"code": 400, "message": "Invalid JSON"}})
+            self.wfile.write(response.encode())
+            return
+        except Exception as e:
+            print(f"[{get_timestamp()}] Error handling PATCH request: {e}")
+            log_to_file(f"Error handling PATCH request: {e}", "HTTP Server >>>")
+            self.send_response(500)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            response = json.dumps({"error": {"code": 500, "message": str(e)}})
+            self.wfile.write(response.encode())
+            return
+    
+    def log_message(self, format, *args):
+        """Override to use our logging function"""
+        message = format % args
+        log_to_file(message, "HTTP Server >>>")
+
+
+def start_http_server(port=8085):
+    """
+    Start HTTP server to receive PATCH requests for service status updates.
+    
+    Args:
+        port (int): Port number to listen on (default: 8085, to avoid conflict with Studio API on 8084)
+    """
+    global terminate_program
+    try:
+        server = HTTPServer(("0.0.0.0", port), StatusRequestHandler)
+        print(f"[{get_timestamp()}] HTTP server started on port {port}")
+        log_to_file(f"HTTP server started on port {port}", "HTTP Server >>>")
+        
+        # Serve with timeout to allow checking terminate_program flag
+        while not terminate_program:
+            server.timeout = 1.0
+            server.handle_request()
+        
+        # Close server when terminating
+        server.server_close()
+        print(f"[{get_timestamp()}] HTTP server stopped")
+        log_to_file("HTTP server stopped", "HTTP Server >>>")
+    except OSError as e:
+        if "Address already in use" in str(e):
+            print(f"[{get_timestamp()}] Port {port} already in use, trying alternative port {port + 1}")
+            log_to_file(f"Port {port} already in use, trying alternative port {port + 1}", "HTTP Server >>>")
+            try:
+                server = HTTPServer(("0.0.0.0", port + 1), StatusRequestHandler)
+                print(f"[{get_timestamp()}] HTTP server started on alternative port {port + 1}")
+                log_to_file(f"HTTP server started on alternative port {port + 1}", "HTTP Server >>>")
+                
+                # Serve with timeout to allow checking terminate_program flag
+                while not terminate_program:
+                    server.timeout = 1.0
+                    server.handle_request()
+                
+                # Close server when terminating
+                server.server_close()
+                print(f"[{get_timestamp()}] HTTP server stopped")
+                log_to_file("HTTP server stopped", "HTTP Server >>>")
+            except Exception as e2:
+                print(f"[{get_timestamp()}] Error starting HTTP server on alternative port: {e2}")
+                log_to_file(f"Error starting HTTP server on alternative port: {e2}", "HTTP Server >>>")
+        else:
+            print(f"[{get_timestamp()}] Error starting HTTP server: {e}")
+            log_to_file(f"Error starting HTTP server: {e}", "HTTP Server >>>")
+    except Exception as e:
+        print(f"[{get_timestamp()}] Error starting HTTP server: {e}")
+        log_to_file(f"Error starting HTTP server: {e}", "HTTP Server >>>")
 
 
 # Function to send sensor error notification to Slack
@@ -1713,6 +1940,11 @@ def main():
     """Main function for Speed Roulette Controller"""
     global terminate_program, ws_connected, ws_client
 
+    # Check if system was recently rebooted and send sdp: up if needed
+    print(f"[{get_timestamp()}] Checking system boot time...")
+    log_to_file("Checking system boot time...", "MAIN >>>")
+    check_recent_reboot_and_send_up()
+
     # Setup manual hot reload if available
     if MANUAL_HOT_RELOAD_AVAILABLE:
         setup_signal_handlers()
@@ -1728,6 +1960,14 @@ def main():
     else:
         log_mqtt("IDP functionality is DISABLED - skipping Roulette MQTT system initialization")
         log_console("IDP functionality is DISABLED", "MAIN >>>")
+    
+    # Start HTTP server to receive PATCH requests for service status updates
+    # Use port 8085 to avoid conflict with Studio API on 8084
+    http_server_thread = threading.Thread(target=start_http_server, args=(8085,))
+    http_server_thread.daemon = True
+    http_server_thread.start()
+    print(f"[{get_timestamp()}] HTTP server thread started on port 8085")
+    log_to_file("HTTP server thread started on port 8085", "MAIN >>>")
     
     # Start StudioAPI WebSocket connection to listen for "down" signals
     studio_api_ws_thread = threading.Thread(target=start_studio_api_websocket)
