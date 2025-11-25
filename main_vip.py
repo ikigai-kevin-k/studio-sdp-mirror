@@ -436,51 +436,101 @@ def handle_idle_mode():
     Handle idle mode operations:
     1. Disable error scenario processing (already handled by mode check)
     2. Disable tableAPI calls (already handled by mode check)
-    3. Execute ~/startup_vr.sh
-    4. Gracefully shutdown main_vip.py
+    3. SSH to remote host 192.168.88.53 and execute sudo reboot
+    4. Execute sudo ~/down.sh sr on local machine
+    5. Gracefully shutdown main_vip.py
     """
     global terminate_program, current_mode
     
     print(f"[{get_timestamp()}] Entering idle mode operations...")
     log_to_file("Entering idle mode operations...", "Idle Mode >>>")
     
-    # Execute ~/startup_vr.sh
-    startup_script = os.path.expanduser("~/startup_vr.sh")
-    print(f"[{get_timestamp()}] Executing {startup_script}...")
-    log_to_file(f"Executing {startup_script}...", "Idle Mode >>>")
+    import subprocess
+    
+    # Step 1: SSH to remote host and execute sudo reboot in tmux session window dp:sdp
+    remote_host = "rnd@192.168.88.53"
+    tmux_session = "dp:sdp"
+    print(f"[{get_timestamp()}] Step 1: Connecting to SSH {remote_host} and executing sudo reboot in tmux {tmux_session}...")
+    log_to_file(f"Step 1: SSH to {remote_host} and execute sudo reboot in tmux {tmux_session}", "Idle Mode >>>")
     
     try:
-        import subprocess
-        result = subprocess.run(
-            ["bash", startup_script],
+        # Execute SSH command to reboot remote host via tmux
+        # Using ssh with -o StrictHostKeyChecking=no to avoid host key verification
+        # Command: tmux send-keys -t dp:sdp "sudo reboot" Enter
+        ssh_result = subprocess.run(
+            ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=10",
+             remote_host, "tmux", "send-keys", "-t", tmux_session, "sudo reboot", "Enter"],
             capture_output=True,
             text=True,
-            timeout=300  # 5 minute timeout
+            timeout=30  # 30 second timeout for SSH connection
         )
         
-        if result.returncode == 0:
-            print(f"[{get_timestamp()}] {startup_script} executed successfully")
-            log_to_file(f"{startup_script} executed successfully", "Idle Mode >>>")
-            if result.stdout:
-                print(f"[{get_timestamp()}] Script output: {result.stdout}")
-                log_to_file(f"Script output: {result.stdout}", "Idle Mode >>>")
+        if ssh_result.returncode == 0 or ssh_result.returncode == 255:
+            # Exit code 0 = success, 255 = connection closed (expected after reboot command)
+            print(f"[{get_timestamp()}] SSH reboot command sent successfully (exit code: {ssh_result.returncode})")
+            log_to_file(
+                f"SSH reboot command sent successfully (exit code: {ssh_result.returncode})",
+                "Idle Mode >>>"
+            )
+            if ssh_result.stdout:
+                print(f"[{get_timestamp()}] SSH output: {ssh_result.stdout}")
+                log_to_file(f"SSH output: {ssh_result.stdout}", "Idle Mode >>>")
         else:
-            print(f"[{get_timestamp()}] {startup_script} exited with code {result.returncode}")
-            log_to_file(f"{startup_script} exited with code {result.returncode}", "Idle Mode >>>")
-            if result.stderr:
-                print(f"[{get_timestamp()}] Script error: {result.stderr}")
-                log_to_file(f"Script error: {result.stderr}", "Idle Mode >>>")
+            print(f"[{get_timestamp()}] SSH reboot command exited with code {ssh_result.returncode}")
+            log_to_file(
+                f"SSH reboot command exited with code {ssh_result.returncode}",
+                "Idle Mode >>>"
+            )
+            if ssh_result.stderr:
+                print(f"[{get_timestamp()}] SSH error: {ssh_result.stderr}")
+                log_to_file(f"SSH error: {ssh_result.stderr}", "Idle Mode >>>")
     
     except subprocess.TimeoutExpired:
-        print(f"[{get_timestamp()}] {startup_script} execution timed out")
-        log_to_file(f"{startup_script} execution timed out", "Idle Mode >>>")
+        print(f"[{get_timestamp()}] SSH reboot command timed out (this is expected as reboot closes connection)")
+        log_to_file("SSH reboot command timed out (expected)", "Idle Mode >>>")
     except Exception as e:
-        print(f"[{get_timestamp()}] Error executing {startup_script}: {e}")
-        log_to_file(f"Error executing {startup_script}: {e}", "Idle Mode >>>")
+        print(f"[{get_timestamp()}] Error executing SSH reboot: {e}")
+        log_to_file(f"Error executing SSH reboot: {e}", "Idle Mode >>>")
     
-    # Gracefully shutdown main_vip.py
-    print(f"[{get_timestamp()}] Initiating graceful shutdown...")
-    log_to_file("Initiating graceful shutdown...", "Idle Mode >>>")
+    # Step 2: Execute sudo ~/down.sh sr on local machine
+    down_script = os.path.expanduser("~/down.sh")
+    print(f"[{get_timestamp()}] Step 2: Executing sudo {down_script} sr...")
+    log_to_file(f"Step 2: Executing sudo {down_script} sr", "Idle Mode >>>")
+    
+    try:
+        down_result = subprocess.run(
+            ["sudo", down_script, "sr"],
+            capture_output=True,
+            text=True,
+            timeout=60  # 1 minute timeout
+        )
+        
+        if down_result.returncode == 0:
+            print(f"[{get_timestamp()}] sudo {down_script} sr executed successfully")
+            log_to_file(f"sudo {down_script} sr executed successfully", "Idle Mode >>>")
+            if down_result.stdout:
+                print(f"[{get_timestamp()}] Script output: {down_result.stdout}")
+                log_to_file(f"Script output: {down_result.stdout}", "Idle Mode >>>")
+        else:
+            print(f"[{get_timestamp()}] sudo {down_script} sr exited with code {down_result.returncode}")
+            log_to_file(
+                f"sudo {down_script} sr exited with code {down_result.returncode}",
+                "Idle Mode >>>"
+            )
+            if down_result.stderr:
+                print(f"[{get_timestamp()}] Script error: {down_result.stderr}")
+                log_to_file(f"Script error: {down_result.stderr}", "Idle Mode >>>")
+    
+    except subprocess.TimeoutExpired:
+        print(f"[{get_timestamp()}] sudo {down_script} sr execution timed out")
+        log_to_file(f"sudo {down_script} sr execution timed out", "Idle Mode >>>")
+    except Exception as e:
+        print(f"[{get_timestamp()}] Error executing sudo {down_script} sr: {e}")
+        log_to_file(f"Error executing sudo {down_script} sr: {e}", "Idle Mode >>>")
+    
+    # Step 3: Gracefully shutdown main_vip.py
+    print(f"[{get_timestamp()}] Step 3: Initiating graceful shutdown...")
+    log_to_file("Step 3: Initiating graceful shutdown...", "Idle Mode >>>")
     
     terminate_program = True
 
@@ -491,8 +541,11 @@ def check_service_status_and_switch_mode():
     This function runs in a separate thread to periodically check the service status.
     
     Mode switching logic:
-    - "down_pause" or "down_cancel" -> switch to idle mode
+    - "down" (current) or "down_pause"/"down_cancel" (future) -> switch to idle mode
     - "up_cancel" or "up_resume" -> switch to running mode
+    
+    Note: Currently using "down" for CIT environment compatibility.
+          Future support for "down_pause" and "down_cancel" when Studio API is updated.
     """
     global current_mode
     
@@ -517,7 +570,9 @@ def check_service_status_and_switch_mode():
         )
         
         # Check if we need to switch to idle mode
-        if sdp_status in ["down_pause", "down_cancel"]:
+        # Current: "down" for CIT environment compatibility
+        # Future: "down_pause", "down_cancel" when Studio API supports them
+        if sdp_status in ["down", "down_pause", "down_cancel"]:
             with mode_lock:
                 if current_mode == "running":
                     current_mode = "idle"
@@ -526,6 +581,9 @@ def check_service_status_and_switch_mode():
                         f"Mode switched to idle mode due to SDP status: {sdp_status}",
                         "Mode >>>"
                     )
+                    # Trigger idle mode actions
+                    import threading
+                    threading.Thread(target=handle_idle_mode).start()
         
         # Check if we need to switch to running mode
         elif sdp_status in ["up_cancel", "up_resume"]:
