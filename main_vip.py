@@ -432,6 +432,129 @@ def start_studio_api_websocket():
     asyncio.run(init_studio_api_websocket())
 
 
+def _detect_backup_host():
+    """
+    Detect current host and determine backup host IP address.
+    
+    Detection logic:
+    - ARO-002-1 (192.168.88.52) -> backup is 192.168.88.53 (ARO-002-2)
+    - ARO-002-2 (192.168.88.53) -> backup is 192.168.88.52 (ARO-002-1)
+    
+    Returns:
+        tuple: (backup_ip, current_host_info) where backup_ip is the IP to SSH to
+    """
+    import socket
+    import subprocess
+    
+    current_ip = None
+    current_hostname = None
+    backup_ip = None
+    detection_method = None
+    
+    try:
+        # Method 1: Get hostname
+        current_hostname = socket.gethostname()
+        print(f"[{get_timestamp()}] Current hostname: {current_hostname}")
+        log_to_file(f"Current hostname: {current_hostname}", "Idle Mode >>>")
+        
+        # Check hostname for ARO-002-1 or ARO-002-2
+        if "ARO-002-1" in current_hostname or "aro-002-1" in current_hostname.lower():
+            current_ip = "192.168.88.52"
+            backup_ip = "192.168.88.53"
+            detection_method = "hostname"
+            print(f"[{get_timestamp()}] Detected ARO-002-1 from hostname, backup host: {backup_ip}")
+            log_to_file(f"Detected ARO-002-1 from hostname, backup host: {backup_ip}", "Idle Mode >>>")
+        elif "ARO-002-2" in current_hostname or "aro-002-2" in current_hostname.lower():
+            current_ip = "192.168.88.53"
+            backup_ip = "192.168.88.52"
+            detection_method = "hostname"
+            print(f"[{get_timestamp()}] Detected ARO-002-2 from hostname, backup host: {backup_ip}")
+            log_to_file(f"Detected ARO-002-2 from hostname, backup host: {backup_ip}", "Idle Mode >>>")
+    except Exception as e:
+        print(f"[{get_timestamp()}] Error getting hostname: {e}")
+        log_to_file(f"Error getting hostname: {e}", "Idle Mode >>>")
+    
+    # Method 2: If hostname detection failed, use ifconfig
+    if backup_ip is None:
+        try:
+            print(f"[{get_timestamp()}] Hostname detection inconclusive, trying ifconfig...")
+            log_to_file("Hostname detection inconclusive, trying ifconfig", "Idle Mode >>>")
+            
+            result = subprocess.run(
+                ["ifconfig"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode == 0:
+                # Look for 192.168.88.52 or 192.168.88.53 in ifconfig output
+                ifconfig_output = result.stdout
+                
+                if "192.168.88.52" in ifconfig_output:
+                    current_ip = "192.168.88.52"
+                    backup_ip = "192.168.88.53"
+                    detection_method = "ifconfig"
+                    print(f"[{get_timestamp()}] Detected 192.168.88.52 from ifconfig, backup host: {backup_ip}")
+                    log_to_file(f"Detected 192.168.88.52 from ifconfig, backup host: {backup_ip}", "Idle Mode >>>")
+                elif "192.168.88.53" in ifconfig_output:
+                    current_ip = "192.168.88.53"
+                    backup_ip = "192.168.88.52"
+                    detection_method = "ifconfig"
+                    print(f"[{get_timestamp()}] Detected 192.168.88.53 from ifconfig, backup host: {backup_ip}")
+                    log_to_file(f"Detected 192.168.88.53 from ifconfig, backup host: {backup_ip}", "Idle Mode >>>")
+        except Exception as e:
+            print(f"[{get_timestamp()}] Error running ifconfig: {e}")
+            log_to_file(f"Error running ifconfig: {e}", "Idle Mode >>>")
+    
+    # Method 3: Try grep 192.168 directly
+    if backup_ip is None:
+        try:
+            print(f"[{get_timestamp()}] Trying 'ifconfig | grep 192.168'...")
+            log_to_file("Trying 'ifconfig | grep 192.168'", "Idle Mode >>>")
+            
+            result = subprocess.run(
+                ["bash", "-c", "ifconfig | grep 192.168"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode == 0 and result.stdout:
+                grep_output = result.stdout
+                
+                if "192.168.88.52" in grep_output:
+                    current_ip = "192.168.88.52"
+                    backup_ip = "192.168.88.53"
+                    detection_method = "ifconfig_grep"
+                    print(f"[{get_timestamp()}] Detected 192.168.88.52 from ifconfig|grep, backup host: {backup_ip}")
+                    log_to_file(f"Detected 192.168.88.52 from ifconfig|grep, backup host: {backup_ip}", "Idle Mode >>>")
+                elif "192.168.88.53" in grep_output:
+                    current_ip = "192.168.88.53"
+                    backup_ip = "192.168.88.52"
+                    detection_method = "ifconfig_grep"
+                    print(f"[{get_timestamp()}] Detected 192.168.88.53 from ifconfig|grep, backup host: {backup_ip}")
+                    log_to_file(f"Detected 192.168.88.53 from ifconfig|grep, backup host: {backup_ip}", "Idle Mode >>>")
+        except Exception as e:
+            print(f"[{get_timestamp()}] Error running ifconfig|grep: {e}")
+            log_to_file(f"Error running ifconfig|grep: {e}", "Idle Mode >>>")
+    
+    # Fallback: Default to 192.168.88.53 if detection fails
+    if backup_ip is None:
+        backup_ip = "192.168.88.53"
+        print(f"[{get_timestamp()}] ⚠️ Could not detect current host, defaulting to backup: {backup_ip}")
+        log_to_file(f"⚠️ Could not detect current host, defaulting to backup: {backup_ip}", "Idle Mode >>>")
+        detection_method = "default"
+    
+    current_host_info = {
+        "hostname": current_hostname,
+        "ip": current_ip,
+        "detection_method": detection_method
+    }
+    
+    return backup_ip, current_host_info
+
+
 def _execute_ssh_with_password(host, command, password="0000", timeout=30):
     """
     Execute SSH command with password authentication using pexpect.
@@ -529,11 +652,16 @@ def _execute_ssh_with_password(host, command, password="0000", timeout=30):
 def handle_idle_mode():
     """
     Handle idle mode operations:
-    1. Disable error scenario processing (already handled by mode check)
-    2. Disable tableAPI calls (already handled by mode check)
-    3. SSH to remote host 192.168.88.53 and execute sudo reboot
-    4. Execute sudo ~/down.sh sr on local machine
-    5. Gracefully shutdown main_vip.py
+    1. Detect current host (ARO-002-1 or ARO-002-2) and determine backup host
+    2. Disable error scenario processing (already handled by mode check)
+    3. Disable tableAPI calls (already handled by mode check)
+    4. SSH to backup host and execute sudo reboot in tmux session
+    5. Execute ./down.sh vr in /home/rnd/ on local machine
+    6. Gracefully shutdown main_vip.py
+    
+    Backup host detection:
+    - If current host is ARO-002-1 (192.168.88.52) -> SSH to 192.168.88.53 (ARO-002-2)
+    - If current host is ARO-002-2 (192.168.88.53) -> SSH to 192.168.88.52 (ARO-002-1)
     """
     global terminate_program, current_mode
     
@@ -542,8 +670,19 @@ def handle_idle_mode():
     
     import subprocess
     
+    # Step 0: Detect current host and determine backup host
+    print(f"[{get_timestamp()}] Step 0: Detecting current host and backup host...")
+    log_to_file("Step 0: Detecting current host and backup host", "Idle Mode >>>")
+    
+    backup_ip, current_host_info = _detect_backup_host()
+    remote_host = f"rnd@{backup_ip}"
+    
+    print(f"[{get_timestamp()}] Current host info: {current_host_info}")
+    print(f"[{get_timestamp()}] Backup host selected: {remote_host}")
+    log_to_file(f"Current host info: {current_host_info}", "Idle Mode >>>")
+    log_to_file(f"Backup host selected: {remote_host}", "Idle Mode >>>")
+    
     # Step 1: SSH to remote host and execute sudo reboot in tmux session window dp:sdp
-    remote_host = "rnd@192.168.88.53"
     tmux_session = "dp:sdp"
     ssh_password = "0000"
     print(f"[{get_timestamp()}] Step 1: Starting SSH reboot sequence for {remote_host} in tmux {tmux_session}...")
@@ -612,48 +751,105 @@ def handle_idle_mode():
     print(f"[{get_timestamp()}] Step 1.3: Attaching to tmux {tmux_session} and executing sudo reboot...")
     log_to_file(f"Step 1.3: Attaching to tmux {tmux_session} and executing sudo reboot", "Idle Mode >>>")
     
-    # First, attach to the tmux session window, then send the reboot command
-    # Using a compound command: attach to session, then send keys
-    tmux_command = f"tmux attach-session -t {tmux_session} -d && tmux send-keys -t {tmux_session} 'sudo reboot' Enter"
-    print(f"[{get_timestamp()}] Full SSH command: ssh {remote_host} \"{tmux_command}\"")
-    log_to_file(f"Full SSH command: ssh {remote_host} \"{tmux_command}\"", "Idle Mode >>>")
+    reboot_command_sent = False
+    
+    # Step 1.3.1: Attach to tmux session (detached mode)
+    print(f"[{get_timestamp()}] Step 1.3.1: Attaching to tmux session {tmux_session}...")
+    log_to_file(f"Step 1.3.1: Attaching to tmux session {tmux_session}", "Idle Mode >>>")
     
     try:
-        ssh_result = _execute_ssh_with_password(
-            remote_host, tmux_command, ssh_password, timeout=30
+        attach_result = _execute_ssh_with_password(
+            remote_host, f"tmux attach-session -t {tmux_session} -d", ssh_password, timeout=10
         )
         
-        print(f"[{get_timestamp()}] SSH command completed with returncode: {ssh_result['returncode']}")
-        log_to_file(f"SSH command completed with returncode: {ssh_result['returncode']}", "Idle Mode >>>")
-        
-        if ssh_result['stdout']:
-            print(f"[{get_timestamp()}] SSH stdout: {ssh_result['stdout']}")
-            log_to_file(f"SSH stdout: {ssh_result['stdout']}", "Idle Mode >>>")
-        
-        if ssh_result['stderr']:
-            print(f"[{get_timestamp()}] SSH stderr: {ssh_result['stderr']}")
-            log_to_file(f"SSH stderr: {ssh_result['stderr']}", "Idle Mode >>>")
-        
-        if ssh_result['success']:
-            print(f"[{get_timestamp()}] ✅ SSH reboot command sent successfully (returncode: {ssh_result['returncode']})")
-            log_to_file(
-                f"✅ SSH reboot command sent successfully (returncode: {ssh_result['returncode']})",
-                "Idle Mode >>>"
-            )
+        if attach_result['success']:
+            print(f"[{get_timestamp()}] ✅ Tmux session attached successfully")
+            log_to_file(f"✅ Tmux session attached successfully (returncode: {attach_result['returncode']})", "Idle Mode >>>")
         else:
-            print(f"[{get_timestamp()}] ❌ SSH reboot command failed (returncode: {ssh_result['returncode']})")
-            log_to_file(
-                f"❌ SSH reboot command failed (returncode: {ssh_result['returncode']})",
-                "Idle Mode >>>"
-            )
+            print(f"[{get_timestamp()}] ⚠️ Tmux attach may have failed (returncode: {attach_result['returncode']}), continuing anyway...")
+            log_to_file(f"⚠️ Tmux attach may have failed (returncode: {attach_result['returncode']}), continuing anyway", "Idle Mode >>>")
     
     except Exception as e:
-        print(f"[{get_timestamp()}] ❌ Error executing SSH reboot: {e}")
-        log_to_file(f"❌ Error executing SSH reboot: {e}", "Idle Mode >>>")
+        print(f"[{get_timestamp()}] ⚠️ Error attaching to tmux session: {e}, continuing anyway...")
+        log_to_file(f"⚠️ Error attaching to tmux session: {e}, continuing anyway", "Idle Mode >>>")
+    
+    # Step 1.3.2: Send sudo reboot command to tmux window
+    print(f"[{get_timestamp()}] Step 1.3.2: Sending 'sudo reboot' command to tmux {tmux_session}...")
+    log_to_file(f"Step 1.3.2: Sending 'sudo reboot' command to tmux {tmux_session}", "Idle Mode >>>")
+    
+    # Use separate arguments for tmux send-keys to ensure space is properly handled
+    # Format: tmux send-keys -t target 'sudo' Space 'reboot' Enter
+    tmux_send_command = f"tmux send-keys -t {tmux_session} 'sudo' Space 'reboot' Enter"
+    print(f"[{get_timestamp()}] Tmux send-keys command: {tmux_send_command}")
+    log_to_file(f"Tmux send-keys command: {tmux_send_command}", "Idle Mode >>>")
+    
+    try:
+        send_result = _execute_ssh_with_password(
+            remote_host, tmux_send_command, ssh_password, timeout=15
+        )
+        
+        print(f"[{get_timestamp()}] Tmux send-keys completed with returncode: {send_result['returncode']}")
+        log_to_file(f"Tmux send-keys completed with returncode: {send_result['returncode']}", "Idle Mode >>>")
+        
+        if send_result['stdout']:
+            print(f"[{get_timestamp()}] Tmux send-keys stdout: {send_result['stdout']}")
+            log_to_file(f"Tmux send-keys stdout: {send_result['stdout']}", "Idle Mode >>>")
+        
+        if send_result['stderr']:
+            print(f"[{get_timestamp()}] Tmux send-keys stderr: {send_result['stderr']}")
+            log_to_file(f"Tmux send-keys stderr: {send_result['stderr']}", "Idle Mode >>>")
+        
+        if send_result['success']:
+            reboot_command_sent = True
+            print(f"[{get_timestamp()}] ✅ Tmux send-keys command executed successfully")
+            log_to_file(f"✅ Tmux send-keys command executed successfully (returncode: {send_result['returncode']})", "Idle Mode >>>")
+        else:
+            print(f"[{get_timestamp()}] ❌ Tmux send-keys command failed (returncode: {send_result['returncode']})")
+            log_to_file(f"❌ Tmux send-keys command failed (returncode: {send_result['returncode']})", "Idle Mode >>>")
+    
+    except Exception as e:
+        print(f"[{get_timestamp()}] ❌ Error executing tmux send-keys: {e}")
+        log_to_file(f"❌ Error executing tmux send-keys: {e}", "Idle Mode >>>")
         import traceback
         error_trace = traceback.format_exc()
         print(f"[{get_timestamp()}] Error traceback: {error_trace}")
         log_to_file(f"Error traceback: {error_trace}", "Idle Mode >>>")
+    
+    # Step 1.3.3: Verify command was sent by capturing tmux pane content
+    if reboot_command_sent:
+        print(f"[{get_timestamp()}] Step 1.3.3: Verifying command was sent to tmux window...")
+        log_to_file(f"Step 1.3.3: Verifying command was sent to tmux window", "Idle Mode >>>")
+        
+        time.sleep(1)  # Wait a moment for command to appear in pane
+        
+        try:
+            verify_result = _execute_ssh_with_password(
+                remote_host, f"tmux capture-pane -t {tmux_session} -p", ssh_password, timeout=10
+            )
+            
+            if verify_result['success'] and verify_result['stdout']:
+                pane_content = verify_result['stdout']
+                print(f"[{get_timestamp()}] Tmux pane content (last 200 chars): {pane_content[-200:]}")
+                log_to_file(f"Tmux pane content (last 200 chars): {pane_content[-200:]}", "Idle Mode >>>")
+                
+                # Check if "sudo reboot" appears in the pane
+                if "sudo reboot" in pane_content.lower() or "sudoreboot" in pane_content.lower():
+                    print(f"[{get_timestamp()}] ✅ Verified: 'sudo reboot' command found in tmux pane")
+                    log_to_file(f"✅ Verified: 'sudo reboot' command found in tmux pane", "Idle Mode >>>")
+                else:
+                    print(f"[{get_timestamp()}] ⚠️ Warning: 'sudo reboot' command not clearly visible in tmux pane")
+                    log_to_file(f"⚠️ Warning: 'sudo reboot' command not clearly visible in tmux pane", "Idle Mode >>>")
+            else:
+                print(f"[{get_timestamp()}] ⚠️ Could not verify command in tmux pane (returncode: {verify_result['returncode']})")
+                log_to_file(f"⚠️ Could not verify command in tmux pane (returncode: {verify_result['returncode']})", "Idle Mode >>>")
+        
+        except Exception as e:
+            print(f"[{get_timestamp()}] ⚠️ Error verifying command in tmux pane: {e}")
+            log_to_file(f"⚠️ Error verifying command in tmux pane: {e}", "Idle Mode >>>")
+    
+    if not reboot_command_sent:
+        print(f"[{get_timestamp()}] ❌ CRITICAL: sudo reboot command was NOT sent successfully!")
+        log_to_file(f"❌ CRITICAL: sudo reboot command was NOT sent successfully!", "Idle Mode >>>")
     
     # Step 1.4: Wait and verify reboot (optional verification)
     print(f"[{get_timestamp()}] Step 1.4: Waiting 5 seconds before verifying reboot status...")
