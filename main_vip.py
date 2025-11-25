@@ -1753,7 +1753,11 @@ def read_from_serial():
                         )
 
                         # Asynchronously process start_post for all tables
+                        # First, get bet_period from PRD environment, then share it with other environments
                         round_ids = []
+                        prd_bet_period = None
+                        
+                        # First pass: Get PRD bet_period
                         with ThreadPoolExecutor(
                             max_workers=len(tables)
                         ) as executor:
@@ -1767,7 +1771,18 @@ def read_from_serial():
                                 result = future.result()  # Wait for all requests to complete
                                 if result and result[0] and result[1]:  # Check if we got valid table and round_id
                                     table, round_id, bet_period = result
+                                    # Store PRD bet_period
+                                    if table["name"] in ["PRD", "PRD-3", "PRD-4"] and bet_period is not None:
+                                        prd_bet_period = bet_period
                                     round_ids.append((table, round_id, bet_period))
+                        
+                        # Second pass: Share PRD bet_period with other environments (STG, UAT, QAT, CIT)
+                        if prd_bet_period is not None:
+                            for i, (table, round_id, bet_period) in enumerate(round_ids):
+                                if bet_period is None and table["name"] in ["STG", "UAT", "QAT", "GLC", "DEV"]:
+                                    round_ids[i] = (table, round_id, prd_bet_period)
+                                    print(f"[{get_timestamp()}] Sharing PRD bet_period ({prd_bet_period}s) with {table['name']}")
+                                    log_to_file(f"Sharing PRD bet_period ({prd_bet_period}s) with {table['name']}", "Bet Stop >>>")
 
                         start_post_sent = True
                         deal_post_sent = False
@@ -2212,10 +2227,13 @@ def execute_start_post(table, token):
     
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
+        # Only PRD environment fetches bet_period, other environments share PRD's bet_period
         if table["name"] == "UAT":
-            round_id, betPeriod = start_post_v2_uat(post_url, token)
+            round_id, _ = start_post_v2_uat(post_url, token)
+            betPeriod = None  # Will be set from PRD later
         elif table["name"] == "DEV":
-            round_id, betPeriod = start_post_v2_dev(post_url, token)
+            round_id, _ = start_post_v2_dev(post_url, token)
+            betPeriod = None  # Will be set from PRD later
         elif table["name"] == "PRD":
             round_id, betPeriod = start_post_v2_prd(post_url, token)
         elif table["name"] == "PRD-3":
@@ -2223,13 +2241,17 @@ def execute_start_post(table, token):
         elif table["name"] == "PRD-4":
             round_id, betPeriod = start_post_v2_prd4(post_url, token)
         elif table["name"] == "STG":
-            round_id, betPeriod = start_post_v2_stg(post_url, token)
+            round_id, _ = start_post_v2_stg(post_url, token)
+            betPeriod = None  # Will be set from PRD later
         elif table["name"] == "QAT":
-            round_id, betPeriod = start_post_v2_qat(post_url, token)
+            round_id, _ = start_post_v2_qat(post_url, token)
+            betPeriod = None  # Will be set from PRD later
         elif table["name"] == "GLC":
-            round_id, betPeriod = start_post_v2_glc(post_url, token)
+            round_id, _ = start_post_v2_glc(post_url, token)
+            betPeriod = None  # Will be set from PRD later
         else:
-            round_id, betPeriod = start_post_v2(post_url, token)
+            round_id, _ = start_post_v2(post_url, token)
+            betPeriod = None  # Will be set from PRD later
 
         if round_id != -1:
             table["round_id"] = round_id

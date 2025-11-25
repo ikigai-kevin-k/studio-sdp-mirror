@@ -2011,42 +2011,51 @@ async def _execute_start_post_async(table, token):
     
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
+        # Only PRD environment fetches bet_period, other environments share PRD's bet_period
         if table["name"] == "CIT":
-            round_id, bet_period = await retry_with_network_check(
+            round_id, _ = await retry_with_network_check(
                 start_post_v2, post_url, token
             )
+            bet_period = None  # Will be set from PRD later
         elif table["name"] == "UAT":
-            round_id, bet_period = await retry_with_network_check(
+            round_id, _ = await retry_with_network_check(
                 start_post_v2_uat, post_url, token
             )
+            bet_period = None  # Will be set from PRD later
         elif table["name"] == "DEV":
-            round_id, bet_period = await retry_with_network_check(
+            round_id, _ = await retry_with_network_check(
                 start_post_v2_dev, post_url, token
             )
+            bet_period = None  # Will be set from PRD later
         elif table["name"] == "PRD":
             round_id, bet_period = await retry_with_network_check(
                 start_post_v2_prd, post_url, token
             )
         elif table["name"] == "STG":
-            round_id, bet_period = await retry_with_network_check(
+            round_id, _ = await retry_with_network_check(
                 start_post_v2_stg, post_url, token
             )
+            bet_period = None  # Will be set from PRD later
         elif table["name"] == "QAT":
-            round_id, bet_period = await retry_with_network_check(
+            round_id, _ = await retry_with_network_check(
                 start_post_v2_qat, post_url, token
             )
+            bet_period = None  # Will be set from PRD later
         elif table["name"] == "CIT-5":
-            round_id, bet_period = await retry_with_network_check(
+            round_id, _ = await retry_with_network_check(
                 start_post_v2_cit5, post_url, token
             )
+            bet_period = None  # Will be set from PRD later
         elif table["name"] == "CIT-6":
-            round_id, bet_period = await retry_with_network_check(
+            round_id, _ = await retry_with_network_check(
                 start_post_v2_cit6, post_url, token
             )
+            bet_period = None  # Will be set from PRD later
         elif table["name"] == "CIT-7":
-            round_id, bet_period = await retry_with_network_check(
+            round_id, _ = await retry_with_network_check(
                 start_post_v2_cit7, post_url, token
             )
+            bet_period = None  # Will be set from PRD later
         elif table["name"] == "PRD-5":
             round_id, bet_period = await retry_with_network_check(
                 start_post_v2_prd5, post_url, token
@@ -2060,9 +2069,10 @@ async def _execute_start_post_async(table, token):
                 start_post_v2_prd7, post_url, token
             )
         elif table["name"] == "GLC":
-            round_id, bet_period = await retry_with_network_check(
+            round_id, _ = await retry_with_network_check(
                 start_post_v2_glc, post_url, token
             )
+            bet_period = None  # Will be set from PRD later
         else:
             return None, None
 

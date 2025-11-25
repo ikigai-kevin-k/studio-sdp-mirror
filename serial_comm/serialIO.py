@@ -686,7 +686,11 @@ def read_from_serial(
                                 )
 
                                 # Asynchronously process start_post for all tables
+                                # First, get bet_period from PRD environment, then share it with other environments
                                 round_ids = []
+                                prd_bet_period = None
+                                
+                                # First pass: Get PRD bet_period
                                 with ThreadPoolExecutor(
                                     max_workers=len(tables)
                                 ) as executor:
@@ -700,7 +704,18 @@ def read_from_serial(
                                         result = future.result()  # Wait for all requests to complete
                                         if result and result[0] and result[1]:  # Check if we got valid table and round_id
                                             table, round_id, bet_period = result
+                                            # Store PRD bet_period (check all PRD environments)
+                                            if table["name"].startswith("PRD") and bet_period is not None:
+                                                prd_bet_period = bet_period
                                             round_ids.append((table, round_id, bet_period))
+                                
+                                # Second pass: Share PRD bet_period with other environments (STG, UAT, QAT, CIT)
+                                if prd_bet_period is not None:
+                                    for i, (table, round_id, bet_period) in enumerate(round_ids):
+                                        if bet_period is None and table["name"] in ["STG", "UAT", "QAT", "CIT", "CIT-5", "CIT-6", "CIT-7", "GLC", "DEV"]:
+                                            round_ids[i] = (table, round_id, prd_bet_period)
+                                            print(f"[{get_timestamp()}] Sharing PRD bet_period ({prd_bet_period}s) with {table['name']}")
+                                            log_to_file(f"Sharing PRD bet_period ({prd_bet_period}s) with {table['name']}", "Bet Stop >>>")
 
                                 global_vars["start_post_sent"] = True
                                 global_vars["deal_post_sent"] = False
