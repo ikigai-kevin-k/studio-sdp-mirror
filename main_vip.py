@@ -897,31 +897,58 @@ def handle_idle_mode():
         print(f"[{get_timestamp()}] ⚠️ Could not verify reboot status: {e}")
         log_to_file(f"⚠️ Could not verify reboot status: {e}", "Idle Mode >>>")
     
-    # Step 2: Execute ./down.sh vr in /home/rnd/ on local machine
+    # Step 2: Execute ./down.sh vr or ./down.sh vr2 in /home/rnd/ on local machine
+    # Determine which script to call based on detected device name
     down_script_path = "/home/rnd/down.sh"
     down_script_dir = "/home/rnd"
-    print(f"[{get_timestamp()}] Step 2: Executing {down_script_path} vr in {down_script_dir}...")
-    log_to_file(f"Step 2: Executing {down_script_path} vr in {down_script_dir}", "Idle Mode >>>")
+    
+    # Detect device name from current_host_info
+    current_hostname = current_host_info.get("hostname", "")
+    down_script_arg = "vr"  # Default to "vr"
+    
+    if current_hostname:
+        if "ARO-002-1" in current_hostname or "aro-002-1" in current_hostname.lower():
+            down_script_arg = "vr"
+            print(f"[{get_timestamp()}] Detected ARO-002-1, will execute ./down.sh vr")
+            log_to_file("Detected ARO-002-1, will execute ./down.sh vr", "Idle Mode >>>")
+        elif "ARO-002-2" in current_hostname or "aro-002-2" in current_hostname.lower():
+            down_script_arg = "vr2"
+            print(f"[{get_timestamp()}] Detected ARO-002-2, will execute ./down.sh vr2")
+            log_to_file("Detected ARO-002-2, will execute ./down.sh vr2", "Idle Mode >>>")
+        else:
+            # Fallback: try to detect from IP address
+            current_ip = current_host_info.get("ip", "")
+            if current_ip == "192.168.88.52":
+                down_script_arg = "vr"
+                print(f"[{get_timestamp()}] Detected IP 192.168.88.52 (ARO-002-1), will execute ./down.sh vr")
+                log_to_file("Detected IP 192.168.88.52 (ARO-002-1), will execute ./down.sh vr", "Idle Mode >>>")
+            elif current_ip == "192.168.88.53":
+                down_script_arg = "vr2"
+                print(f"[{get_timestamp()}] Detected IP 192.168.88.53 (ARO-002-2), will execute ./down.sh vr2")
+                log_to_file("Detected IP 192.168.88.53 (ARO-002-2), will execute ./down.sh vr2", "Idle Mode >>>")
+    
+    print(f"[{get_timestamp()}] Step 2: Executing {down_script_path} {down_script_arg} in {down_script_dir}...")
+    log_to_file(f"Step 2: Executing {down_script_path} {down_script_arg} in {down_script_dir}", "Idle Mode >>>")
     
     try:
-        # Change to /home/rnd directory and execute ./down.sh vr
+        # Change to /home/rnd directory and execute ./down.sh vr or ./down.sh vr2
         down_result = subprocess.run(
-            ["bash", "-c", f"cd {down_script_dir} && ./down.sh vr"],
+            ["bash", "-c", f"cd {down_script_dir} && ./down.sh {down_script_arg}"],
             capture_output=True,
             text=True,
             timeout=60  # 1 minute timeout
         )
         
         if down_result.returncode == 0:
-            print(f"[{get_timestamp()}] {down_script_path} vr executed successfully")
-            log_to_file(f"{down_script_path} vr executed successfully", "Idle Mode >>>")
+            print(f"[{get_timestamp()}] {down_script_path} {down_script_arg} executed successfully")
+            log_to_file(f"{down_script_path} {down_script_arg} executed successfully", "Idle Mode >>>")
             if down_result.stdout:
                 print(f"[{get_timestamp()}] Script output: {down_result.stdout}")
                 log_to_file(f"Script output: {down_result.stdout}", "Idle Mode >>>")
         else:
-            print(f"[{get_timestamp()}] {down_script_path} vr exited with code {down_result.returncode}")
+            print(f"[{get_timestamp()}] {down_script_path} {down_script_arg} exited with code {down_result.returncode}")
             log_to_file(
-                f"{down_script_path} vr exited with code {down_result.returncode}",
+                f"{down_script_path} {down_script_arg} exited with code {down_result.returncode}",
                 "Idle Mode >>>"
             )
             if down_result.stderr:
@@ -929,11 +956,11 @@ def handle_idle_mode():
                 log_to_file(f"Script error: {down_result.stderr}", "Idle Mode >>>")
     
     except subprocess.TimeoutExpired:
-        print(f"[{get_timestamp()}] {down_script_path} vr execution timed out")
-        log_to_file(f"{down_script_path} vr execution timed out", "Idle Mode >>>")
+        print(f"[{get_timestamp()}] {down_script_path} {down_script_arg} execution timed out")
+        log_to_file(f"{down_script_path} {down_script_arg} execution timed out", "Idle Mode >>>")
     except Exception as e:
-        print(f"[{get_timestamp()}] Error executing {down_script_path} vr: {e}")
-        log_to_file(f"Error executing {down_script_path} vr: {e}", "Idle Mode >>>")
+        print(f"[{get_timestamp()}] Error executing {down_script_path} {down_script_arg}: {e}")
+        log_to_file(f"Error executing {down_script_path} {down_script_arg}: {e}", "Idle Mode >>>")
     
     # Step 3: Gracefully shutdown main_vip.py
     print(f"[{get_timestamp()}] Step 3: Initiating graceful shutdown...")
