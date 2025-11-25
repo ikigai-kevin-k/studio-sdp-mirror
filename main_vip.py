@@ -342,13 +342,13 @@ async def listen_for_studio_api_messages():
     """
     Listen for messages from StudioAPI WebSocket, specifically "down" signals
     """
-    global current_mode, studio_api_ws_client, studio_api_ws_connected
+    global current_mode, studio_api_ws_client, studio_api_ws_connected, terminate_program
     
     if not studio_api_ws_client or not studio_api_ws_client.websocket:
         return
     
     try:
-        while studio_api_ws_connected:
+        while studio_api_ws_connected and not terminate_program:
             try:
                 # Wait for message with timeout
                 message = await asyncio.wait_for(
@@ -921,7 +921,34 @@ def handle_idle_mode():
     print(f"[{get_timestamp()}] Step 3: Initiating graceful shutdown...")
     log_to_file("Step 3: Initiating graceful shutdown...", "Idle Mode >>>")
     
+    # Set terminate flag to stop all threads and main loop
     terminate_program = True
+    
+    # Close StudioAPI WebSocket connection
+    global studio_api_ws_client, studio_api_ws_connected
+    if studio_api_ws_connected and studio_api_ws_client:
+        try:
+            print(f"[{get_timestamp()}] Closing StudioAPI WebSocket connection...")
+            log_to_file("Closing StudioAPI WebSocket connection...", "Idle Mode >>>")
+            # Use threading to run async disconnect
+            def close_studio_ws():
+                try:
+                    asyncio.run(studio_api_ws_client.disconnect())
+                except Exception as e:
+                    print(f"[{get_timestamp()}] Error disconnecting StudioAPI WebSocket: {e}")
+                    log_to_file(f"Error disconnecting StudioAPI WebSocket: {e}", "Idle Mode >>>")
+            
+            close_thread = threading.Thread(target=close_studio_ws)
+            close_thread.daemon = True
+            close_thread.start()
+            close_thread.join(timeout=5)  # Wait up to 5 seconds
+            studio_api_ws_connected = False
+            print(f"[{get_timestamp()}] StudioAPI WebSocket connection closed")
+            log_to_file("StudioAPI WebSocket connection closed", "Idle Mode >>>")
+        except Exception as e:
+            print(f"[{get_timestamp()}] Error closing StudioAPI WebSocket: {e}")
+            log_to_file(f"Error closing StudioAPI WebSocket: {e}", "Idle Mode >>>")
+            studio_api_ws_connected = False
 
 
 def check_service_status_and_switch_mode():
@@ -999,6 +1026,7 @@ def service_status_monitor():
     Monitor service status periodically in a separate thread.
     Checks service status every 5 seconds.
     """
+    global terminate_program
     while not terminate_program:
         try:
             check_service_status_and_switch_mode()
@@ -1194,11 +1222,21 @@ def start_http_server(port=8085):
     Args:
         port (int): Port number to listen on (default: 8085, to avoid conflict with Studio API on 8084)
     """
+    global terminate_program
     try:
         server = HTTPServer(("0.0.0.0", port), StatusRequestHandler)
         print(f"[{get_timestamp()}] HTTP server started on port {port}")
         log_to_file(f"HTTP server started on port {port}", "HTTP Server >>>")
-        server.serve_forever()
+        
+        # Serve with timeout to allow checking terminate_program flag
+        while not terminate_program:
+            server.timeout = 1.0
+            server.handle_request()
+        
+        # Close server when terminating
+        server.server_close()
+        print(f"[{get_timestamp()}] HTTP server stopped")
+        log_to_file("HTTP server stopped", "HTTP Server >>>")
     except OSError as e:
         if "Address already in use" in str(e):
             print(f"[{get_timestamp()}] Port {port} already in use, trying alternative port {port + 1}")
@@ -1207,7 +1245,16 @@ def start_http_server(port=8085):
                 server = HTTPServer(("0.0.0.0", port + 1), StatusRequestHandler)
                 print(f"[{get_timestamp()}] HTTP server started on alternative port {port + 1}")
                 log_to_file(f"HTTP server started on alternative port {port + 1}", "HTTP Server >>>")
-                server.serve_forever()
+                
+                # Serve with timeout to allow checking terminate_program flag
+                while not terminate_program:
+                    server.timeout = 1.0
+                    server.handle_request()
+                
+                # Close server when terminating
+                server.server_close()
+                print(f"[{get_timestamp()}] HTTP server stopped")
+                log_to_file("HTTP server stopped", "HTTP Server >>>")
             except Exception as e2:
                 print(f"[{get_timestamp()}] Error starting HTTP server on alternative port: {e2}")
                 log_to_file(f"Error starting HTTP server on alternative port: {e2}", "HTTP Server >>>")
@@ -2434,7 +2481,7 @@ def main():
 
     # Main thread handles writing and monitors termination flag
     try:
-        while not global_vars.get("terminate_program", False):
+        while not terminate_program:
             try:
                 # Check for user input with timeout to allow checking termination flag
                 import select
@@ -2457,10 +2504,26 @@ def main():
                 print(f"Error in main loop: {e}")
                 time.sleep(0.1)
         
-        # Check if program should terminate due to *X;6 sensor error
-        if global_vars.get("terminate_program", False):
-            print(f"\n[{get_timestamp()}] Program terminating due to *X;6 message detection")
-            log_to_file("Program terminating due to *X;6 message detection", "Terminate >>>")
+        # Check if program should terminate
+        if terminate_program:
+            termination_reason = "idle mode shutdown" if current_mode == "idle" else "*X;6 message detection"
+            print(f"\n[{get_timestamp()}] Program terminating due to {termination_reason}")
+            log_to_file(f"Program terminating due to {termination_reason}", "Terminate >>>")
+            
+            # Gracefully close StudioAPI WebSocket connection
+            global studio_api_ws_client, studio_api_ws_connected
+            if studio_api_ws_connected and studio_api_ws_client:
+                try:
+                    print(f"[{get_timestamp()}] Closing StudioAPI WebSocket connection...")
+                    log_to_file("Closing StudioAPI WebSocket connection...", "Terminate >>>")
+                    asyncio.run(studio_api_ws_client.disconnect())
+                    studio_api_ws_connected = False
+                    print(f"[{get_timestamp()}] StudioAPI WebSocket connection closed successfully")
+                    log_to_file("StudioAPI WebSocket connection closed successfully", "Terminate >>>")
+                except Exception as e:
+                    print(f"[{get_timestamp()}] Error closing StudioAPI WebSocket connection: {e}")
+                    log_to_file(f"Error closing StudioAPI WebSocket connection: {e}", "Terminate >>>")
+                    studio_api_ws_connected = False
             
             # Gracefully close WebSocket connection
             if ws_connected and ws_client:
@@ -2490,11 +2553,22 @@ def main():
             print(f"[{get_timestamp()}] Program terminated gracefully")
             log_to_file("Program terminated gracefully", "Terminate >>>")
             
+            # Actually exit the process
+            sys.exit(0)
+            
     except KeyboardInterrupt:
         print(f"\n[{get_timestamp()}] Program ended by user")
         log_to_file("Program ended by user", "Terminate >>>")
     finally:
         # Ensure connections are closed even if not terminated gracefully
+        global studio_api_ws_client, studio_api_ws_connected
+        if studio_api_ws_connected and studio_api_ws_client:
+            try:
+                asyncio.run(studio_api_ws_client.disconnect())
+                print(f"[{get_timestamp()}] StudioAPI WebSocket connection closed in finally block")
+            except:
+                pass
+        
         if ser is not None:
             try:
                 ser.close()
