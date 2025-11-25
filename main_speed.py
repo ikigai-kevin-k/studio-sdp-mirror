@@ -311,6 +311,8 @@ terminate_program = False  # Flag to terminate program when *X;6 sensor error is
 # Mode: "running" (normal operation) or "idle" (maintenance mode)
 current_mode = "running"  # Start in running mode
 mode_lock = threading.Lock()  # Lock for thread-safe mode access
+idle_mode_triggered = False  # Flag to track if idle mode operation has been triggered
+idle_mode_lock = threading.Lock()  # Lock for thread-safe idle mode trigger access
 
 async def retry_with_network_check(func, *args, max_retries=5, retry_delay=5):
     """
@@ -802,7 +804,7 @@ def handle_idle_mode():
     - If current host is ARO-001-1 (192.168.88.50) -> SSH to 192.168.88.51 (ARO-001-2)
     - If current host is ARO-001-2 (192.168.88.51) -> SSH to 192.168.88.50 (ARO-001-1)
     """
-    global terminate_program, current_mode
+    global terminate_program, current_mode, idle_mode_triggered
     
     print(f"[{get_timestamp()}] Entering idle mode operations...")
     log_to_file("Entering idle mode operations...", "Idle Mode >>>")
@@ -949,6 +951,10 @@ def handle_idle_mode():
     print(f"[{get_timestamp()}] Step 3: Initiating graceful shutdown...")
     log_to_file("Step 3: Initiating graceful shutdown...", "Idle Mode >>>")
     
+    # Reset idle_mode_triggered flag before shutdown (in case program restarts)
+    with idle_mode_lock:
+        idle_mode_triggered = False
+    
     terminate_program = True
 
 
@@ -1045,15 +1051,31 @@ def check_service_status_and_switch_mode():
         # Support "down", "down_pause", and "down_cancel" status
         if sdp_status in ["down", "down_pause", "down_cancel"]:
             with mode_lock:
-                if current_mode == "running":
+                if current_mode != "idle":
                     current_mode = "idle"
                     print(f"[{get_timestamp()}] Mode switched to idle (SDP status: {sdp_status})")
                     log_to_file(
                         f"Mode switched to idle mode due to SDP status: {sdp_status}",
                         "Mode >>>"
                     )
-                    # Trigger idle mode actions
+                else:
+                    print(f"[{get_timestamp()}] Already in idle mode (SDP status: {sdp_status}), but will trigger idle mode actions")
+                    log_to_file(
+                        f"Already in idle mode (SDP status: {sdp_status}), but will trigger idle mode actions",
+                        "Mode >>>"
+                    )
+            
+            # Trigger idle mode actions (check if already triggered to avoid duplicates)
+            with idle_mode_lock:
+                global idle_mode_triggered
+                if not idle_mode_triggered:
+                    idle_mode_triggered = True
+                    print(f"[{get_timestamp()}] Triggering idle mode actions from service status monitor...")
+                    log_to_file("Triggering idle mode actions from service status monitor...", "HTTP API >>>")
                     threading.Thread(target=handle_idle_mode).start()
+                else:
+                    print(f"[{get_timestamp()}] Idle mode actions already triggered, skipping duplicate")
+                    log_to_file("Idle mode actions already triggered, skipping duplicate", "HTTP API >>>")
         
         # Check if we need to switch to running mode
         elif sdp_status in ["up_cancel", "up_resume"]:
@@ -1152,18 +1174,28 @@ class StatusRequestHandler(BaseHTTPRequestHandler):
                     print(f"[{get_timestamp()}] Received sdp: {sdp_status} request for {DETECTED_TABLE_ID}, switching to idle mode")
                     log_to_file(f"Received sdp: {sdp_status} request for {DETECTED_TABLE_ID}, switching to idle mode", "HTTP Server >>>")
                     
-                    # Switch to idle mode
+                    # Switch to idle mode and trigger idle mode actions
+                    # Always trigger idle mode actions when receiving sdp: down, even if already in idle mode
                     with mode_lock:
-                        if current_mode == "running":
+                        if current_mode != "idle":
                             current_mode = "idle"
                             print(f"[{get_timestamp()}] Mode switched to: {current_mode}")
                             log_to_file(f"Mode switched to: {current_mode}", "Mode >>>")
-                            
-                            # Trigger idle mode actions
+                        else:
+                            print(f"[{get_timestamp()}] Already in {current_mode} mode, but will trigger idle mode actions")
+                            log_to_file(f"Already in {current_mode} mode, but will trigger idle mode actions", "Mode >>>")
+                    
+                    # Trigger idle mode actions (check if already triggered to avoid duplicates)
+                    with idle_mode_lock:
+                        global idle_mode_triggered
+                        if not idle_mode_triggered:
+                            idle_mode_triggered = True
+                            print(f"[{get_timestamp()}] Triggering idle mode actions...")
+                            log_to_file("Triggering idle mode actions...", "HTTP Server >>>")
                             threading.Thread(target=handle_idle_mode).start()
                         else:
-                            print(f"[{get_timestamp()}] Already in {current_mode} mode, no change needed")
-                            log_to_file(f"Already in {current_mode} mode, no change needed", "Mode >>>")
+                            print(f"[{get_timestamp()}] Idle mode actions already triggered, skipping duplicate")
+                            log_to_file("Idle mode actions already triggered, skipping duplicate", "HTTP Server >>>")
                 
                 # Send success response
                 self.send_response(200)
