@@ -8,6 +8,7 @@ import asyncio
 import websockets
 import os
 from concurrent.futures import ThreadPoolExecutor
+import pexpect
 from utils import create_serial_connection
 
 # Import for reading packaged resources
@@ -431,6 +432,100 @@ def start_studio_api_websocket():
     asyncio.run(init_studio_api_websocket())
 
 
+def _execute_ssh_with_password(host, command, password="0000", timeout=30):
+    """
+    Execute SSH command with password authentication using pexpect.
+    
+    Args:
+        host (str): SSH host (e.g., "rnd@192.168.88.53")
+        command (str): Command to execute on remote host
+        password (str): SSH password (default: "0000")
+        timeout (int): Timeout in seconds (default: 30)
+    
+    Returns:
+        dict: Result dictionary with 'success', 'returncode', 'stdout', 'stderr'
+    """
+    import subprocess
+    
+    # Escape command for shell execution
+    # If command contains && or other shell operators, wrap in quotes
+    if '&&' in command or '|' in command or (';' in command and not command.startswith('tmux')):
+        ssh_cmd = f"ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 {host} \"{command}\""
+    else:
+        ssh_cmd = f"ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 {host} {command}"
+    
+    try:
+        child = pexpect.spawn(ssh_cmd, timeout=timeout, encoding='utf-8')
+        child.logfile_read = None  # Disable logging to file, we'll capture manually
+        
+        # Wait for password prompt
+        index = child.expect(['password:', 'Password:', pexpect.EOF, pexpect.TIMEOUT], timeout=10)
+        
+        if index == 0 or index == 1:
+            # Send password
+            child.sendline(password)
+            
+            # Wait for command completion
+            try:
+                child.expect(pexpect.EOF, timeout=timeout)
+            except pexpect.TIMEOUT:
+                # Command may have completed but connection still open
+                pass
+            
+            output = child.before
+            exit_status = child.exitstatus if child.exitstatus is not None else 0
+            
+            child.close()
+            
+            return {
+                'success': exit_status == 0,
+                'returncode': exit_status,
+                'stdout': output,
+                'stderr': ''
+            }
+        elif index == 2:
+            # EOF - connection closed immediately (may indicate success for reboot)
+            output = child.before
+            child.close()
+            return {
+                'success': True,
+                'returncode': 0,
+                'stdout': output,
+                'stderr': ''
+            }
+        else:
+            # Timeout
+            child.close()
+            return {
+                'success': False,
+                'returncode': -1,
+                'stdout': '',
+                'stderr': 'SSH connection timeout'
+            }
+    
+    except pexpect.EOF:
+        return {
+            'success': True,
+            'returncode': 0,
+            'stdout': '',
+            'stderr': ''
+        }
+    except pexpect.TIMEOUT:
+        return {
+            'success': False,
+            'returncode': -1,
+            'stdout': '',
+            'stderr': 'SSH command timeout'
+        }
+    except Exception as e:
+        return {
+            'success': False,
+            'returncode': -1,
+            'stdout': '',
+            'stderr': str(e)
+        }
+
+
 def handle_idle_mode():
     """
     Handle idle mode operations:
@@ -450,71 +545,167 @@ def handle_idle_mode():
     # Step 1: SSH to remote host and execute sudo reboot in tmux session window dp:sdp
     remote_host = "rnd@192.168.88.53"
     tmux_session = "dp:sdp"
-    print(f"[{get_timestamp()}] Step 1: Connecting to SSH {remote_host} and executing sudo reboot in tmux {tmux_session}...")
-    log_to_file(f"Step 1: SSH to {remote_host} and execute sudo reboot in tmux {tmux_session}", "Idle Mode >>>")
+    ssh_password = "0000"
+    print(f"[{get_timestamp()}] Step 1: Starting SSH reboot sequence for {remote_host} in tmux {tmux_session}...")
+    log_to_file(f"Step 1: Starting SSH reboot sequence for {remote_host} in tmux {tmux_session}", "Idle Mode >>>")
     
+    # Step 1.1: Test SSH connection first
+    print(f"[{get_timestamp()}] Step 1.1: Testing SSH connection to {remote_host}...")
+    log_to_file(f"Step 1.1: Testing SSH connection to {remote_host}", "Idle Mode >>>")
+    
+    ssh_test_success = False
     try:
-        # Execute SSH command to reboot remote host via tmux
-        # Using ssh with -o StrictHostKeyChecking=no to avoid host key verification
-        # Command: tmux send-keys -t dp:sdp "sudo reboot" Enter
-        ssh_result = subprocess.run(
-            ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=10",
-             remote_host, "tmux", "send-keys", "-t", tmux_session, "sudo reboot", "Enter"],
-            capture_output=True,
-            text=True,
-            timeout=30  # 30 second timeout for SSH connection
+        ssh_test_result = _execute_ssh_with_password(
+            remote_host, "echo 'SSH connection test successful'", ssh_password, timeout=10
         )
         
-        if ssh_result.returncode == 0 or ssh_result.returncode == 255:
-            # Exit code 0 = success, 255 = connection closed (expected after reboot command)
-            print(f"[{get_timestamp()}] SSH reboot command sent successfully (exit code: {ssh_result.returncode})")
-            log_to_file(
-                f"SSH reboot command sent successfully (exit code: {ssh_result.returncode})",
-                "Idle Mode >>>"
-            )
-            if ssh_result.stdout:
-                print(f"[{get_timestamp()}] SSH output: {ssh_result.stdout}")
-                log_to_file(f"SSH output: {ssh_result.stdout}", "Idle Mode >>>")
+        if ssh_test_result['success']:
+            ssh_test_success = True
+            print(f"[{get_timestamp()}] ✅ SSH connection test successful")
+            log_to_file(f"✅ SSH connection test successful (returncode: {ssh_test_result['returncode']})", "Idle Mode >>>")
+            if ssh_test_result['stdout']:
+                print(f"[{get_timestamp()}] SSH test output: {ssh_test_result['stdout'].strip()}")
+                log_to_file(f"SSH test output: {ssh_test_result['stdout'].strip()}", "Idle Mode >>>")
         else:
-            print(f"[{get_timestamp()}] SSH reboot command exited with code {ssh_result.returncode}")
+            print(f"[{get_timestamp()}] ❌ SSH connection test failed (returncode: {ssh_test_result['returncode']})")
             log_to_file(
-                f"SSH reboot command exited with code {ssh_result.returncode}",
+                f"❌ SSH connection test failed (returncode: {ssh_test_result['returncode']})",
                 "Idle Mode >>>"
             )
-            if ssh_result.stderr:
-                print(f"[{get_timestamp()}] SSH error: {ssh_result.stderr}")
-                log_to_file(f"SSH error: {ssh_result.stderr}", "Idle Mode >>>")
+            if ssh_test_result['stderr']:
+                print(f"[{get_timestamp()}] SSH test error: {ssh_test_result['stderr']}")
+                log_to_file(f"SSH test error: {ssh_test_result['stderr']}", "Idle Mode >>>")
     
-    except subprocess.TimeoutExpired:
-        print(f"[{get_timestamp()}] SSH reboot command timed out (this is expected as reboot closes connection)")
-        log_to_file("SSH reboot command timed out (expected)", "Idle Mode >>>")
     except Exception as e:
-        print(f"[{get_timestamp()}] Error executing SSH reboot: {e}")
-        log_to_file(f"Error executing SSH reboot: {e}", "Idle Mode >>>")
+        print(f"[{get_timestamp()}] ❌ SSH connection test error: {e}")
+        log_to_file(f"❌ SSH connection test error: {e}", "Idle Mode >>>")
     
-    # Step 2: Execute sudo ~/down.sh sr on local machine
-    down_script = os.path.expanduser("~/down.sh")
-    print(f"[{get_timestamp()}] Step 2: Executing sudo {down_script} sr...")
-    log_to_file(f"Step 2: Executing sudo {down_script} sr", "Idle Mode >>>")
+    # Step 1.2: Verify tmux session exists
+    print(f"[{get_timestamp()}] Step 1.2: Verifying tmux session {tmux_session} exists on {remote_host}...")
+    log_to_file(f"Step 1.2: Verifying tmux session {tmux_session} exists on {remote_host}", "Idle Mode >>>")
+    
+    tmux_check_success = False
+    try:
+        tmux_check_result = _execute_ssh_with_password(
+            remote_host, f"tmux has-session -t {tmux_session}", ssh_password, timeout=10
+        )
+        
+        if tmux_check_result['success']:
+            tmux_check_success = True
+            print(f"[{get_timestamp()}] ✅ Tmux session {tmux_session} exists")
+            log_to_file(f"✅ Tmux session {tmux_session} exists (returncode: {tmux_check_result['returncode']})", "Idle Mode >>>")
+        else:
+            print(f"[{get_timestamp()}] ❌ Tmux session {tmux_session} does not exist (returncode: {tmux_check_result['returncode']})")
+            log_to_file(
+                f"❌ Tmux session {tmux_session} does not exist (returncode: {tmux_check_result['returncode']})",
+                "Idle Mode >>>"
+            )
+            if tmux_check_result['stderr']:
+                print(f"[{get_timestamp()}] Tmux check error: {tmux_check_result['stderr']}")
+                log_to_file(f"Tmux check error: {tmux_check_result['stderr']}", "Idle Mode >>>")
+    
+    except Exception as e:
+        print(f"[{get_timestamp()}] ❌ Tmux session check error: {e}")
+        log_to_file(f"❌ Tmux session check error: {e}", "Idle Mode >>>")
+    
+    # Step 1.3: Attach to tmux session and execute reboot command
+    print(f"[{get_timestamp()}] Step 1.3: Attaching to tmux {tmux_session} and executing sudo reboot...")
+    log_to_file(f"Step 1.3: Attaching to tmux {tmux_session} and executing sudo reboot", "Idle Mode >>>")
+    
+    # First, attach to the tmux session window, then send the reboot command
+    # Using a compound command: attach to session, then send keys
+    tmux_command = f"tmux attach-session -t {tmux_session} -d && tmux send-keys -t {tmux_session} 'sudo reboot' Enter"
+    print(f"[{get_timestamp()}] Full SSH command: ssh {remote_host} \"{tmux_command}\"")
+    log_to_file(f"Full SSH command: ssh {remote_host} \"{tmux_command}\"", "Idle Mode >>>")
     
     try:
+        ssh_result = _execute_ssh_with_password(
+            remote_host, tmux_command, ssh_password, timeout=30
+        )
+        
+        print(f"[{get_timestamp()}] SSH command completed with returncode: {ssh_result['returncode']}")
+        log_to_file(f"SSH command completed with returncode: {ssh_result['returncode']}", "Idle Mode >>>")
+        
+        if ssh_result['stdout']:
+            print(f"[{get_timestamp()}] SSH stdout: {ssh_result['stdout']}")
+            log_to_file(f"SSH stdout: {ssh_result['stdout']}", "Idle Mode >>>")
+        
+        if ssh_result['stderr']:
+            print(f"[{get_timestamp()}] SSH stderr: {ssh_result['stderr']}")
+            log_to_file(f"SSH stderr: {ssh_result['stderr']}", "Idle Mode >>>")
+        
+        if ssh_result['success']:
+            print(f"[{get_timestamp()}] ✅ SSH reboot command sent successfully (returncode: {ssh_result['returncode']})")
+            log_to_file(
+                f"✅ SSH reboot command sent successfully (returncode: {ssh_result['returncode']})",
+                "Idle Mode >>>"
+            )
+        else:
+            print(f"[{get_timestamp()}] ❌ SSH reboot command failed (returncode: {ssh_result['returncode']})")
+            log_to_file(
+                f"❌ SSH reboot command failed (returncode: {ssh_result['returncode']})",
+                "Idle Mode >>>"
+            )
+    
+    except Exception as e:
+        print(f"[{get_timestamp()}] ❌ Error executing SSH reboot: {e}")
+        log_to_file(f"❌ Error executing SSH reboot: {e}", "Idle Mode >>>")
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"[{get_timestamp()}] Error traceback: {error_trace}")
+        log_to_file(f"Error traceback: {error_trace}", "Idle Mode >>>")
+    
+    # Step 1.4: Wait and verify reboot (optional verification)
+    print(f"[{get_timestamp()}] Step 1.4: Waiting 5 seconds before verifying reboot status...")
+    log_to_file("Step 1.4: Waiting 5 seconds before verifying reboot status", "Idle Mode >>>")
+    time.sleep(5)
+    
+    try:
+        verify_result = _execute_ssh_with_password(
+            remote_host, "echo 'Host is reachable'", ssh_password, timeout=5
+        )
+        
+        if verify_result['success']:
+            print(f"[{get_timestamp()}] ⚠️ Host {remote_host} is still reachable after reboot command (reboot may not have started yet)")
+            log_to_file(
+                f"⚠️ Host {remote_host} is still reachable after reboot command (reboot may not have started yet)",
+                "Idle Mode >>>"
+            )
+        else:
+            print(f"[{get_timestamp()}] ✅ Host {remote_host} appears to be unreachable (reboot may be in progress)")
+            log_to_file(
+                f"✅ Host {remote_host} appears to be unreachable (reboot may be in progress)",
+                "Idle Mode >>>"
+            )
+    except Exception as e:
+        print(f"[{get_timestamp()}] ⚠️ Could not verify reboot status: {e}")
+        log_to_file(f"⚠️ Could not verify reboot status: {e}", "Idle Mode >>>")
+    
+    # Step 2: Execute ./down.sh vr in /home/rnd/ on local machine
+    down_script_path = "/home/rnd/down.sh"
+    down_script_dir = "/home/rnd"
+    print(f"[{get_timestamp()}] Step 2: Executing {down_script_path} vr in {down_script_dir}...")
+    log_to_file(f"Step 2: Executing {down_script_path} vr in {down_script_dir}", "Idle Mode >>>")
+    
+    try:
+        # Change to /home/rnd directory and execute ./down.sh vr
         down_result = subprocess.run(
-            ["sudo", down_script, "sr"],
+            ["bash", "-c", f"cd {down_script_dir} && ./down.sh vr"],
             capture_output=True,
             text=True,
             timeout=60  # 1 minute timeout
         )
         
         if down_result.returncode == 0:
-            print(f"[{get_timestamp()}] sudo {down_script} sr executed successfully")
-            log_to_file(f"sudo {down_script} sr executed successfully", "Idle Mode >>>")
+            print(f"[{get_timestamp()}] {down_script_path} vr executed successfully")
+            log_to_file(f"{down_script_path} vr executed successfully", "Idle Mode >>>")
             if down_result.stdout:
                 print(f"[{get_timestamp()}] Script output: {down_result.stdout}")
                 log_to_file(f"Script output: {down_result.stdout}", "Idle Mode >>>")
         else:
-            print(f"[{get_timestamp()}] sudo {down_script} sr exited with code {down_result.returncode}")
+            print(f"[{get_timestamp()}] {down_script_path} vr exited with code {down_result.returncode}")
             log_to_file(
-                f"sudo {down_script} sr exited with code {down_result.returncode}",
+                f"{down_script_path} vr exited with code {down_result.returncode}",
                 "Idle Mode >>>"
             )
             if down_result.stderr:
@@ -522,11 +713,11 @@ def handle_idle_mode():
                 log_to_file(f"Script error: {down_result.stderr}", "Idle Mode >>>")
     
     except subprocess.TimeoutExpired:
-        print(f"[{get_timestamp()}] sudo {down_script} sr execution timed out")
-        log_to_file(f"sudo {down_script} sr execution timed out", "Idle Mode >>>")
+        print(f"[{get_timestamp()}] {down_script_path} vr execution timed out")
+        log_to_file(f"{down_script_path} vr execution timed out", "Idle Mode >>>")
     except Exception as e:
-        print(f"[{get_timestamp()}] Error executing sudo {down_script} sr: {e}")
-        log_to_file(f"Error executing sudo {down_script} sr: {e}", "Idle Mode >>>")
+        print(f"[{get_timestamp()}] Error executing {down_script_path} vr: {e}")
+        log_to_file(f"Error executing {down_script_path} vr: {e}", "Idle Mode >>>")
     
     # Step 3: Gracefully shutdown main_vip.py
     print(f"[{get_timestamp()}] Step 3: Initiating graceful shutdown...")
