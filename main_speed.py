@@ -1035,7 +1035,7 @@ def check_service_status_and_switch_mode():
     - "down_pause" or "down_cancel" -> switch to idle mode
     - "up_cancel" or "up_resume" -> switch to running mode
     """
-    global current_mode
+    global current_mode, idle_mode_triggered
     
     try:
         # Get SDP status from service status API
@@ -1067,11 +1067,26 @@ def check_service_status_and_switch_mode():
                     )
                     # Trigger idle mode actions
                     with idle_mode_lock:
-                        global idle_mode_triggered
                         if not idle_mode_triggered:
                             idle_mode_triggered = True
                             print(f"[{get_timestamp()}] Triggering idle mode actions from service status monitor...")
                             log_to_file("Triggering idle mode actions from service status monitor...", "HTTP API >>>")
+                            threading.Thread(target=handle_idle_mode).start()
+                        else:
+                            print(f"[{get_timestamp()}] Idle mode actions already triggered, skipping duplicate")
+                            log_to_file("Idle mode actions already triggered, skipping duplicate", "HTTP API >>>")
+                else:
+                    # Already in idle mode, but check if we need to trigger actions
+                    print(f"[{get_timestamp()}] Already in idle mode (SDP status: {sdp_status}), checking if actions needed")
+                    log_to_file(
+                        f"Already in idle mode (SDP status: {sdp_status}), checking if actions needed",
+                        "Mode >>>"
+                    )
+                    with idle_mode_lock:
+                        if not idle_mode_triggered:
+                            idle_mode_triggered = True
+                            print(f"[{get_timestamp()}] Triggering idle mode actions from service status monitor (already in idle mode)...")
+                            log_to_file("Triggering idle mode actions from service status monitor (already in idle mode)...", "HTTP API >>>")
                             threading.Thread(target=handle_idle_mode).start()
                         else:
                             print(f"[{get_timestamp()}] Idle mode actions already triggered, skipping duplicate")
