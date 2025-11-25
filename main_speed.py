@@ -1043,12 +1043,14 @@ def check_service_status_and_switch_mode():
         
         if sdp_status is None:
             # API call failed, log but don't change mode
+            print(f"[{get_timestamp()}] ⚠️ Failed to get SDP status from service status API for table {DETECTED_TABLE_ID}")
             log_to_file(
                 f"Failed to get SDP status from service status API for table {DETECTED_TABLE_ID}",
                 "HTTP API >>>"
             )
             return
         
+        print(f"[{get_timestamp()}] Service status check: SDP status = {sdp_status} (current mode = {current_mode})")
         log_to_file(
             f"Service status check: SDP status = {sdp_status} (current mode = {current_mode})",
             "HTTP API >>>"
@@ -2392,7 +2394,12 @@ def main():
     service_status_thread.daemon = True
     service_status_thread.start()
     log_console("Service status monitor started", "MAIN >>>")
-
+    
+    # Immediately check service status once at startup
+    print(f"[{get_timestamp()}] Performing initial service status check...")
+    log_to_file("Performing initial service status check...", "MAIN >>>")
+    check_service_status_and_switch_mode()
+    
     # Create a dictionary containing all global state variables
     global_vars = {
         "x2_count": x2_count,
