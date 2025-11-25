@@ -6,6 +6,7 @@ import json
 import time
 import sys
 import os
+import argparse
 
 # Add the studio_api directory to Python path to import ErrorMsgId
 sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
@@ -607,9 +608,41 @@ def broadcast_post_v2_glc(
 if __name__ == "__main__":
     import random
 
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(
+        description="SicBo API script for GLC environment"
+    )
+    parser.add_argument(
+        "--result",
+        type=str,
+        default=None,
+        help="Deal result to pass to deal post (e.g., '1,6,6' or '[1,6,6]')",
+    )
+    args = parser.parse_args()
+
+    # Parse deal_result parameter
+    if args.result:
+        try:
+            # Handle different input formats
+            result_str = args.result.strip()
+            # Remove possible square brackets
+            if result_str.startswith("[") and result_str.endswith("]"):
+                result_str = result_str[1:-1]
+            # Split and convert to integer list
+            results = [int(x.strip()) for x in result_str.split(",")]
+            print(f"Using deal result from argument: {results}")
+        except ValueError as e:
+            print(
+                f"Invalid --result format: {args.result}. "
+                f"Expected format: '1,6,6' or '[1,6,6]'. Error: {e}"
+            )
+            sys.exit(1)
+    else:
+        results = [1, 2, 3]  # SicBo game results - three dice values
+        print(f"Using default deal result: {results}")
+
     cnt = 0
     while cnt < 1:
-        results = [1, 2, 3]  # SicBo game results - three dice values
         get_url = "https://crystal-table.iki-glc.cc/v2/service/tables/"
         post_url = "https://crystal-table.iki-glc.cc/v2/service/tables/"
 
