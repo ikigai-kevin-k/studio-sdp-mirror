@@ -11,6 +11,7 @@ import urllib3
 from requests.exceptions import ConnectionError
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
+import pexpect
 
 # Import manual hot reload manager
 try:
@@ -570,56 +571,383 @@ def start_studio_api_websocket():
     asyncio.run(init_studio_api_websocket())
 
 
+def _detect_backup_host():
+    """
+    Detect current host and determine backup host IP address for ARO-001 series.
+    
+    Detection logic:
+    - ARO-001-1 (192.168.88.50) -> backup is 192.168.88.51 (ARO-001-2)
+    - ARO-001-2 (192.168.88.51) -> backup is 192.168.88.50 (ARO-001-1)
+    
+    Returns:
+        tuple: (backup_ip, current_host_info) where backup_ip is the IP to SSH to
+    """
+    import socket
+    import subprocess
+    
+    current_ip = None
+    current_hostname = None
+    backup_ip = None
+    detection_method = None
+    
+    try:
+        # Method 1: Get hostname
+        current_hostname = socket.gethostname()
+        print(f"[{get_timestamp()}] Current hostname: {current_hostname}")
+        log_to_file(f"Current hostname: {current_hostname}", "Idle Mode >>>")
+        
+        # Check hostname for ARO-001-1 or ARO-001-2
+        if "ARO-001-1" in current_hostname or "aro-001-1" in current_hostname.lower():
+            current_ip = "192.168.88.50"
+            backup_ip = "192.168.88.51"
+            detection_method = "hostname"
+            print(f"[{get_timestamp()}] Detected ARO-001-1 from hostname, backup host: {backup_ip}")
+            log_to_file(f"Detected ARO-001-1 from hostname, backup host: {backup_ip}", "Idle Mode >>>")
+        elif "ARO-001-2" in current_hostname or "aro-001-2" in current_hostname.lower():
+            current_ip = "192.168.88.51"
+            backup_ip = "192.168.88.50"
+            detection_method = "hostname"
+            print(f"[{get_timestamp()}] Detected ARO-001-2 from hostname, backup host: {backup_ip}")
+            log_to_file(f"Detected ARO-001-2 from hostname, backup host: {backup_ip}", "Idle Mode >>>")
+    except Exception as e:
+        print(f"[{get_timestamp()}] Error getting hostname: {e}")
+        log_to_file(f"Error getting hostname: {e}", "Idle Mode >>>")
+    
+    # Method 2: If hostname detection failed, use ifconfig
+    if backup_ip is None:
+        try:
+            print(f"[{get_timestamp()}] Hostname detection inconclusive, trying ifconfig...")
+            log_to_file("Hostname detection inconclusive, trying ifconfig", "Idle Mode >>>")
+            
+            result = subprocess.run(
+                ["ifconfig"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode == 0:
+                # Look for 192.168.88.50 or 192.168.88.51 in ifconfig output
+                ifconfig_output = result.stdout
+                
+                if "192.168.88.50" in ifconfig_output:
+                    current_ip = "192.168.88.50"
+                    backup_ip = "192.168.88.51"
+                    detection_method = "ifconfig"
+                    print(f"[{get_timestamp()}] Detected 192.168.88.50 from ifconfig, backup host: {backup_ip}")
+                    log_to_file(f"Detected 192.168.88.50 from ifconfig, backup host: {backup_ip}", "Idle Mode >>>")
+                elif "192.168.88.51" in ifconfig_output:
+                    current_ip = "192.168.88.51"
+                    backup_ip = "192.168.88.50"
+                    detection_method = "ifconfig"
+                    print(f"[{get_timestamp()}] Detected 192.168.88.51 from ifconfig, backup host: {backup_ip}")
+                    log_to_file(f"Detected 192.168.88.51 from ifconfig, backup host: {backup_ip}", "Idle Mode >>>")
+        except Exception as e:
+            print(f"[{get_timestamp()}] Error running ifconfig: {e}")
+            log_to_file(f"Error running ifconfig: {e}", "Idle Mode >>>")
+    
+    # Method 3: Try grep 192.168 directly
+    if backup_ip is None:
+        try:
+            print(f"[{get_timestamp()}] Trying 'ifconfig | grep 192.168'...")
+            log_to_file("Trying 'ifconfig | grep 192.168'", "Idle Mode >>>")
+            
+            result = subprocess.run(
+                ["bash", "-c", "ifconfig | grep 192.168"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode == 0 and result.stdout:
+                grep_output = result.stdout
+                
+                if "192.168.88.50" in grep_output:
+                    current_ip = "192.168.88.50"
+                    backup_ip = "192.168.88.51"
+                    detection_method = "ifconfig_grep"
+                    print(f"[{get_timestamp()}] Detected 192.168.88.50 from ifconfig|grep, backup host: {backup_ip}")
+                    log_to_file(f"Detected 192.168.88.50 from ifconfig|grep, backup host: {backup_ip}", "Idle Mode >>>")
+                elif "192.168.88.51" in grep_output:
+                    current_ip = "192.168.88.51"
+                    backup_ip = "192.168.88.50"
+                    detection_method = "ifconfig_grep"
+                    print(f"[{get_timestamp()}] Detected 192.168.88.51 from ifconfig|grep, backup host: {backup_ip}")
+                    log_to_file(f"Detected 192.168.88.51 from ifconfig|grep, backup host: {backup_ip}", "Idle Mode >>>")
+        except Exception as e:
+            print(f"[{get_timestamp()}] Error running ifconfig|grep: {e}")
+            log_to_file(f"Error running ifconfig|grep: {e}", "Idle Mode >>>")
+    
+    # Fallback: Default to 192.168.88.51 if detection fails
+    if backup_ip is None:
+        backup_ip = "192.168.88.51"
+        print(f"[{get_timestamp()}] ⚠️ Could not detect current host, defaulting to backup: {backup_ip}")
+        log_to_file(f"⚠️ Could not detect current host, defaulting to backup: {backup_ip}", "Idle Mode >>>")
+        detection_method = "default"
+    
+    current_host_info = {
+        "hostname": current_hostname,
+        "ip": current_ip,
+        "detection_method": detection_method
+    }
+    
+    return backup_ip, current_host_info
+
+
+def _execute_ssh_with_password(host, command, password="0000", timeout=30):
+    """
+    Execute SSH command with password authentication using pexpect.
+    
+    Args:
+        host (str): SSH host (e.g., "rnd@192.168.88.51")
+        command (str): Command to execute on remote host
+        password (str): SSH password (default: "0000")
+        timeout (int): Command timeout in seconds (default: 30)
+    
+    Returns:
+        dict: Result dictionary with 'success', 'returncode', 'stdout', 'stderr'
+    """
+    import subprocess
+    
+    # Escape command for shell execution
+    # If command contains && or other shell operators, wrap in quotes
+    if '&&' in command or '|' in command or (';' in command and not command.startswith('tmux')):
+        ssh_cmd = f"ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 {host} \"{command}\""
+    else:
+        ssh_cmd = f"ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 {host} {command}"
+    
+    try:
+        child = pexpect.spawn(ssh_cmd, timeout=timeout, encoding='utf-8')
+        child.logfile_read = None  # Disable logging to file, we'll capture manually
+        
+        # Wait for password prompt
+        index = child.expect(['password:', 'Password:', pexpect.EOF, pexpect.TIMEOUT], timeout=10)
+        
+        if index == 0 or index == 1:
+            # Send password
+            child.sendline(password)
+            
+            # Wait for command completion
+            try:
+                child.expect(pexpect.EOF, timeout=timeout)
+            except pexpect.TIMEOUT:
+                # Command may have completed but connection still open
+                pass
+            
+            output = child.before
+            exit_status = child.exitstatus if child.exitstatus is not None else 0
+            
+            child.close()
+            
+            return {
+                'success': exit_status == 0,
+                'returncode': exit_status,
+                'stdout': output,
+                'stderr': ''
+            }
+        elif index == 2:
+            # EOF - connection closed immediately (may indicate success for reboot)
+            output = child.before
+            child.close()
+            return {
+                'success': True,
+                'returncode': 0,
+                'stdout': output,
+                'stderr': ''
+            }
+        else:
+            # Timeout
+            child.close()
+            return {
+                'success': False,
+                'returncode': -1,
+                'stdout': '',
+                'stderr': 'SSH connection timeout'
+            }
+    
+    except pexpect.EOF:
+        return {
+            'success': True,
+            'returncode': 0,
+            'stdout': '',
+            'stderr': ''
+        }
+    except pexpect.TIMEOUT:
+        return {
+            'success': False,
+            'returncode': -1,
+            'stdout': '',
+            'stderr': 'SSH command timeout'
+        }
+    except Exception as e:
+        return {
+            'success': False,
+            'returncode': -1,
+            'stdout': '',
+            'stderr': str(e)
+        }
+
+
 def handle_idle_mode():
     """
     Handle idle mode operations:
-    1. Disable error scenario processing (already handled by mode check)
-    2. Disable tableAPI calls (already handled by mode check)
-    3. Execute ~/startup_sr.sh
-    4. Gracefully shutdown main_speed.py
+    1. Detect current host (ARO-001-1 or ARO-001-2) and determine backup host
+    2. Disable error scenario processing (already handled by mode check)
+    3. Disable tableAPI calls (already handled by mode check)
+    4. SSH to backup host and execute sudo reboot in tmux session
+    5. Execute ~/startup_sr.sh on local machine
+    6. Gracefully shutdown main_speed.py
+    
+    Backup host detection:
+    - If current host is ARO-001-1 (192.168.88.50) -> SSH to 192.168.88.51 (ARO-001-2)
+    - If current host is ARO-001-2 (192.168.88.51) -> SSH to 192.168.88.50 (ARO-001-1)
     """
     global terminate_program, current_mode
     
     print(f"[{get_timestamp()}] Entering idle mode operations...")
     log_to_file("Entering idle mode operations...", "Idle Mode >>>")
     
-    # Execute ~/startup_sr.sh
-    startup_script = os.path.expanduser("~/startup_sr.sh")
-    print(f"[{get_timestamp()}] Executing {startup_script}...")
-    log_to_file(f"Executing {startup_script}...", "Idle Mode >>>")
+    import subprocess
+    
+    # Step 0: Detect current host and determine backup host
+    print(f"[{get_timestamp()}] Step 0: Detecting current host and backup host...")
+    log_to_file("Step 0: Detecting current host and backup host", "Idle Mode >>>")
+    
+    backup_ip, current_host_info = _detect_backup_host()
+    remote_host = f"rnd@{backup_ip}"
+    
+    print(f"[{get_timestamp()}] Current host info: {current_host_info}")
+    print(f"[{get_timestamp()}] Backup host selected: {remote_host}")
+    log_to_file(f"Current host info: {current_host_info}", "Idle Mode >>>")
+    log_to_file(f"Backup host selected: {remote_host}", "Idle Mode >>>")
+    
+    # Step 1: SSH to remote host and execute sudo reboot in tmux session window dp:sdp
+    tmux_session = "dp:sdp"
+    ssh_password = "0000"
+    print(f"[{get_timestamp()}] Step 1: Starting SSH reboot sequence for {remote_host} in tmux {tmux_session}...")
+    log_to_file(f"Step 1: Starting SSH reboot sequence for {remote_host} in tmux {tmux_session}", "Idle Mode >>>")
+    
+    # Step 1.1: Test SSH connection first
+    print(f"[{get_timestamp()}] Step 1.1: Testing SSH connection to {remote_host}...")
+    log_to_file(f"Step 1.1: Testing SSH connection to {remote_host}", "Idle Mode >>>")
+    
+    test_result = _execute_ssh_with_password(
+        remote_host, "echo 'SSH connection test successful'", ssh_password, timeout=10
+    )
+    
+    if not test_result['success']:
+        print(f"[{get_timestamp()}] ⚠️ SSH connection test failed: {test_result.get('stderr', 'Unknown error')}")
+        log_to_file(f"⚠️ SSH connection test failed: {test_result.get('stderr', 'Unknown error')}", "Idle Mode >>>")
+        print(f"[{get_timestamp()}] Continuing anyway...")
+    else:
+        print(f"[{get_timestamp()}] ✅ SSH connection test successful")
+        log_to_file("✅ SSH connection test successful", "Idle Mode >>>")
+    
+    # Step 1.2: Send sudo reboot command in tmux session
+    print(f"[{get_timestamp()}] Step 1.2: Sending sudo reboot command in tmux {tmux_session}...")
+    log_to_file(f"Step 1.2: Sending sudo reboot command in tmux {tmux_session}", "Idle Mode >>>")
+    
+    # Command to send sudo reboot in tmux session
+    reboot_command = f"tmux send-keys -t {tmux_session} 'sudo reboot' Enter"
+    reboot_result = _execute_ssh_with_password(
+        remote_host, reboot_command, ssh_password, timeout=15
+    )
+    
+    reboot_command_sent = False
+    if reboot_result['success']:
+        print(f"[{get_timestamp()}] ✅ sudo reboot command sent successfully")
+        log_to_file("✅ sudo reboot command sent successfully", "Idle Mode >>>")
+        reboot_command_sent = True
+    else:
+        print(f"[{get_timestamp()}] ⚠️ Failed to send sudo reboot command: {reboot_result.get('stderr', 'Unknown error')}")
+        log_to_file(f"⚠️ Failed to send sudo reboot command: {reboot_result.get('stderr', 'Unknown error')}", "Idle Mode >>>")
+    
+    # Step 1.3: Wait and verify reboot command was sent
+    if reboot_command_sent:
+        print(f"[{get_timestamp()}] Step 1.3: Waiting 3 seconds before verifying reboot command...")
+        log_to_file("Step 1.3: Waiting 3 seconds before verifying reboot command", "Idle Mode >>>")
+        time.sleep(3)
+        
+        try:
+            # Try to verify command was sent (optional check)
+            verify_result = _execute_ssh_with_password(
+                remote_host, f"tmux capture-pane -t {tmux_session} -p | tail -5", ssh_password, timeout=10
+            )
+            if verify_result['success']:
+                print(f"[{get_timestamp()}] Tmux pane content (last 5 lines): {verify_result.get('stdout', '')}")
+                log_to_file(f"Tmux pane content: {verify_result.get('stdout', '')}", "Idle Mode >>>")
+        except Exception as e:
+            print(f"[{get_timestamp()}] ⚠️ Error verifying command in tmux pane: {e}")
+            log_to_file(f"⚠️ Error verifying command in tmux pane: {e}", "Idle Mode >>>")
+    
+    if not reboot_command_sent:
+        print(f"[{get_timestamp()}] ❌ CRITICAL: sudo reboot command was NOT sent successfully!")
+        log_to_file(f"❌ CRITICAL: sudo reboot command was NOT sent successfully!", "Idle Mode >>>")
+    
+    # Step 1.4: Wait and verify reboot (optional verification)
+    print(f"[{get_timestamp()}] Step 1.4: Waiting 5 seconds before verifying reboot status...")
+    log_to_file("Step 1.4: Waiting 5 seconds before verifying reboot status", "Idle Mode >>>")
+    time.sleep(5)
     
     try:
-        import subprocess
-        result = subprocess.run(
+        verify_result = _execute_ssh_with_password(
+            remote_host, "echo 'Host is reachable'", ssh_password, timeout=5
+        )
+        
+        if verify_result['success']:
+            print(f"[{get_timestamp()}] ⚠️ Host {remote_host} is still reachable after reboot command (reboot may not have started yet)")
+            log_to_file(
+                f"⚠️ Host {remote_host} is still reachable after reboot command (reboot may not have started yet)",
+                "Idle Mode >>>"
+            )
+        else:
+            print(f"[{get_timestamp()}] ✅ Host {remote_host} appears to be unreachable (reboot may be in progress)")
+            log_to_file(
+                f"✅ Host {remote_host} appears to be unreachable (reboot may be in progress)",
+                "Idle Mode >>>"
+            )
+    except Exception as e:
+        print(f"[{get_timestamp()}] ⚠️ Could not verify reboot status: {e}")
+        log_to_file(f"⚠️ Could not verify reboot status: {e}", "Idle Mode >>>")
+    
+    # Step 2: Execute ~/startup_sr.sh on local machine
+    startup_script = os.path.expanduser("~/startup_sr.sh")
+    print(f"[{get_timestamp()}] Step 2: Executing {startup_script}...")
+    log_to_file(f"Step 2: Executing {startup_script}", "Idle Mode >>>")
+    
+    try:
+        # Change to home directory and execute startup_sr.sh
+        startup_result = subprocess.run(
             ["bash", startup_script],
+            cwd=os.path.expanduser("~"),
             capture_output=True,
             text=True,
             timeout=300  # 5 minute timeout
         )
         
-        if result.returncode == 0:
-            print(f"[{get_timestamp()}] {startup_script} executed successfully")
-            log_to_file(f"{startup_script} executed successfully", "Idle Mode >>>")
-            if result.stdout:
-                print(f"[{get_timestamp()}] Script output: {result.stdout}")
-                log_to_file(f"Script output: {result.stdout}", "Idle Mode >>>")
+        if startup_result.returncode == 0:
+            print(f"[{get_timestamp()}] ✅ {startup_script} executed successfully")
+            log_to_file(f"✅ {startup_script} executed successfully", "Idle Mode >>>")
+            if startup_result.stdout:
+                print(f"[{get_timestamp()}] Script output: {startup_result.stdout}")
+                log_to_file(f"Script output: {startup_result.stdout}", "Idle Mode >>>")
         else:
-            print(f"[{get_timestamp()}] {startup_script} exited with code {result.returncode}")
-            log_to_file(f"{startup_script} exited with code {result.returncode}", "Idle Mode >>>")
-            if result.stderr:
-                print(f"[{get_timestamp()}] Script error: {result.stderr}")
-                log_to_file(f"Script error: {result.stderr}", "Idle Mode >>>")
+            print(f"[{get_timestamp()}] ⚠️ {startup_script} exited with code {startup_result.returncode}")
+            log_to_file(f"⚠️ {startup_script} exited with code {startup_result.returncode}", "Idle Mode >>>")
+            if startup_result.stderr:
+                print(f"[{get_timestamp()}] Script error: {startup_result.stderr}")
+                log_to_file(f"Script error: {startup_result.stderr}", "Idle Mode >>>")
     
     except subprocess.TimeoutExpired:
-        print(f"[{get_timestamp()}] {startup_script} execution timed out")
-        log_to_file(f"{startup_script} execution timed out", "Idle Mode >>>")
+        print(f"[{get_timestamp()}] ⚠️ {startup_script} execution timed out")
+        log_to_file(f"⚠️ {startup_script} execution timed out", "Idle Mode >>>")
     except Exception as e:
-        print(f"[{get_timestamp()}] Error executing {startup_script}: {e}")
-        log_to_file(f"Error executing {startup_script}: {e}", "Idle Mode >>>")
+        print(f"[{get_timestamp()}] ⚠️ Error executing {startup_script}: {e}")
+        log_to_file(f"⚠️ Error executing {startup_script}: {e}", "Idle Mode >>>")
     
-    # Gracefully shutdown main_speed.py
-    print(f"[{get_timestamp()}] Initiating graceful shutdown...")
-    log_to_file("Initiating graceful shutdown...", "Idle Mode >>>")
+    # Step 3: Gracefully shutdown main_speed.py
+    print(f"[{get_timestamp()}] Step 3: Initiating graceful shutdown...")
+    log_to_file("Step 3: Initiating graceful shutdown...", "Idle Mode >>>")
     
     terminate_program = True
 
@@ -714,7 +1042,8 @@ def check_service_status_and_switch_mode():
         )
         
         # Check if we need to switch to idle mode
-        if sdp_status in ["down_pause", "down_cancel"]:
+        # Support "down", "down_pause", and "down_cancel" status
+        if sdp_status in ["down", "down_pause", "down_cancel"]:
             with mode_lock:
                 if current_mode == "running":
                     current_mode = "idle"
@@ -723,6 +1052,8 @@ def check_service_status_and_switch_mode():
                         f"Mode switched to idle mode due to SDP status: {sdp_status}",
                         "Mode >>>"
                     )
+                    # Trigger idle mode actions
+                    threading.Thread(target=handle_idle_mode).start()
         
         # Check if we need to switch to running mode
         elif sdp_status in ["up_cancel", "up_resume"]:
@@ -798,23 +1129,41 @@ class StatusRequestHandler(BaseHTTPRequestHandler):
             print(f"[{get_timestamp()}] Received PATCH request: {data}")
             log_to_file(f"Received PATCH request: {data}", "HTTP Server >>>")
             
-            # Check if this is for detected table ID and sdp is "up"
+            # Check if this is for detected table ID
             table_id = data.get("tableId", "")
             sdp_status = data.get("sdp", "")
             
-            if table_id == DETECTED_TABLE_ID and sdp_status == "up":
-                print(f"[{get_timestamp()}] Received sdp: up request for {DETECTED_TABLE_ID}, switching to running mode")
-                log_to_file(f"Received sdp: up request for {DETECTED_TABLE_ID}, switching to running mode", "HTTP Server >>>")
+            if table_id == DETECTED_TABLE_ID:
+                if sdp_status == "up":
+                    print(f"[{get_timestamp()}] Received sdp: up request for {DETECTED_TABLE_ID}, switching to running mode")
+                    log_to_file(f"Received sdp: up request for {DETECTED_TABLE_ID}, switching to running mode", "HTTP Server >>>")
+                    
+                    # Switch to running mode
+                    with mode_lock:
+                        if current_mode == "idle":
+                            current_mode = "running"
+                            print(f"[{get_timestamp()}] Mode switched to: {current_mode}")
+                            log_to_file(f"Mode switched to: {current_mode}", "Mode >>>")
+                        else:
+                            print(f"[{get_timestamp()}] Already in {current_mode} mode, no change needed")
+                            log_to_file(f"Already in {current_mode} mode, no change needed", "Mode >>>")
                 
-                # Switch to running mode
-                with mode_lock:
-                    if current_mode == "idle":
-                        current_mode = "running"
-                        print(f"[{get_timestamp()}] Mode switched to: {current_mode}")
-                        log_to_file(f"Mode switched to: {current_mode}", "Mode >>>")
-                    else:
-                        print(f"[{get_timestamp()}] Already in {current_mode} mode, no change needed")
-                        log_to_file(f"Already in {current_mode} mode, no change needed", "Mode >>>")
+                elif sdp_status == "down" or sdp_status in ["down_pause", "down_cancel"]:
+                    print(f"[{get_timestamp()}] Received sdp: {sdp_status} request for {DETECTED_TABLE_ID}, switching to idle mode")
+                    log_to_file(f"Received sdp: {sdp_status} request for {DETECTED_TABLE_ID}, switching to idle mode", "HTTP Server >>>")
+                    
+                    # Switch to idle mode
+                    with mode_lock:
+                        if current_mode == "running":
+                            current_mode = "idle"
+                            print(f"[{get_timestamp()}] Mode switched to: {current_mode}")
+                            log_to_file(f"Mode switched to: {current_mode}", "Mode >>>")
+                            
+                            # Trigger idle mode actions
+                            threading.Thread(target=handle_idle_mode).start()
+                        else:
+                            print(f"[{get_timestamp()}] Already in {current_mode} mode, no change needed")
+                            log_to_file(f"Already in {current_mode} mode, no change needed", "Mode >>>")
                 
                 # Send success response
                 self.send_response(200)
@@ -832,8 +1181,8 @@ class StatusRequestHandler(BaseHTTPRequestHandler):
                 return
             else:
                 # Not the request we're looking for, but respond anyway
-                print(f"[{get_timestamp()}] Received PATCH request for {table_id} with sdp: {sdp_status} (not {DETECTED_TABLE_ID} up)")
-                log_to_file(f"Received PATCH request for {table_id} with sdp: {sdp_status} (not {DETECTED_TABLE_ID} up)", "HTTP Server >>>")
+                print(f"[{get_timestamp()}] Received PATCH request for {table_id} with sdp: {sdp_status} (not {DETECTED_TABLE_ID})")
+                log_to_file(f"Received PATCH request for {table_id} with sdp: {sdp_status} (not {DETECTED_TABLE_ID})", "HTTP Server >>>")
                 
                 # Send success response anyway
                 self.send_response(200)
