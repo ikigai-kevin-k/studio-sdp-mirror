@@ -139,6 +139,14 @@ from studio_api.http.status import get_sdp_status, set_sdp_status_via_http
 # Import network checker
 from networkChecker import networkChecker
 
+# Import state machine module
+from state_machine import (
+    create_state_machine_for_table,
+    validate_and_transition,
+    handle_broadcast_result,
+    GameState,
+)
+
 # Import environment detection module
 from env_detect import (
     detect_environment,
@@ -304,6 +312,9 @@ finish_post_sent = False  # Track if finish_post has been sent
 token = "E5LN4END9Q"
 ws_client = None
 ws_connected = False
+
+# State machine dictionary - will be initialized in main()
+state_machines = {}
 
 # Add Slack notification variables
 sensor_error_sent = False  # Flag to ensure sensor error is only sent once
@@ -1870,6 +1881,33 @@ def log_time_intervals(
 
 async def _execute_finish_post_async(table, token):
     """Finish round for a single table - async implementation"""
+    global state_machines
+    
+    # Get state machine for this table
+    table_name = table.get("name", "unknown")
+    state_machine = state_machines.get(table_name)
+    
+    # Validate state before API call
+    if state_machine:
+        success, error = validate_and_transition(
+            state_machine,
+            "finish_post",
+            reason="Finishing round"
+        )
+        if not success:
+            log_api(
+                f"State validation failed for finish_post on {table_name}: {error}",
+                "API >>>"
+            )
+            # Transition to broadcast on validation failure
+            validate_and_transition(
+                state_machine,
+                "broadcast_post",
+                reason=f"Finish post validation failed: {error}",
+                auto_resolved=False
+            )
+            return table["name"], False
+    
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
         if table["name"] == "CIT":
@@ -1917,6 +1955,14 @@ async def _execute_finish_post_async(table, token):
             )
         except Exception as summary_error:
             log_api(f"Error recording to summary: {summary_error}", "API >>>")
+        # Transition to broadcast on error
+        if state_machine:
+            validate_and_transition(
+                state_machine,
+                "broadcast_post",
+                reason=f"Finish post exception: {e}",
+                auto_resolved=False
+            )
         return table["name"], False
 
 
@@ -1936,6 +1982,33 @@ def execute_finish_post(table, token):
 
 async def _execute_start_post_async(table, token):
     """Start round for a single table - async implementation"""
+    global state_machines
+    
+    # Get state machine for this table
+    table_name = table.get("name", "unknown")
+    state_machine = state_machines.get(table_name)
+    
+    # Validate state before API call
+    if state_machine:
+        success, error = validate_and_transition(
+            state_machine,
+            "start_post",
+            reason="Starting new round"
+        )
+        if not success:
+            log_api(
+                f"State validation failed for start_post on {table_name}: {error}",
+                "API >>>"
+            )
+            # Transition to broadcast on validation failure
+            validate_and_transition(
+                state_machine,
+                "broadcast_post",
+                reason=f"Start post validation failed: {error}",
+                auto_resolved=False
+            )
+            return None, None
+    
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
         if table["name"] == "CIT":
@@ -2012,6 +2085,14 @@ async def _execute_start_post_async(table, token):
                 )
             except Exception as summary_error:
                 log_api(f"Error recording to summary: {summary_error}", "API >>>")
+            # API call failed, transition to broadcast
+            if state_machine:
+                validate_and_transition(
+                    state_machine,
+                    "broadcast_post",
+                    reason="Start post returned -1",
+                    auto_resolved=False
+                )
             return None, None
     except Exception as e:
         error_msg = str(e)
@@ -2026,6 +2107,14 @@ async def _execute_start_post_async(table, token):
             )
         except Exception as summary_error:
             log_api(f"Error recording to summary: {summary_error}", "API >>>")
+        # Transition to broadcast on error
+        if state_machine:
+            validate_and_transition(
+                state_machine,
+                "broadcast_post",
+                reason=f"Start post exception: {e}",
+                auto_resolved=False
+            )
         return None, None
 
 
@@ -2045,6 +2134,33 @@ def execute_start_post(table, token):
 
 async def _execute_deal_post_async(table, token, win_num):
     """Deal round for a single table - async implementation"""
+    global state_machines
+    
+    # Get state machine for this table
+    table_name = table.get("name", "unknown")
+    state_machine = state_machines.get(table_name)
+    
+    # Validate state before API call
+    if state_machine:
+        success, error = validate_and_transition(
+            state_machine,
+            "deal_post",
+            reason="Posting deal result"
+        )
+        if not success:
+            log_api(
+                f"State validation failed for deal_post on {table_name}: {error}",
+                "API >>>"
+            )
+            # Transition to broadcast on validation failure
+            validate_and_transition(
+                state_machine,
+                "broadcast_post",
+                reason=f"Deal post validation failed: {error}",
+                auto_resolved=False
+            )
+            return table["name"], False
+    
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
         if table["name"] == "CIT":
@@ -2121,6 +2237,14 @@ async def _execute_deal_post_async(table, token, win_num):
             )
         except Exception as summary_error:
             log_api(f"Error recording to summary: {summary_error}", "API >>>")
+        # Transition to broadcast on error
+        if state_machine:
+            validate_and_transition(
+                state_machine,
+                "broadcast_post",
+                reason=f"Deal post exception: {e}",
+                auto_resolved=False
+            )
         return table["name"], False
 
 
@@ -2140,6 +2264,27 @@ def execute_deal_post(table, token, win_num):
 
 async def _betStop_round_for_table_async(table, token):
     """Stop betting for a single table - async implementation"""
+    global state_machines
+    
+    # Get state machine for this table
+    table_name = table.get("name", "unknown")
+    state_machine = state_machines.get(table_name)
+    
+    # Validate state before API call
+    if state_machine:
+        success, error = validate_and_transition(
+            state_machine,
+            "bet_stop_post",
+            reason="Betting stopped"
+        )
+        if not success:
+            log_api(
+                f"State validation failed for bet_stop_post on {table_name}: {error}",
+                "API >>>"
+            )
+            # Don't transition to broadcast for bet_stop failures, just log
+            return table["name"], False
+    
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
         if table["name"] == "CIT":
@@ -2197,6 +2342,27 @@ def betStop_round_for_table(table, token):
 
 async def _execute_broadcast_post_async(table, token, broadcast_type="roulette.relaunch"):
     """Execute broadcast_post to notify relaunch - async implementation"""
+    global state_machines
+    
+    # Get state machine for this table
+    table_name = table.get("name", "unknown")
+    state_machine = state_machines.get(table_name)
+    
+    # Validate state before API call
+    if state_machine:
+        success, error = validate_and_transition(
+            state_machine,
+            "broadcast_post",
+            reason=f"Broadcasting: {broadcast_type}"
+        )
+        if not success:
+            log_api(
+                f"State validation failed for broadcast_post on {table_name}: {error}",
+                "API >>>"
+            )
+            # Even if validation fails, try to send broadcast
+            # (broadcast is used for error recovery)
+    
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
         if table["name"] == "CIT":
@@ -2400,6 +2566,14 @@ def main():
     log_to_file("Performing initial service status check...", "MAIN >>>")
     check_service_status_and_switch_mode()
     
+    # Initialize state machines for all tables
+    global state_machines
+    state_machines = {}
+    for table in tables:
+        table_name = table.get("name", "unknown")
+        state_machines[table_name] = create_state_machine_for_table(table_name)
+        log_console(f"Initialized state machine for table: {table_name}", "STATE_MACHINE >>>")
+
     # Create a dictionary containing all global state variables
     global_vars = {
         "x2_count": x2_count,

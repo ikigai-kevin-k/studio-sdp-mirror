@@ -6,12 +6,6 @@
       "game_code": "SBO-001"
   },
   {
-      "name": "UAT",
-      "get_url": "https://crystal-table.iki-uat.cc/v2/service/tables/",
-      "post_url": "https://crystal-table.iki-uat.cc/v2/service/tables/",
-      "game_code": "SBO-001"
-  },
-  {
       "name": "PRD",
       "get_url": "https://crystal-table.ikg-game.cc/v2/service/tables/",
       "post_url": "https://crystal-table.ikg-game.cc/v2/service/tables/",

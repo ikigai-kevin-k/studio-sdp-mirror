@@ -98,6 +98,14 @@ from studio_api.ws_err_sig import send_roulette_sensor_stuck_error
 sys.path.append("studio_api/http")  # ensure studio_api/http module can be imported
 from studio_api.http.status import get_sdp_status, set_sdp_status_via_http
 
+# Import state machine module
+from state_machine import (
+    create_state_machine_for_table,
+    validate_and_transition,
+    handle_broadcast_result,
+    GameState,
+)
+
 # Try to load environment variables from .env file
 try:
     from dotenv import load_dotenv
@@ -206,6 +214,9 @@ relaunch_failed_sent = False  # Flag to ensure relaunch failed error is only sen
 
 # Add program termination flag
 terminate_program = False  # Flag to terminate program when *X;6 sensor error is detected
+
+# State machine dictionary - will be initialized in main()
+state_machines = {}
 
 # Add mode management
 # Mode: "running" (normal operation) or "idle" (maintenance mode)
@@ -2072,13 +2083,36 @@ def log_time_intervals(
 
 
 def execute_finish_post(table, token):
-    global current_mode
+    global current_mode, state_machines
     
     # Skip tableAPI calls in idle mode
     with mode_lock:
         if current_mode == "idle":
             print(f"[{get_timestamp()}] Skipping finish_post in idle mode")
             log_to_file("Skipping finish_post in idle mode", "Idle Mode >>>")
+            return None
+    
+    # Get state machine for this table
+    table_name = table.get("name", "unknown")
+    state_machine = state_machines.get(table_name)
+    
+    # Validate state before API call
+    if state_machine:
+        success, error = validate_and_transition(
+            state_machine,
+            "finish_post",
+            reason="Finishing round"
+        )
+        if not success:
+            print(f"[{get_timestamp()}] State validation failed for finish_post on {table_name}: {error}")
+            log_to_file(f"State validation failed for finish_post on {table_name}: {error}", "API >>>")
+            # Transition to broadcast on validation failure
+            validate_and_transition(
+                state_machine,
+                "broadcast_post",
+                reason=f"Finish post validation failed: {error}",
+                auto_resolved=False
+            )
             return None
     
     try:
@@ -2105,17 +2139,48 @@ def execute_finish_post(table, token):
         return result
     except Exception as e:
         print(f"Error executing finish_post for {table['name']}: {e}")
+        # Transition to broadcast on error
+        if state_machine:
+            validate_and_transition(
+                state_machine,
+                "broadcast_post",
+                reason=f"Finish post exception: {e}",
+                auto_resolved=False
+            )
         return None
 
 
 def execute_start_post(table, token):
-    global current_mode
+    global current_mode, state_machines
     
     # Skip tableAPI calls in idle mode
     with mode_lock:
         if current_mode == "idle":
             print(f"[{get_timestamp()}] Skipping start_post in idle mode")
             log_to_file("Skipping start_post in idle mode", "Idle Mode >>>")
+            return None, -1, 0
+    
+    # Get state machine for this table
+    table_name = table.get("name", "unknown")
+    state_machine = state_machines.get(table_name)
+    
+    # Validate state before API call
+    if state_machine:
+        success, error = validate_and_transition(
+            state_machine,
+            "start_post",
+            reason="Starting new round"
+        )
+        if not success:
+            print(f"[{get_timestamp()}] State validation failed for start_post on {table_name}: {error}")
+            log_to_file(f"State validation failed for start_post on {table_name}: {error}", "API >>>")
+            # Transition to broadcast on validation failure
+            validate_and_transition(
+                state_machine,
+                "broadcast_post",
+                reason=f"Start post validation failed: {error}",
+                auto_resolved=False
+            )
             return None, -1, 0
     
     try:
@@ -2147,20 +2212,59 @@ def execute_start_post(table, token):
             return table, round_id, betPeriod
         else:
             print(f"Failed to call start_post for {table['name']}")
+            # API call failed, transition to broadcast
+            if state_machine:
+                validate_and_transition(
+                    state_machine,
+                    "broadcast_post",
+                    reason="Start post returned -1",
+                    auto_resolved=False
+                )
             return None, -1, 0
     except Exception as e:
         print(f"Error executing start_post for {table['name']}: {e}")
+        # Transition to broadcast on error
+        if state_machine:
+            validate_and_transition(
+                state_machine,
+                "broadcast_post",
+                reason=f"Start post exception: {e}",
+                auto_resolved=False
+            )
         return None, -1, 0
 
 
 def execute_deal_post(table, token, win_num):
-    global current_mode
+    global current_mode, state_machines
     
     # Skip tableAPI calls in idle mode
     with mode_lock:
         if current_mode == "idle":
             print(f"[{get_timestamp()}] Skipping deal_post in idle mode")
             log_to_file("Skipping deal_post in idle mode", "Idle Mode >>>")
+            return None
+    
+    # Get state machine for this table
+    table_name = table.get("name", "unknown")
+    state_machine = state_machines.get(table_name)
+    
+    # Validate state before API call
+    if state_machine:
+        success, error = validate_and_transition(
+            state_machine,
+            "deal_post",
+            reason="Posting deal result"
+        )
+        if not success:
+            print(f"[{get_timestamp()}] State validation failed for deal_post on {table_name}: {error}")
+            log_to_file(f"State validation failed for deal_post on {table_name}: {error}", "API >>>")
+            # Transition to broadcast on validation failure
+            validate_and_transition(
+                state_machine,
+                "broadcast_post",
+                reason=f"Deal post validation failed: {error}",
+                auto_resolved=False
+            )
             return None
     
     try:
@@ -2207,11 +2311,38 @@ def execute_deal_post(table, token, win_num):
         return result
     except Exception as e:
         print(f"Error executing deal_post for {table['name']}: {e}")
+        # Transition to broadcast on error
+        if state_machine:
+            validate_and_transition(
+                state_machine,
+                "broadcast_post",
+                reason=f"Deal post exception: {e}",
+                auto_resolved=False
+            )
         return None
 
 
 def betStop_round_for_table(table, token):
     """Stop betting for a single table - helper function for thread pool execution"""
+    global state_machines
+    
+    # Get state machine for this table
+    table_name = table.get("name", "unknown")
+    state_machine = state_machines.get(table_name)
+    
+    # Validate state before API call
+    if state_machine:
+        success, error = validate_and_transition(
+            state_machine,
+            "bet_stop_post",
+            reason="Betting stopped"
+        )
+        if not success:
+            print(f"[{get_timestamp()}] State validation failed for bet_stop_post on {table_name}: {error}")
+            log_to_file(f"State validation failed for bet_stop_post on {table_name}: {error}", "API >>>")
+            # Don't transition to broadcast for bet_stop failures, just log
+            return table["name"], False
+    
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
 
@@ -2246,7 +2377,7 @@ def betStop_round_for_table(table, token):
 
 def execute_broadcast_post(table, token):
     """Execute broadcast_post to notify relaunch"""
-    global current_mode
+    global current_mode, state_machines
     
     # Skip tableAPI calls in idle mode
     with mode_lock:
@@ -2254,6 +2385,23 @@ def execute_broadcast_post(table, token):
             print(f"[{get_timestamp()}] Skipping broadcast_post in idle mode")
             log_to_file("Skipping broadcast_post in idle mode", "Idle Mode >>>")
             return None
+    
+    # Get state machine for this table
+    table_name = table.get("name", "unknown")
+    state_machine = state_machines.get(table_name)
+    
+    # Validate state before API call
+    if state_machine:
+        success, error = validate_and_transition(
+            state_machine,
+            "broadcast_post",
+            reason="Broadcasting: roulette.relaunch"
+        )
+        if not success:
+            print(f"[{get_timestamp()}] State validation failed for broadcast_post on {table_name}: {error}")
+            log_to_file(f"State validation failed for broadcast_post on {table_name}: {error}", "API >>>")
+            # Even if validation fails, try to send broadcast
+            # (broadcast is used for error recovery)
     
     try:
         post_url = f"{table['post_url']}{table['game_code']}"
@@ -2442,6 +2590,15 @@ def main():
         print(f"[{get_timestamp()}] Error loading table configuration: {e}")
         print("Program cannot continue without table configuration")
         sys.exit(1)
+    
+    # Initialize state machines for all tables
+    global state_machines
+    state_machines = {}
+    for table in tables:
+        table_name = table.get("name", "unknown")
+        state_machines[table_name] = create_state_machine_for_table(table_name)
+        print(f"[{get_timestamp()}] Initialized state machine for table: {table_name}")
+        log_to_file(f"Initialized state machine for table: {table_name}", "STATE_MACHINE >>>")
     
     # Initialize serial connection
     try:

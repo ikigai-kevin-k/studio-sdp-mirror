@@ -406,3 +406,51 @@ The AI assistant MUST automatically execute the following operation:
 
 **User query**: `[line] show me the codebase stats`
 - Action: Execute `codebase_line.sh` and display codebase statistics
+
+## Automatic Git Branch Checkout
+
+### Checkout Command Detection
+When the user includes the following pattern in their query:
+- `[checkout] <branch_name>`
+- `[checkout]<branch_name>`
+
+The AI assistant MUST automatically execute the following git operation:
+
+1. **Parse the branch name**: Extract the branch name from the user's message
+2. **Execute git checkout**: Create and switch to a new branch using `git checkout -b <branch_name>`
+
+### Implementation Rules
+
+1. **Branch Name Detection**:
+   - Extract the branch name after `[checkout]` or `[checkout]`
+   - Remove any leading/trailing whitespace
+   - Use the branch name as-is (no validation or sanitization)
+
+2. **Command Execution**:
+   - Execute: `git checkout -b <branch_name>`
+   - This will create a new branch and switch to it
+   - If the branch already exists, git will show an error (which is expected behavior)
+
+3. **Error Handling**:
+   - If the branch already exists, inform the user
+   - If there are uncommitted changes, git checkout may fail (expected behavior)
+   - Handle git errors gracefully and inform the user
+
+4. **Execution Steps**:
+   ```
+   1. Detect [checkout] pattern in user query
+   2. Extract branch name
+   3. Execute: git checkout -b <branch_name>
+   4. Display the result to the user
+   ```
+
+### Examples
+
+**User query**: `[checkout] feature/new-feature`
+- Action: Execute `git checkout -b feature/new-feature`
+
+**User query**: `[checkout]fix/bug-123`
+- Action: Execute `git checkout -b fix/bug-123`
+
+**User query**: `[checkout] develop`
+- Action: Execute `git checkout -b develop`
