@@ -28,6 +28,8 @@ def get_los_env_url(env_name, config):
     hardcoded_envs = {
         "GLC": "crystal-table.iki-glc.cc",
         "glc": "crystal-table.iki-glc.cc",
+        "DEV": "crystal-table.iki-dev.cc",
+        "dev": "crystal-table.iki-dev.cc",
     }
     
     # Check hardcoded environments first
@@ -54,7 +56,7 @@ def get_access_token(game_code=None, env_name=None):
 
     Args:
         game_code (str): The game code to use (default: BCR-001)
-        env_name (str): Environment name from config (CIT, UAT, PRD, STG, QAT, GLC)
+        env_name (str): Environment name from config (CIT, UAT, PRD, STG, QAT, GLC, DEV)
     """
     # Load configuration
     config = load_env_config()

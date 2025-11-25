@@ -36,7 +36,7 @@
     "get_url": "https://crystal-table.iki-dev.cc/v2/service/tables/",
     "post_url": "https://crystal-table.iki-dev.cc/v2/service/tables/",
     "game_code": "ARO-001",
-    "access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiIzZTcxOTlkYi0zYTlkLTRjZDYtYmUwZi04MGYzZThmYjhjNTQiLCJnYW1lQ29kZSI6WyJBUk8tMDAyIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NjQwNDEwNzk3MDIsImlhdCI6MTc2NDA0MTA3OX0.BAFifyWYAngP3AB9Iq6baSPKjCLkQTC_2DBUk3sctVk",
+    "access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiJkYjBkMjY2My03YTE2LTQ2N2ItYjA2Zi1mMTQ4ZjUyMjRiZTgiLCJnYW1lQ29kZSI6WyJBUk8tMDAxIl0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NjQwNjQyNjU0MzAsImlhdCI6MTc2NDA2NDI2NX0.Kt9rPnjJJ1hOy-j41oQYhc3ik767eDICcUMHMBDVqBY",
     "table_token": "E5LN4END9Q"
   },
   {
