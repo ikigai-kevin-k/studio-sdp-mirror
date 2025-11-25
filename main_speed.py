@@ -1058,31 +1058,24 @@ def check_service_status_and_switch_mode():
         # Support "down", "down_pause", and "down_cancel" status
         if sdp_status in ["down", "down_pause", "down_cancel"]:
             with mode_lock:
-                if current_mode != "idle":
+                if current_mode == "running":
                     current_mode = "idle"
                     print(f"[{get_timestamp()}] Mode switched to idle (SDP status: {sdp_status})")
                     log_to_file(
                         f"Mode switched to idle mode due to SDP status: {sdp_status}",
                         "Mode >>>"
                     )
-                else:
-                    print(f"[{get_timestamp()}] Already in idle mode (SDP status: {sdp_status}), but will trigger idle mode actions")
-                    log_to_file(
-                        f"Already in idle mode (SDP status: {sdp_status}), but will trigger idle mode actions",
-                        "Mode >>>"
-                    )
-            
-            # Trigger idle mode actions (check if already triggered to avoid duplicates)
-            with idle_mode_lock:
-                global idle_mode_triggered
-                if not idle_mode_triggered:
-                    idle_mode_triggered = True
-                    print(f"[{get_timestamp()}] Triggering idle mode actions from service status monitor...")
-                    log_to_file("Triggering idle mode actions from service status monitor...", "HTTP API >>>")
-                    threading.Thread(target=handle_idle_mode).start()
-                else:
-                    print(f"[{get_timestamp()}] Idle mode actions already triggered, skipping duplicate")
-                    log_to_file("Idle mode actions already triggered, skipping duplicate", "HTTP API >>>")
+                    # Trigger idle mode actions
+                    with idle_mode_lock:
+                        global idle_mode_triggered
+                        if not idle_mode_triggered:
+                            idle_mode_triggered = True
+                            print(f"[{get_timestamp()}] Triggering idle mode actions from service status monitor...")
+                            log_to_file("Triggering idle mode actions from service status monitor...", "HTTP API >>>")
+                            threading.Thread(target=handle_idle_mode).start()
+                        else:
+                            print(f"[{get_timestamp()}] Idle mode actions already triggered, skipping duplicate")
+                            log_to_file("Idle mode actions already triggered, skipping duplicate", "HTTP API >>>")
         
         # Check if we need to switch to running mode
         # Support "up", "up_cancel", and "up_resume" status
@@ -1169,19 +1162,23 @@ class StatusRequestHandler(BaseHTTPRequestHandler):
             table_id = data.get("tableId", "")
             sdp_status = data.get("sdp", "")
             
+            # Check if this is for detected table ID
+            # Note: When requests are sent directly to remote server (port 8084),
+            # this handler won't receive them. Status changes are detected by
+            # check_service_status_and_switch_mode which periodically checks remote server.
             if table_id == DETECTED_TABLE_ID:
-                # First, sync status to remote server via HTTP API
-                print(f"[{get_timestamp()}] Syncing SDP status to remote server: {sdp_status}")
-                log_to_file(f"Syncing SDP status to remote server: {sdp_status}", "HTTP Server >>>")
-                sync_success = set_sdp_status_via_http(table_id, sdp_status)
-                
-                if not sync_success:
-                    print(f"[{get_timestamp()}] Warning: Failed to sync SDP status to remote server, but continuing with local update")
-                    log_to_file("Warning: Failed to sync SDP status to remote server, but continuing with local update", "HTTP Server >>>")
-                
                 if sdp_status == "up":
                     print(f"[{get_timestamp()}] Received sdp: up request for {DETECTED_TABLE_ID}, switching to running mode")
                     log_to_file(f"Received sdp: up request for {DETECTED_TABLE_ID}, switching to running mode", "HTTP Server >>>")
+                    
+                    # First, sync status to remote server via HTTP API
+                    print(f"[{get_timestamp()}] Syncing SDP status to remote server: {sdp_status}")
+                    log_to_file(f"Syncing SDP status to remote server: {sdp_status}", "HTTP Server >>>")
+                    sync_success = set_sdp_status_via_http(table_id, sdp_status)
+                    
+                    if not sync_success:
+                        print(f"[{get_timestamp()}] Warning: Failed to sync SDP status to remote server, but continuing with local update")
+                        log_to_file("Warning: Failed to sync SDP status to remote server, but continuing with local update", "HTTP Server >>>")
                     
                     # Switch to running mode
                     with mode_lock:
@@ -1192,33 +1189,6 @@ class StatusRequestHandler(BaseHTTPRequestHandler):
                         else:
                             print(f"[{get_timestamp()}] Already in {current_mode} mode, no change needed")
                             log_to_file(f"Already in {current_mode} mode, no change needed", "Mode >>>")
-                
-                elif sdp_status == "down" or sdp_status in ["down_pause", "down_cancel"]:
-                    print(f"[{get_timestamp()}] Received sdp: {sdp_status} request for {DETECTED_TABLE_ID}, switching to idle mode")
-                    log_to_file(f"Received sdp: {sdp_status} request for {DETECTED_TABLE_ID}, switching to idle mode", "HTTP Server >>>")
-                    
-                    # Switch to idle mode and trigger idle mode actions
-                    # Always trigger idle mode actions when receiving sdp: down, even if already in idle mode
-                    with mode_lock:
-                        if current_mode != "idle":
-                            current_mode = "idle"
-                            print(f"[{get_timestamp()}] Mode switched to: {current_mode}")
-                            log_to_file(f"Mode switched to: {current_mode}", "Mode >>>")
-                        else:
-                            print(f"[{get_timestamp()}] Already in {current_mode} mode, but will trigger idle mode actions")
-                            log_to_file(f"Already in {current_mode} mode, but will trigger idle mode actions", "Mode >>>")
-                    
-                    # Trigger idle mode actions (check if already triggered to avoid duplicates)
-                    with idle_mode_lock:
-                        global idle_mode_triggered
-                        if not idle_mode_triggered:
-                            idle_mode_triggered = True
-                            print(f"[{get_timestamp()}] Triggering idle mode actions...")
-                            log_to_file("Triggering idle mode actions...", "HTTP Server >>>")
-                            threading.Thread(target=handle_idle_mode).start()
-                        else:
-                            print(f"[{get_timestamp()}] Idle mode actions already triggered, skipping duplicate")
-                            log_to_file("Idle mode actions already triggered, skipping duplicate", "HTTP Server >>>")
                 
                 # Send success response
                 self.send_response(200)
