@@ -69,6 +69,7 @@ def get_service_status(table_id: str) -> Optional[Dict[str, Any]]:
                 f"Service status API error: {response.status_code} - {response.text}",
                 "HTTP API >>>"
             )
+            print(f"[{get_timestamp()}] ⚠️ Service status API returned status code {response.status_code}: {response.text}")
             return None
         
         # Parse the response JSON
@@ -82,11 +83,26 @@ def get_service_status(table_id: str) -> Optional[Dict[str, Any]]:
             return None
         
         # Check if there's an error in the response
+        # Even if there's an error, try to return data if it exists
+        # (e.g., "hasn't changed" error but data still contains current status)
         if response_data.get("error") is not None:
+            error_info = response_data.get("error", {})
+            error_msg = error_info.get("message", "") if isinstance(error_info, dict) else str(error_info)
             log_api(
                 f"Service status API returned error: {response_data.get('error')}",
                 "HTTP API >>>"
             )
+            print(f"[{get_timestamp()}] ⚠️ Service status API returned error: {error_info}")
+            # If data exists despite error, still return it (e.g., "hasn't changed" case)
+            data = response_data.get("data")
+            if data is not None:
+                log_api(
+                    f"Service status API returned error but data exists, returning data anyway",
+                    "HTTP API >>>"
+                )
+                print(f"[{get_timestamp()}] Service status API returned error but data exists, returning data: {data}")
+                return data
+            print(f"[{get_timestamp()}] Service status API returned error and data is None")
             return None
         
         # Return the data portion of the response
