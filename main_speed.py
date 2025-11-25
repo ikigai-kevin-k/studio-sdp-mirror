@@ -39,6 +39,13 @@ from table_api.sr.api_v2_uat_sr import (
     broadcast_post_v2_uat,
     bet_stop_post_uat,
 )
+from table_api.sr.api_v2_dev_sr import (
+    start_post_v2_dev,
+    deal_post_v2_dev,
+    finish_post_v2_dev,
+    broadcast_post_v2_dev,
+    bet_stop_post_dev,
+)
 from table_api.sr.api_v2_prd_sr import (
     start_post_v2_prd,
     deal_post_v2_prd,
@@ -1866,6 +1873,8 @@ async def _execute_finish_post_async(table, token):
             await retry_with_network_check(finish_post_v2, post_url, token)
         elif table["name"] == "UAT":
             await retry_with_network_check(finish_post_v2_uat, post_url, token)
+        elif table["name"] == "DEV":
+            await retry_with_network_check(finish_post_v2_dev, post_url, token)
         elif table["name"] == "PRD":
             await retry_with_network_check(finish_post_v2_prd, post_url, token)
         elif table["name"] == "STG":
@@ -1933,6 +1942,10 @@ async def _execute_start_post_async(table, token):
         elif table["name"] == "UAT":
             round_id, bet_period = await retry_with_network_check(
                 start_post_v2_uat, post_url, token
+            )
+        elif table["name"] == "DEV":
+            round_id, bet_period = await retry_with_network_check(
+                start_post_v2_dev, post_url, token
             )
         elif table["name"] == "PRD":
             round_id, bet_period = await retry_with_network_check(
@@ -2039,6 +2052,10 @@ async def _execute_deal_post_async(table, token, win_num):
             await retry_with_network_check(
                 deal_post_v2_uat, post_url, token, table["round_id"], str(win_num)
             )
+        elif table["name"] == "DEV":
+            await retry_with_network_check(
+                deal_post_v2_dev, post_url, token, table["round_id"], str(win_num)
+            )
         elif table["name"] == "PRD":
             await retry_with_network_check(
                 deal_post_v2_prd, post_url, token, table["round_id"], str(win_num)
@@ -2126,6 +2143,8 @@ async def _betStop_round_for_table_async(table, token):
             await retry_with_network_check(bet_stop_post, post_url, token)
         elif table["name"] == "UAT":
             await retry_with_network_check(bet_stop_post_uat, post_url, token)
+        elif table["name"] == "DEV":
+            await retry_with_network_check(bet_stop_post_dev, post_url, token)
         elif table["name"] == "PRD":
             await retry_with_network_check(bet_stop_post_prd, post_url, token)
         elif table["name"] == "STG":
@@ -2184,6 +2203,10 @@ async def _execute_broadcast_post_async(table, token, broadcast_type="roulette.r
         elif table["name"] == "UAT":
             result = await retry_with_network_check(
                 broadcast_post_v2_uat, post_url, token, broadcast_type, "players", 20
+            )
+        elif table["name"] == "DEV":
+            result = await retry_with_network_check(
+                broadcast_post_v2_dev, post_url, token, broadcast_type, "players", 20
             )
         elif table["name"] == "PRD":
             result = await retry_with_network_check(

@@ -38,6 +38,13 @@ from table_api.vr.api_v2_uat_vr import (
     broadcast_post_v2_uat,
     bet_stop_post_uat,
 )
+from table_api.vr.api_v2_dev_vr import (
+    start_post_v2_dev,
+    deal_post_v2_dev,
+    finish_post_v2_dev,
+    broadcast_post_v2_dev,
+    bet_stop_post_dev,
+)
 from table_api.vr.api_v2_prd_vr import (
     start_post_v2_prd,
     deal_post_v2_prd,
@@ -116,7 +123,7 @@ def log_to_file(message, direction):
 
 
 # Load table configuration
-def load_table_config(config_file="conf/table-config-vip-roulette-v2.json"):
+def load_table_config(config_file="conf/vr-1.json"):
     """Load table configuration from JSON file
     
     This function supports loading from:
@@ -2078,6 +2085,8 @@ def execute_finish_post(table, token):
         post_url = f"{table['post_url']}{table['game_code']}"
         if table["name"] == "UAT":
             result = finish_post_v2_uat(post_url, token)
+        elif table["name"] == "DEV":
+            result = finish_post_v2_dev(post_url, token)
         elif table["name"] == "PRD":
             result = finish_post_v2_prd(post_url, token)
         elif table["name"] == "PRD-3":
@@ -2113,6 +2122,8 @@ def execute_start_post(table, token):
         post_url = f"{table['post_url']}{table['game_code']}"
         if table["name"] == "UAT":
             round_id, betPeriod = start_post_v2_uat(post_url, token)
+        elif table["name"] == "DEV":
+            round_id, betPeriod = start_post_v2_dev(post_url, token)
         elif table["name"] == "PRD":
             round_id, betPeriod = start_post_v2_prd(post_url, token)
         elif table["name"] == "PRD-3":
@@ -2156,6 +2167,10 @@ def execute_deal_post(table, token, win_num):
         post_url = f"{table['post_url']}{table['game_code']}"
         if table["name"] == "UAT":
             result = deal_post_v2_uat(
+                post_url, token, table["round_id"], str(win_num)
+            )
+        elif table["name"] == "DEV":
+            result = deal_post_v2_dev(
                 post_url, token, table["round_id"], str(win_num)
             )
         elif table["name"] == "PRD":
@@ -2204,6 +2219,8 @@ def betStop_round_for_table(table, token):
             result = bet_stop_post(post_url, token)
         elif table["name"] == "UAT":
             result = bet_stop_post_uat(post_url, token)
+        elif table["name"] == "DEV":
+            result = bet_stop_post_dev(post_url, token)
         elif table["name"] == "PRD":
             result = bet_stop_post_prd(post_url, token)
         elif table["name"] == "PRD-3":
@@ -2242,6 +2259,10 @@ def execute_broadcast_post(table, token):
         post_url = f"{table['post_url']}{table['game_code']}"
         if table["name"] == "UAT":
             result = broadcast_post_v2_uat(
+                post_url, token, "roulette.relaunch", "players", 20
+            )  # , None)
+        elif table["name"] == "DEV":
+            result = broadcast_post_v2_dev(
                 post_url, token, "roulette.relaunch", "players", 20
             )  # , None)
         elif table["name"] == "PRD":

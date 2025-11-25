@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 API v2 All-in-One Script for VIP Roulette (VR)
-parallel execution of eight environments' API test scripts
+parallel execution of nine environments' API test scripts
 
 supported environments:
 - CIT (api_v2_vr.py)
@@ -11,6 +11,7 @@ supported environments:
 - STG (api_v2_stg_vr.py)
 - QAT (api_v2_qat_vr.py)
 - UAT (api_v2_uat_vr.py)
+- DEV (api_v2_dev_vr.py)
 - GLC (api_v2_glc_vr.py)
 """
 
@@ -33,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 
 class APIv2AllVRRunner:
-    """parallel execution of eight VIP Roulette API environments' executor"""
+    """parallel execution of nine VIP Roulette API environments' executor"""
 
     def __init__(self, deal_result: str = None):
         self.script_dir = Path(__file__).parent
@@ -45,6 +46,7 @@ class APIv2AllVRRunner:
             "STG": "api_v2_stg_vr.py",
             "QAT": "api_v2_qat_vr.py",
             "UAT": "api_v2_uat_vr.py",
+            "DEV": "api_v2_dev_vr.py",
             "GLC": "api_v2_glc_vr.py",
         }
         self.results = {}
@@ -58,7 +60,7 @@ class APIv2AllVRRunner:
         execute single VIP Roulette API script
 
         Args:
-            env_name: environment name (CIT, PRD, PRD-3, PRD-4, STG, QAT, UAT, GLC)
+            env_name: environment name (CIT, PRD, PRD-3, PRD-4, STG, QAT, UAT, DEV, GLC)
             script_name: script file name
 
         Returns:
@@ -119,7 +121,7 @@ class APIv2AllVRRunner:
         )
 
         # use ThreadPoolExecutor to execute in parallel
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=9) as executor:
             # submit all tasks
             future_to_env = {
                 executor.submit(
@@ -241,7 +243,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="parallel execution of eight VIP Roulette API environments' scripts"
+        description="parallel execution of nine VIP Roulette API environments' scripts"
     )
     parser.add_argument(
         "--mode",
