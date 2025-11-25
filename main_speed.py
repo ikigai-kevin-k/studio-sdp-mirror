@@ -1085,13 +1085,20 @@ def check_service_status_and_switch_mode():
                     log_to_file("Idle mode actions already triggered, skipping duplicate", "HTTP API >>>")
         
         # Check if we need to switch to running mode
-        elif sdp_status in ["up_cancel", "up_resume"]:
+        # Support "up", "up_cancel", and "up_resume" status
+        elif sdp_status in ["up", "up_cancel", "up_resume"]:
             with mode_lock:
                 if current_mode == "idle":
                     current_mode = "running"
                     print(f"[{get_timestamp()}] Mode switched to running (SDP status: {sdp_status})")
                     log_to_file(
                         f"Mode switched to running mode due to SDP status: {sdp_status}",
+                        "Mode >>>"
+                    )
+                else:
+                    print(f"[{get_timestamp()}] Already in {current_mode} mode (SDP status: {sdp_status})")
+                    log_to_file(
+                        f"Already in {current_mode} mode (SDP status: {sdp_status})",
                         "Mode >>>"
                     )
         
@@ -1163,6 +1170,15 @@ class StatusRequestHandler(BaseHTTPRequestHandler):
             sdp_status = data.get("sdp", "")
             
             if table_id == DETECTED_TABLE_ID:
+                # First, sync status to remote server via HTTP API
+                print(f"[{get_timestamp()}] Syncing SDP status to remote server: {sdp_status}")
+                log_to_file(f"Syncing SDP status to remote server: {sdp_status}", "HTTP Server >>>")
+                sync_success = set_sdp_status_via_http(table_id, sdp_status)
+                
+                if not sync_success:
+                    print(f"[{get_timestamp()}] Warning: Failed to sync SDP status to remote server, but continuing with local update")
+                    log_to_file("Warning: Failed to sync SDP status to remote server, but continuing with local update", "HTTP Server >>>")
+                
                 if sdp_status == "up":
                     print(f"[{get_timestamp()}] Received sdp: up request for {DETECTED_TABLE_ID}, switching to running mode")
                     log_to_file(f"Received sdp: up request for {DETECTED_TABLE_ID}, switching to running mode", "HTTP Server >>>")
