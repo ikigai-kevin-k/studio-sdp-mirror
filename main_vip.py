@@ -2602,7 +2602,7 @@ def _bet_stop_countdown(table, round_id, bet_period, token, betStop_round_for_ta
 
 def main():
     """Main function for VIP Roulette Controller"""
-    global terminate_program, ws_connected, ws_client, p1_sent, tables, ser
+    global terminate_program, ws_connected, ws_client, p1_sent, tables, ser, studio_api_ws_client, studio_api_ws_connected
     
     # Check if system was recently rebooted and send sdp: up if needed
     print(f"[{get_timestamp()}] Checking system boot time...")
@@ -2738,7 +2738,6 @@ def main():
             log_to_file(f"Program terminating due to {termination_reason}", "Terminate >>>")
             
             # Gracefully close StudioAPI WebSocket connection
-            global studio_api_ws_client, studio_api_ws_connected
             if studio_api_ws_connected and studio_api_ws_client:
                 try:
                     print(f"[{get_timestamp()}] Closing StudioAPI WebSocket connection...")
@@ -2788,7 +2787,6 @@ def main():
         log_to_file("Program ended by user", "Terminate >>>")
     finally:
         # Ensure connections are closed even if not terminated gracefully
-        global studio_api_ws_client, studio_api_ws_connected
         if studio_api_ws_connected and studio_api_ws_client:
             try:
                 asyncio.run(studio_api_ws_client.disconnect())
