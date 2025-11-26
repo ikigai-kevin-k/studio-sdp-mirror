@@ -4,7 +4,7 @@
 # Usage: ./cancel.sh {game_code}
 # 
 # This script executes cancel action for the specified game_code
-# across all environments (CIT, UAT, QAT, STG, PRD, GLC) in parallel.
+# across all environments (DEV, CIT, UAT, QAT, STG, PRD, GLC) in parallel.
 
 set -e
 
@@ -24,7 +24,7 @@ usage() {
     echo "Usage: $0 {game_code} [env]"
     echo ""
     echo "This script executes cancel action for the specified game_code"
-    echo "across all environments (CIT, UAT, QAT, STG, PRD, GLC) in parallel."
+    echo "across all environments (DEV, CIT, UAT, QAT, STG, PRD, GLC) in parallel."
     echo ""
     echo "Note: The env parameter is ignored - cancel will be executed for all environments."
     echo ""
@@ -51,6 +51,9 @@ check_dependencies() {
 get_env_url() {
     local env=$1
     case "$env" in
+        DEV)
+            echo "crystal-table.iki-dev.cc"
+            ;;
         CIT)
             echo "crystal-table.iki-cit.cc"
             ;;
@@ -163,7 +166,7 @@ main() {
     # Note: env parameter ($2) is ignored - always execute for all environments
     
     # All environments
-    local environments=("CIT" "UAT" "QAT" "STG" "PRD" "GLC")
+    local environments=("DEV" "CIT" "UAT" "QAT" "STG" "PRD" "GLC")
     
     echo -e "${CYAN}========================================${NC}"
     echo -e "${CYAN}Canceling $game_code across all environments${NC}"
