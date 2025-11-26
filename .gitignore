@@ -139,3 +139,4 @@ self-test-*.log
 # Configuration files with sensitive data
 conf/*.local.json
 conf/*.prod.json
+.env
