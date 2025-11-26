@@ -31,6 +31,7 @@ from table_api.sr.api_v2_sr import (
     finish_post_v2,
     broadcast_post_v2,
     bet_stop_post,
+    cancel_post,
 )
 from table_api.sr.api_v2_uat_sr import (
     start_post_v2_uat,
@@ -73,6 +74,7 @@ from table_api.sr.api_v2_sr_5 import (
     finish_post_v2 as finish_post_v2_cit5,
     broadcast_post_v2 as broadcast_post_v2_cit5,
     bet_stop_post as bet_stop_post_cit5,
+    cancel_post as cancel_post_cit5,
 )
 from table_api.sr.api_v2_sr_6 import (
     start_post_v2 as start_post_v2_cit6,
@@ -80,6 +82,7 @@ from table_api.sr.api_v2_sr_6 import (
     finish_post_v2 as finish_post_v2_cit6,
     broadcast_post_v2 as broadcast_post_v2_cit6,
     bet_stop_post as bet_stop_post_cit6,
+    cancel_post as cancel_post_cit6,
 )
 from table_api.sr.api_v2_sr_7 import (
     start_post_v2 as start_post_v2_cit7,
@@ -87,6 +90,7 @@ from table_api.sr.api_v2_sr_7 import (
     finish_post_v2 as finish_post_v2_cit7,
     broadcast_post_v2 as broadcast_post_v2_cit7,
     bet_stop_post as bet_stop_post_cit7,
+    cancel_post as cancel_post_cit7,
 )
 from table_api.sr.api_v2_prd_sr_5 import (
     start_post_v2_prd as start_post_v2_prd5,
@@ -115,6 +119,7 @@ from table_api.sr.api_v2_glc_sr import (
     finish_post_v2_glc,
     broadcast_post_v2_glc,
     bet_stop_post_glc,
+    cancel_post_v2_glc,
 )
 from concurrent.futures import ThreadPoolExecutor
 
@@ -303,6 +308,10 @@ last_x5_time = 0
 start_post_sent = False
 deal_post_sent = False
 start_time = 0
+
+# Global table failure state tracker for non-PRD environments
+# Key: table_name, Value: True if table has failed in current round
+table_failure_state = {}
 deal_post_time = 0
 finish_post_time = 0
 # Game state tracking for auto-recovery
@@ -332,7 +341,38 @@ mode_lock = threading.Lock()  # Lock for thread-safe mode access
 idle_mode_triggered = False  # Flag to track if idle mode operation has been triggered
 idle_mode_lock = threading.Lock()  # Lock for thread-safe idle mode trigger access
 
-async def retry_with_network_check(func, *args, max_retries=5, retry_delay=5):
+async def cancel_round_for_table(table, token):
+    """Cancel round for a table - helper function for non-PRD environments"""
+    try:
+        post_url = f"{table['post_url']}{table['game_code']}"
+        
+        if table["name"] == "CIT":
+            cancel_post(post_url, token)
+        elif table["name"] == "UAT":
+            cancel_post_v2_uat(post_url, token)
+        elif table["name"] == "DEV":
+            cancel_post_v2_dev(post_url, token)
+        elif table["name"] == "STG":
+            cancel_post_v2_stg(post_url, token)
+        elif table["name"] == "QAT":
+            cancel_post_v2_qat(post_url, token)
+        elif table["name"] == "CIT-5":
+            cancel_post_cit5(post_url, token)
+        elif table["name"] == "CIT-6":
+            cancel_post_cit6(post_url, token)
+        elif table["name"] == "CIT-7":
+            cancel_post_cit7(post_url, token)
+        elif table["name"] == "GLC":
+            cancel_post_v2_glc(post_url, token)
+        
+        log_api(f"Called cancel_post for {table['name']}", "API >>>")
+        return True
+    except Exception as e:
+        log_api(f"Error calling cancel_post for {table['name']}: {e}", "ERROR >>>")
+        return False
+
+
+async def retry_with_network_check(func, *args, max_retries=5, retry_delay=5, table_name=None):
     """
     Retry a function with network error checking.
 
@@ -341,11 +381,14 @@ async def retry_with_network_check(func, *args, max_retries=5, retry_delay=5):
         *args: Arguments to pass to the function
         max_retries: Maximum number of retries
         retry_delay: Delay between retries in seconds
+        table_name: Table name (e.g., "PRD", "STG") - for non-PRD failure handling
 
     Returns:
-        The result of the function if successful
+        The result of the function if successful, None if failed (for non-PRD environments)
     """
     retry_count = 0
+    is_non_prd = table_name is not None and table_name != "PRD" and not table_name.startswith("PRD-")
+    
     while retry_count < max_retries:
         try:
             return (
@@ -366,6 +409,32 @@ async def retry_with_network_check(func, *args, max_retries=5, retry_delay=5):
                 retry_count += 1
                 continue
             raise
+        except Exception as e:
+            # If we've exhausted retries, for non-PRD environments, return None instead of raising
+            if retry_count >= max_retries - 1:
+                if is_non_prd:
+                    log_api(
+                        f"Max retries ({max_retries}) reached for non-PRD environment {table_name}. "
+                        f"Will call cancel_post instead of raising exception.",
+                        "ERROR >>>"
+                    )
+                    return None
+                raise Exception(
+                    f"Max retries ({max_retries}) reached while attempting to execute {func.__name__}: {e}"
+                )
+            retry_count += 1
+            await asyncio.sleep(retry_delay)
+            continue
+    
+    # All retries exhausted
+    if is_non_prd:
+        log_api(
+            f"Max retries ({max_retries}) reached for non-PRD environment {table_name}. "
+            f"Will call cancel_post instead of raising exception.",
+            "ERROR >>>"
+        )
+        return None
+    
     raise Exception(
         f"Max retries ({max_retries}) reached while attempting to execute {func.__name__}"
     )

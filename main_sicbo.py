@@ -39,6 +39,7 @@ from table_api.sb.api_v2_sb import (
     get_roundID_v2,
     broadcast_post_v2,
     bet_stop_post,
+    cancel_post,
 )
 from table_api.sb.api_v2_uat_sb import (
     start_post_v2_uat,
@@ -49,6 +50,7 @@ from table_api.sb.api_v2_uat_sb import (
     broadcast_post_v2_uat,
     bet_stop_post_uat,
     get_sdp_config_v2_uat,
+    cancel_post_v2_uat,
 )
 from table_api.sb.api_v2_prd_sb import (
     start_post_v2_prd,
@@ -67,6 +69,7 @@ from table_api.sb.api_v2_stg_sb import (
     get_roundID_v2_stg,
     broadcast_post_v2_stg,
     bet_stop_post_stg,
+    cancel_post_v2_stg,
 )
 from table_api.sb.api_v2_qat_sb import (
     start_post_v2_qat,
@@ -76,6 +79,7 @@ from table_api.sb.api_v2_qat_sb import (
     get_roundID_v2_qat,
     broadcast_post_v2_qat,
     bet_stop_post_qat,
+    cancel_post_v2_qat,
 )
 from table_api.sb.api_v2_glc_sb import (
     start_post_v2_glc,
@@ -85,6 +89,7 @@ from table_api.sb.api_v2_glc_sb import (
     get_roundID_v2_glc,
     broadcast_post_v2_glc,
     bet_stop_post_glc,
+    cancel_post_v2_glc,
 )
 from networkChecker import networkChecker
 from datetime import datetime
@@ -93,6 +98,10 @@ from slack import send_error_to_slack
 # Global error notification state tracker to prevent duplicate Slack messages
 # Key: environment_name, Value: last_error_time
 error_notification_state = {}
+
+# Global table failure state tracker for non-PRD environments
+# Key: table_name, Value: True if table has failed in current round
+table_failure_state = {}
 
 
 def should_send_error_notification(
@@ -239,7 +248,7 @@ def setup_logging(enable_logging: bool, log_dir: str):
         logging.info(f"Logging to file: {file_handler.baseFilename}")
 
 
-def load_table_config(config_file="conf/table-config-sicbo-v2.json"):
+def load_table_config(config_file="conf/sb.json"):
     """Load table configuration from JSON file
     
     This function supports loading from:
@@ -300,17 +309,39 @@ def load_table_config(config_file="conf/table-config-sicbo-v2.json"):
 async def start_round_for_table(table, token):
     """Start round for a single table - helper function for thread pool execution"""
     try:
+        # Check if table has already failed in this round
+        if table_failure_state.get(table["name"], False):
+            logger.warning(
+                f"Table {table['name']} has already failed in this round, skipping start_post and calling cancel_post"
+            )
+            await cancel_round_for_table(table, token)
+            return None, None
+        
         post_url = f"{table['post_url']}{table['game_code']}"
 
         if table["name"] == "CIT":
-            round_id, _ = await retry_with_network_check(
-                start_post_v2, post_url, token
+            result = await retry_with_network_check(
+                start_post_v2, post_url, token, table_name="CIT"
             )
+            if result is None:
+                # Failed after retries, call cancel_post and mark as failed
+                logger.error(f"Start post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return None, None
+            round_id, _ = result
             bet_period = None  # Will be set from PRD later
         elif table["name"] == "UAT":
-            round_id, _ = await retry_with_network_check(
-                start_post_v2_uat, post_url, token
+            result = await retry_with_network_check(
+                start_post_v2_uat, post_url, token, table_name="UAT"
             )
+            if result is None:
+                # Failed after retries, call cancel_post and mark as failed
+                logger.error(f"Start post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return None, None
+            round_id, _ = result
             bet_period = None  # Will be set from PRD later
         elif table["name"] == "PRD":
             try:
@@ -382,62 +413,40 @@ async def start_round_for_table(table, token):
                     )
                 round_id, bet_period = -1, None
         elif table["name"] == "STG":
-            try:
-                round_id, _ = await retry_with_network_check(
-                    start_post_v2_stg, post_url, token
-                )
-                bet_period = None  # Will be set from PRD later
-                if round_id == -1:
-                    # Send Slack error notification for STG start post failure
-                    # Only send if we haven't sent one recently
-                    if should_send_error_notification("STG"):
-                        send_error_to_slack(
-                            error_message="STG Start Post Failed",
-                            environment="STG",
-                            table_name="SBO-001-1",
-                            error_code="START_POST_FAILED",
-                            mention_user="Kevin Kuo",
-                            channel="#alert-tw-studio",
-                            action_message="None (can be auto-recovered)",
-                        )
-                        logger.warning(
-                            "STG Start Post Failed - Slack notification sent"
-                        )
-                    else:
-                        logger.info(
-                            "STG Start Post Failed - Skipping duplicate Slack notification"
-                        )
-            except Exception as e:
-                logger.error(f"STG start_post_v2_stg failed: {e}")
-                # Send Slack error notification for STG start post failure
-                # Only send if we haven't sent one recently
-                if should_send_error_notification("STG"):
-                    send_error_to_slack(
-                        error_message="STG Start Post Failed",
-                        environment="STG",
-                        table_name="SBO-001-1",
-                        error_code="START_POST_FAILED",
-                        mention_user="Kevin Kuo",
-                        channel="#alert-tw-studio",
-                        action_message="None (can be auto-recovered)",
-                    )
-                    logger.warning(
-                        "STG Start Post Failed - Slack notification sent"
-                    )
-                else:
-                    logger.info(
-                        "STG Start Post Failed - Skipping duplicate Slack notification"
-                    )
-                round_id, bet_period = -1, None
-        elif table["name"] == "QAT":
-            round_id, _ = await retry_with_network_check(
-                start_post_v2_qat, post_url, token
+            result = await retry_with_network_check(
+                start_post_v2_stg, post_url, token, table_name="STG"
             )
+            if result is None:
+                # Failed after retries, call cancel_post and mark as failed
+                logger.error(f"Start post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return None, None
+            round_id, _ = result
+            bet_period = None  # Will be set from PRD later
+        elif table["name"] == "QAT":
+            result = await retry_with_network_check(
+                start_post_v2_qat, post_url, token, table_name="QAT"
+            )
+            if result is None:
+                # Failed after retries, call cancel_post and mark as failed
+                logger.error(f"Start post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return None, None
+            round_id, _ = result
             bet_period = None  # Will be set from PRD later
         elif table["name"] == "GLC":
-            round_id, _ = await retry_with_network_check(
-                start_post_v2_glc, post_url, token
+            result = await retry_with_network_check(
+                start_post_v2_glc, post_url, token, table_name="GLC"
             )
+            if result is None:
+                # Failed after retries, call cancel_post and mark as failed
+                logger.error(f"Start post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return None, None
+            round_id, _ = result
             bet_period = None  # Will be set from PRD later
         else:
             return None, None
@@ -455,16 +464,34 @@ async def start_round_for_table(table, token):
 async def deal_round_for_table(table, token, round_id, dice_result):
     """Deal round for a single table - helper function for thread pool execution"""
     try:
+        # Check if table has already failed in this round
+        if table_failure_state.get(table["name"], False):
+            logger.warning(
+                f"Table {table['name']} has already failed in this round, skipping deal_post and calling cancel_post"
+            )
+            await cancel_round_for_table(table, token)
+            return table["name"], False
+        
         post_url = f"{table['post_url']}{table['game_code']}"
 
         if table["name"] == "CIT":
-            await retry_with_network_check(
-                deal_post_v2, post_url, token, round_id, dice_result
+            result = await retry_with_network_check(
+                deal_post_v2, post_url, token, round_id, dice_result, table_name="CIT"
             )
+            if result is None:
+                logger.error(f"Deal post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return table["name"], False
         elif table["name"] == "UAT":
-            await retry_with_network_check(
-                deal_post_v2_uat, post_url, token, round_id, dice_result
+            result = await retry_with_network_check(
+                deal_post_v2_uat, post_url, token, round_id, dice_result, table_name="UAT"
             )
+            if result is None:
+                logger.error(f"Deal post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return table["name"], False
         elif table["name"] == "PRD":
             try:
                 await retry_with_network_check(
@@ -484,17 +511,32 @@ async def deal_round_for_table(table, token, round_id, dice_result):
                 # Error signal already sent in retry_with_network_check
                 raise
         elif table["name"] == "STG":
-            await retry_with_network_check(
-                deal_post_v2_stg, post_url, token, round_id, dice_result
+            result = await retry_with_network_check(
+                deal_post_v2_stg, post_url, token, round_id, dice_result, table_name="STG"
             )
+            if result is None:
+                logger.error(f"Deal post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return table["name"], False
         elif table["name"] == "QAT":
-            await retry_with_network_check(
-                deal_post_v2_qat, post_url, token, round_id, dice_result
+            result = await retry_with_network_check(
+                deal_post_v2_qat, post_url, token, round_id, dice_result, table_name="QAT"
             )
+            if result is None:
+                logger.error(f"Deal post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return table["name"], False
         elif table["name"] == "GLC":
-            await retry_with_network_check(
-                deal_post_v2_glc, post_url, token, round_id, dice_result
+            result = await retry_with_network_check(
+                deal_post_v2_glc, post_url, token, round_id, dice_result, table_name="GLC"
             )
+            if result is None:
+                logger.error(f"Deal post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return table["name"], False
 
         return table["name"], True
 
@@ -538,12 +580,30 @@ async def deal_round_for_table(table, token, round_id, dice_result):
 async def finish_round_for_table(table, token):
     """Finish round for a single table - helper function for thread pool execution"""
     try:
+        # Check if table has already failed in this round
+        if table_failure_state.get(table["name"], False):
+            logger.warning(
+                f"Table {table['name']} has already failed in this round, skipping finish_post and calling cancel_post"
+            )
+            await cancel_round_for_table(table, token)
+            return table["name"], False
+        
         post_url = f"{table['post_url']}{table['game_code']}"
 
         if table["name"] == "CIT":
-            await retry_with_network_check(finish_post_v2, post_url, token)
+            result = await retry_with_network_check(finish_post_v2, post_url, token, table_name="CIT")
+            if result is None:
+                logger.error(f"Finish post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return table["name"], False
         elif table["name"] == "UAT":
-            await retry_with_network_check(finish_post_v2_uat, post_url, token)
+            result = await retry_with_network_check(finish_post_v2_uat, post_url, token, table_name="UAT")
+            if result is None:
+                logger.error(f"Finish post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return table["name"], False
         elif table["name"] == "PRD":
             try:
                 await retry_with_network_check(
@@ -561,11 +621,26 @@ async def finish_round_for_table(table, token):
                 # Error signal already sent in retry_with_network_check
                 raise
         elif table["name"] == "STG":
-            await retry_with_network_check(finish_post_v2_stg, post_url, token)
+            result = await retry_with_network_check(finish_post_v2_stg, post_url, token, table_name="STG")
+            if result is None:
+                logger.error(f"Finish post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return table["name"], False
         elif table["name"] == "QAT":
-            await retry_with_network_check(finish_post_v2_qat, post_url, token)
+            result = await retry_with_network_check(finish_post_v2_qat, post_url, token, table_name="QAT")
+            if result is None:
+                logger.error(f"Finish post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return table["name"], False
         elif table["name"] == "GLC":
-            await retry_with_network_check(finish_post_v2_glc, post_url, token)
+            result = await retry_with_network_check(finish_post_v2_glc, post_url, token, table_name="GLC")
+            if result is None:
+                logger.error(f"Finish post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return table["name"], False
 
         return table["name"], True
 
@@ -606,12 +681,30 @@ async def finish_round_for_table(table, token):
 async def betStop_round_for_table(table, token):
     """Stop betting for a single table - helper function for thread pool execution"""
     try:
+        # Check if table has already failed in this round
+        if table_failure_state.get(table["name"], False):
+            logger.warning(
+                f"Table {table['name']} has already failed in this round, skipping bet_stop_post and calling cancel_post"
+            )
+            await cancel_round_for_table(table, token)
+            return table["name"], False
+        
         post_url = f"{table['post_url']}{table['game_code']}"
 
         if table["name"] == "CIT":
-            await retry_with_network_check(bet_stop_post, post_url, token)
+            result = await retry_with_network_check(bet_stop_post, post_url, token, table_name="CIT")
+            if result is None:
+                logger.error(f"Bet stop post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return table["name"], False
         elif table["name"] == "UAT":
-            await retry_with_network_check(bet_stop_post_uat, post_url, token)
+            result = await retry_with_network_check(bet_stop_post_uat, post_url, token, table_name="UAT")
+            if result is None:
+                logger.error(f"Bet stop post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return table["name"], False
         elif table["name"] == "PRD":
             try:
                 await retry_with_network_check(
@@ -629,11 +722,26 @@ async def betStop_round_for_table(table, token):
                 # Error signal already sent in retry_with_network_check
                 raise
         elif table["name"] == "STG":
-            await retry_with_network_check(bet_stop_post_stg, post_url, token)
+            result = await retry_with_network_check(bet_stop_post_stg, post_url, token, table_name="STG")
+            if result is None:
+                logger.error(f"Bet stop post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return table["name"], False
         elif table["name"] == "QAT":
-            await retry_with_network_check(bet_stop_post_qat, post_url, token)
+            result = await retry_with_network_check(bet_stop_post_qat, post_url, token, table_name="QAT")
+            if result is None:
+                logger.error(f"Bet stop post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return table["name"], False
         elif table["name"] == "GLC":
-            await retry_with_network_check(bet_stop_post_glc, post_url, token)
+            result = await retry_with_network_check(bet_stop_post_glc, post_url, token, table_name="GLC")
+            if result is None:
+                logger.error(f"Bet stop post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return table["name"], False
 
         return table["name"], True
 
@@ -643,6 +751,29 @@ async def betStop_round_for_table(table, token):
             f"Error stopping betting for table {table['name']}: {error_msg}"
         )
         return table["name"], False
+
+
+async def cancel_round_for_table(table, token):
+    """Cancel round for a table - helper function for non-PRD environments"""
+    try:
+        post_url = f"{table['post_url']}{table['game_code']}"
+        
+        if table["name"] == "CIT":
+            cancel_post(post_url, token)
+        elif table["name"] == "UAT":
+            cancel_post_v2_uat(post_url, token)
+        elif table["name"] == "STG":
+            cancel_post_v2_stg(post_url, token)
+        elif table["name"] == "QAT":
+            cancel_post_v2_qat(post_url, token)
+        elif table["name"] == "GLC":
+            cancel_post_v2_glc(post_url, token)
+        
+        logger.info(f"Called cancel_post for {table['name']}")
+        return True
+    except Exception as e:
+        logger.error(f"Error calling cancel_post for {table['name']}: {e}")
+        return False
 
 
 async def retry_with_network_check(
@@ -667,10 +798,11 @@ async def retry_with_network_check(
         environment: Environment name (optional, for compatibility)
 
     Returns:
-        The result of the function if successful
+        The result of the function if successful, None if failed (for non-PRD environments)
     """
     retry_count = 0
     last_exception = None
+    is_non_prd = table_name is not None and table_name != "PRD"
     
     while retry_count < max_retries:
         try:
@@ -742,6 +874,15 @@ async def retry_with_network_check(
                         )
                     except Exception as signal_error:
                         logger.error(f"Failed to send final error signal: {signal_error}")
+                
+                # For non-PRD environments, return None instead of raising exception
+                if is_non_prd:
+                    logger.error(
+                        f"Max retries ({max_retries}) reached for non-PRD environment {table_name}. "
+                        f"Will call cancel_post instead of raising exception."
+                    )
+                    return None
+                
                 raise Exception(
                     f"Max retries ({max_retries}) reached while attempting to execute {func.__name__}: {e}"
                 )
@@ -763,6 +904,14 @@ async def retry_with_network_check(
             )
         except Exception as signal_error:
             logger.error(f"Failed to send final error signal: {signal_error}")
+    
+    # For non-PRD environments, return None instead of raising exception
+    if is_non_prd:
+        logger.error(
+            f"Max retries ({max_retries}) reached for non-PRD environment {table_name}. "
+            f"Will call cancel_post instead of raising exception."
+        )
+        return None
     
     raise Exception(
         f"Max retries ({max_retries}) reached while attempting to execute {func.__name__}"
@@ -1045,6 +1194,10 @@ class SDPGame:
                 
                 # Reset all table API error signal counts for new round
                 reset_all_error_signal_counts(table_id="SBO-001", device_id="ASB-001-1")
+                
+                # Reset table failure state for new round
+                table_failure_state.clear()
+                self.logger.info("Reset table failure state for new round")
 
                 # Update Sicbo game status before starting rounds (using fast mode)
                 self.logger.info("Updating Sicbo game device status...")
