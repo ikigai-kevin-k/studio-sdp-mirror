@@ -709,10 +709,10 @@ def read_from_serial(
                                                 prd_bet_period = bet_period
                                             round_ids.append((table, round_id, bet_period))
                                 
-                                # Second pass: Share PRD bet_period with other environments (STG, UAT, QAT, CIT)
+                                # Second pass: Share PRD bet_period with other environments (STG, UAT, QAT, CIT, CIT-5, CIT-6, CIT-7, PRD-5, PRD-6, PRD-7, GLC)
                                 if prd_bet_period is not None:
                                     for i, (table, round_id, bet_period) in enumerate(round_ids):
-                                        if bet_period is None and table["name"] in ["STG", "UAT", "QAT", "CIT", "CIT-5", "CIT-6", "CIT-7", "GLC", "DEV"]:
+                                        if bet_period is None and table["name"] in ["STG", "UAT", "QAT", "CIT", "CIT-5", "CIT-6", "CIT-7", "PRD-5", "PRD-6", "PRD-7", "GLC", "DEV"]:
                                             round_ids[i] = (table, round_id, prd_bet_period)
                                             print(f"[{get_timestamp()}] Sharing PRD bet_period ({prd_bet_period}s) with {table['name']}")
                                             log_to_file(f"Sharing PRD bet_period ({prd_bet_period}s) with {table['name']}", "Bet Stop >>>")
