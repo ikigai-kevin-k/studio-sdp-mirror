@@ -12,6 +12,9 @@ import pexpect
 from utils import create_serial_connection
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
+import urllib3
+from requests.exceptions import ConnectionError
+from networkChecker import networkChecker
 
 # Import for reading packaged resources
 try:
@@ -207,6 +210,104 @@ finish_post_time = 0
 token = "E5LN4END9Q"
 ws_client = None
 ws_connected = False
+
+# Global table failure state tracker for non-PRD environments
+# Key: table_name, Value: True if table has failed in current round
+table_failure_state = {}
+
+
+def cancel_round_for_table(table, token):
+    """Cancel round for a table - helper function for non-PRD environments"""
+    try:
+        post_url = f"{table['post_url']}{table['game_code']}"
+        
+        if table["name"] == "UAT":
+            cancel_post_v2_uat(post_url, token)
+        elif table["name"] == "DEV":
+            cancel_post_v2_dev(post_url, token)
+        elif table["name"] == "STG":
+            cancel_post_v2_stg(post_url, token)
+        elif table["name"] == "QAT":
+            cancel_post_v2_qat(post_url, token)
+        elif table["name"] == "GLC":
+            cancel_post_v2_glc(post_url, token)
+        else:
+            cancel_post(post_url, token)
+        
+        print(f"Called cancel_post for {table['name']}")
+        log_to_file(f"Called cancel_post for {table['name']}", "API >>>")
+        return True
+    except Exception as e:
+        print(f"Error calling cancel_post for {table['name']}: {e}")
+        log_to_file(f"Error calling cancel_post for {table['name']}: {e}", "ERROR >>>")
+        return False
+
+
+def retry_with_network_check_sync(func, *args, max_retries=5, retry_delay=5, table_name=None):
+    """
+    Retry a function with network error checking (synchronous version).
+    
+    Args:
+        func: The function to retry
+        *args: Arguments to pass to the function
+        max_retries: Maximum number of retries
+        retry_delay: Delay between retries in seconds
+        table_name: Table name (e.g., "PRD", "STG") - for non-PRD failure handling
+    
+    Returns:
+        The result of the function if successful, None if failed (for non-PRD environments)
+    """
+    retry_count = 0
+    is_non_prd = table_name is not None and table_name != "PRD" and not table_name.startswith("PRD-")
+    
+    while retry_count < max_retries:
+        try:
+            return func(*args)
+        except (
+            ConnectionError,
+            urllib3.exceptions.NewConnectionError,
+            urllib3.exceptions.MaxRetryError,
+        ) as e:
+            is_network_error, error_message = networkChecker(e)
+            if is_network_error:
+                print(f"[{get_timestamp()}] Network error occurred: {error_message}")
+                print(f"[{get_timestamp()}] Waiting {retry_delay} seconds before retry...")
+                log_to_file(f"Network error occurred: {error_message}", "ERROR >>>")
+                log_to_file(f"Waiting {retry_delay} seconds before retry...", "ERROR >>>")
+                time.sleep(retry_delay)
+                retry_count += 1
+                continue
+            raise
+        except Exception as e:
+            # If we've exhausted retries, for non-PRD environments, return None instead of raising
+            if retry_count >= max_retries - 1:
+                if is_non_prd:
+                    print(f"Max retries ({max_retries}) reached for non-PRD environment {table_name}. Will call cancel_post instead of raising exception.")
+                    log_to_file(
+                        f"Max retries ({max_retries}) reached for non-PRD environment {table_name}. Will call cancel_post instead of raising exception.",
+                        "ERROR >>>"
+                    )
+                    return None
+                raise Exception(
+                    f"Max retries ({max_retries}) reached while attempting to execute {func.__name__}: {e}"
+                )
+            retry_count += 1
+            time.sleep(retry_delay)
+            continue
+    
+    # All retries exhausted
+    if is_non_prd:
+        print(f"Max retries ({max_retries}) reached for non-PRD environment {table_name}. Will call cancel_post instead of raising exception.")
+        log_to_file(
+            f"Max retries ({max_retries}) reached for non-PRD environment {table_name}. Will call cancel_post instead of raising exception.",
+            "ERROR >>>"
+        )
+        return None
+    
+    raise Exception(
+        f"Max retries ({max_retries}) reached while attempting to execute {func.__name__}"
+    )
+
 
 # Add Slack notification variables
 sensor_error_sent = False  # Flag to ensure sensor error is only sent once
@@ -2125,7 +2226,14 @@ def log_time_intervals(
 
 
 def execute_finish_post(table, token):
-    global current_mode, state_machines
+    global current_mode, state_machines, table_failure_state
+    
+    # Check if table has already failed in this round
+    if table_failure_state.get(table["name"], False):
+        print(f"Table {table['name']} has already failed in this round, skipping finish_post and calling cancel_post")
+        log_to_file(f"Table {table['name']} has already failed in this round, skipping finish_post and calling cancel_post", "WARNING >>>")
+        cancel_round_for_table(table, token)
+        return None
     
     # Skip tableAPI calls in idle mode
     with mode_lock:
@@ -2181,6 +2289,16 @@ def execute_finish_post(table, token):
         return result
     except Exception as e:
         print(f"Error executing finish_post for {table['name']}: {e}")
+        log_to_file(f"Error executing finish_post for {table['name']}: {e}", "ERROR >>>")
+        
+        # For non-PRD environments, call cancel_post and mark as failed
+        is_non_prd = table["name"] not in ["PRD", "PRD-3", "PRD-4"]
+        if is_non_prd:
+            print(f"Finish post exception for non-PRD environment {table['name']}, calling cancel_post")
+            log_to_file(f"Finish post exception for non-PRD environment {table['name']}, calling cancel_post", "ERROR >>>")
+            table_failure_state[table["name"]] = True
+            cancel_round_for_table(table, token)
+        
         # Transition to broadcast on error
         if state_machine:
             validate_and_transition(
@@ -2193,7 +2311,20 @@ def execute_finish_post(table, token):
 
 
 def execute_start_post(table, token):
-    global current_mode, state_machines
+    global current_mode, state_machines, table_failure_state
+    
+    # Reset table failure state for this table at the start of new round
+    if table["name"] in table_failure_state:
+        del table_failure_state[table["name"]]
+        print(f"Reset table failure state for {table['name']} at start of new round")
+        log_to_file(f"Reset table failure state for {table['name']} at start of new round", "API >>>")
+    
+    # Check if table has already failed in this round
+    if table_failure_state.get(table["name"], False):
+        print(f"Table {table['name']} has already failed in this round, skipping start_post and calling cancel_post")
+        log_to_file(f"Table {table['name']} has already failed in this round, skipping start_post and calling cancel_post", "WARNING >>>")
+        cancel_round_for_table(table, token)
+        return None, -1, 0
     
     # Skip tableAPI calls in idle mode
     with mode_lock:
@@ -2231,9 +2362,23 @@ def execute_start_post(table, token):
         if table["name"] == "UAT":
             round_id, _ = start_post_v2_uat(post_url, token)
             betPeriod = None  # Will be set from PRD later
+            if round_id == -1:
+                # Failed, call cancel_post and mark as failed
+                print(f"Start post failed for {table['name']}, calling cancel_post")
+                log_to_file(f"Start post failed for {table['name']}, calling cancel_post", "ERROR >>>")
+                table_failure_state[table["name"]] = True
+                cancel_round_for_table(table, token)
+                return None, -1, 0
         elif table["name"] == "DEV":
             round_id, _ = start_post_v2_dev(post_url, token)
             betPeriod = None  # Will be set from PRD later
+            if round_id == -1:
+                # Failed, call cancel_post and mark as failed
+                print(f"Start post failed for {table['name']}, calling cancel_post")
+                log_to_file(f"Start post failed for {table['name']}, calling cancel_post", "ERROR >>>")
+                table_failure_state[table["name"]] = True
+                cancel_round_for_table(table, token)
+                return None, -1, 0
         elif table["name"] == "PRD":
             round_id, betPeriod = start_post_v2_prd(post_url, token)
         elif table["name"] == "PRD-3":
@@ -2245,15 +2390,43 @@ def execute_start_post(table, token):
         elif table["name"] == "STG":
             round_id, _ = start_post_v2_stg(post_url, token)
             betPeriod = None  # Will be set from PRD later
+            if round_id == -1:
+                # Failed, call cancel_post and mark as failed
+                print(f"Start post failed for {table['name']}, calling cancel_post")
+                log_to_file(f"Start post failed for {table['name']}, calling cancel_post", "ERROR >>>")
+                table_failure_state[table["name"]] = True
+                cancel_round_for_table(table, token)
+                return None, -1, 0
         elif table["name"] == "QAT":
             round_id, _ = start_post_v2_qat(post_url, token)
             betPeriod = None  # Will be set from PRD later
+            if round_id == -1:
+                # Failed, call cancel_post and mark as failed
+                print(f"Start post failed for {table['name']}, calling cancel_post")
+                log_to_file(f"Start post failed for {table['name']}, calling cancel_post", "ERROR >>>")
+                table_failure_state[table["name"]] = True
+                cancel_round_for_table(table, token)
+                return None, -1, 0
         elif table["name"] == "GLC":
             round_id, _ = start_post_v2_glc(post_url, token)
             betPeriod = None  # Will be set from PRD later
+            if round_id == -1:
+                # Failed, call cancel_post and mark as failed
+                print(f"Start post failed for {table['name']}, calling cancel_post")
+                log_to_file(f"Start post failed for {table['name']}, calling cancel_post", "ERROR >>>")
+                table_failure_state[table["name"]] = True
+                cancel_round_for_table(table, token)
+                return None, -1, 0
         else:
             round_id, _ = start_post_v2(post_url, token)
             betPeriod = None  # Will be set from PRD later
+            if round_id == -1:
+                # Failed, call cancel_post and mark as failed
+                print(f"Start post failed for {table['name']}, calling cancel_post")
+                log_to_file(f"Start post failed for {table['name']}, calling cancel_post", "ERROR >>>")
+                table_failure_state[table["name"]] = True
+                cancel_round_for_table(table, token)
+                return None, -1, 0
 
         if round_id != -1:
             table["round_id"] = round_id
@@ -2274,6 +2447,16 @@ def execute_start_post(table, token):
             return None, -1, 0
     except Exception as e:
         print(f"Error executing start_post for {table['name']}: {e}")
+        log_to_file(f"Error executing start_post for {table['name']}: {e}", "ERROR >>>")
+        
+        # For non-PRD environments, call cancel_post and mark as failed
+        is_non_prd = table["name"] not in ["PRD", "PRD-3", "PRD-4"]
+        if is_non_prd:
+            print(f"Start post exception for non-PRD environment {table['name']}, calling cancel_post")
+            log_to_file(f"Start post exception for non-PRD environment {table['name']}, calling cancel_post", "ERROR >>>")
+            table_failure_state[table["name"]] = True
+            cancel_round_for_table(table, token)
+        
         # Transition to broadcast on error
         if state_machine:
             validate_and_transition(
@@ -2286,7 +2469,14 @@ def execute_start_post(table, token):
 
 
 def execute_deal_post(table, token, win_num):
-    global current_mode, state_machines
+    global current_mode, state_machines, table_failure_state
+    
+    # Check if table has already failed in this round
+    if table_failure_state.get(table["name"], False):
+        print(f"Table {table['name']} has already failed in this round, skipping deal_post and calling cancel_post")
+        log_to_file(f"Table {table['name']} has already failed in this round, skipping deal_post and calling cancel_post", "WARNING >>>")
+        cancel_round_for_table(table, token)
+        return None
     
     # Skip tableAPI calls in idle mode
     with mode_lock:
@@ -2362,6 +2552,16 @@ def execute_deal_post(table, token, win_num):
         return result
     except Exception as e:
         print(f"Error executing deal_post for {table['name']}: {e}")
+        log_to_file(f"Error executing deal_post for {table['name']}: {e}", "ERROR >>>")
+        
+        # For non-PRD environments, call cancel_post and mark as failed
+        is_non_prd = table["name"] not in ["PRD", "PRD-3", "PRD-4"]
+        if is_non_prd:
+            print(f"Deal post exception for non-PRD environment {table['name']}, calling cancel_post")
+            log_to_file(f"Deal post exception for non-PRD environment {table['name']}, calling cancel_post", "ERROR >>>")
+            table_failure_state[table["name"]] = True
+            cancel_round_for_table(table, token)
+        
         # Transition to broadcast on error
         if state_machine:
             validate_and_transition(
@@ -2375,7 +2575,14 @@ def execute_deal_post(table, token, win_num):
 
 def betStop_round_for_table(table, token):
     """Stop betting for a single table - helper function for thread pool execution"""
-    global state_machines
+    global state_machines, table_failure_state
+    
+    # Check if table has already failed in this round
+    if table_failure_state.get(table["name"], False):
+        print(f"Table {table['name']} has already failed in this round, skipping bet_stop_post and calling cancel_post")
+        log_to_file(f"Table {table['name']} has already failed in this round, skipping bet_stop_post and calling cancel_post", "WARNING >>>")
+        cancel_round_for_table(table, token)
+        return table["name"], False
     
     # Get state machine for this table
     table_name = table.get("name", "unknown")
@@ -2423,6 +2630,16 @@ def betStop_round_for_table(table, token):
     except Exception as e:
         error_msg = str(e)
         print(f"Error stopping betting for table {table['name']}: {error_msg}")
+        log_to_file(f"Error stopping betting for table {table['name']}: {error_msg}", "ERROR >>>")
+        
+        # For non-PRD environments, call cancel_post and mark as failed
+        is_non_prd = table["name"] not in ["PRD", "PRD-3", "PRD-4"]
+        if is_non_prd:
+            print(f"Bet stop post exception for non-PRD environment {table['name']}, calling cancel_post")
+            log_to_file(f"Bet stop post exception for non-PRD environment {table['name']}, calling cancel_post", "ERROR >>>")
+            table_failure_state[table["name"]] = True
+            cancel_round_for_table(table, token)
+        
         return table["name"], False
 
 

@@ -52,6 +52,17 @@ from table_api.sb.api_v2_uat_sb import (
     get_sdp_config_v2_uat,
     cancel_post_v2_uat,
 )
+from table_api.sb.api_v2_dev_sb import (
+    start_post_v2_dev,
+    deal_post_v2_dev,
+    finish_post_v2_dev,
+    pause_post_v2_dev,
+    get_roundID_v2_dev,
+    broadcast_post_v2_dev,
+    bet_stop_post_dev,
+    get_sdp_config_v2_dev,
+    cancel_post_v2_dev,
+)
 from table_api.sb.api_v2_prd_sb import (
     start_post_v2_prd,
     deal_post_v2_prd,
@@ -343,6 +354,18 @@ async def start_round_for_table(table, token):
                 return None, None
             round_id, _ = result
             bet_period = None  # Will be set from PRD later
+        elif table["name"] == "DEV":
+            result = await retry_with_network_check(
+                start_post_v2_dev, post_url, token, table_name="DEV"
+            )
+            if result is None:
+                # Failed after retries, call cancel_post and mark as failed
+                logger.error(f"Start post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return None, None
+            round_id, _ = result
+            bet_period = None  # Will be set from PRD later
         elif table["name"] == "PRD":
             try:
                 round_id, bet_period = await retry_with_network_check(
@@ -492,6 +515,15 @@ async def deal_round_for_table(table, token, round_id, dice_result):
                 table_failure_state[table["name"]] = True
                 await cancel_round_for_table(table, token)
                 return table["name"], False
+        elif table["name"] == "DEV":
+            result = await retry_with_network_check(
+                deal_post_v2_dev, post_url, token, round_id, dice_result, table_name="DEV"
+            )
+            if result is None:
+                logger.error(f"Deal post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return table["name"], False
         elif table["name"] == "PRD":
             try:
                 await retry_with_network_check(
@@ -604,6 +636,13 @@ async def finish_round_for_table(table, token):
                 table_failure_state[table["name"]] = True
                 await cancel_round_for_table(table, token)
                 return table["name"], False
+        elif table["name"] == "DEV":
+            result = await retry_with_network_check(finish_post_v2_dev, post_url, token, table_name="DEV")
+            if result is None:
+                logger.error(f"Finish post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return table["name"], False
         elif table["name"] == "PRD":
             try:
                 await retry_with_network_check(
@@ -705,6 +744,13 @@ async def betStop_round_for_table(table, token):
                 table_failure_state[table["name"]] = True
                 await cancel_round_for_table(table, token)
                 return table["name"], False
+        elif table["name"] == "DEV":
+            result = await retry_with_network_check(bet_stop_post_dev, post_url, token, table_name="DEV")
+            if result is None:
+                logger.error(f"Bet stop post failed for {table['name']} after retries, calling cancel_post")
+                table_failure_state[table["name"]] = True
+                await cancel_round_for_table(table, token)
+                return table["name"], False
         elif table["name"] == "PRD":
             try:
                 await retry_with_network_check(
@@ -762,6 +808,8 @@ async def cancel_round_for_table(table, token):
             cancel_post(post_url, token)
         elif table["name"] == "UAT":
             cancel_post_v2_uat(post_url, token)
+        elif table["name"] == "DEV":
+            cancel_post_v2_dev(post_url, token)
         elif table["name"] == "STG":
             cancel_post_v2_stg(post_url, token)
         elif table["name"] == "QAT":
@@ -1145,6 +1193,15 @@ class SDPGame:
                             round_id, status, bet_period = (
                                 await retry_with_network_check(
                                     get_roundID_v2_uat,
+                                    get_url,
+                                    self.token,
+                                    max_retries=2,
+                                )
+                            )
+                        elif table["name"] == "DEV":
+                            round_id, status, bet_period = (
+                                await retry_with_network_check(
+                                    get_roundID_v2_dev,
                                     get_url,
                                     self.token,
                                     max_retries=2,
