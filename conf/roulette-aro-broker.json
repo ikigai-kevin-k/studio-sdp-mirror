@@ -1,0 +1,27 @@
+{
+    "brokers": [
+        {
+            "broker": "192.168.88.50",
+            "port": 1883,
+            "username": "PFC",
+            "password": "wago",
+            "priority": 1
+        }
+    ],
+    "game_config": {
+        "game_type": "roulette",
+        "game_code": "ARO-001",
+        "command_topic": "ikg/idp/ARO-001/command",
+        "response_topic": "ikg/idp/ARO-001/response",
+        "timeout": 30,
+        "retry_count": 3,
+        "retry_delay": 1.0
+    },
+    "environment": "development",
+    "log_level": "INFO",
+    "max_history_size": 100,
+    "reconnect_delay": 5.0,
+    "max_connection_attempts": 3,
+    "default_username": "PFC",
+    "default_password": "wago"
+}

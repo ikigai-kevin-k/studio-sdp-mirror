@@ -1,0 +1,40 @@
+# Use Ubuntu 24.04 as base image
+FROM ubuntu:24.04
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+# Install Python
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create necessary directories
+RUN mkdir -p /var/log /var/run
+
+# Copy the daemon script
+COPY mock_SBO_001_1.py /usr/local/bin/
+RUN chmod +x /usr/local/bin/mock_SBO_001_1.py
+
+# Create startup script that runs the daemon
+RUN cat > /startup.sh << 'EOF'
+#!/bin/bash
+echo "Starting Mock SBO 001 Daemon..."
+
+# Wait a moment for system to be ready
+sleep 2
+
+# Start the daemon in the background
+/usr/local/bin/mock_SBO_001_1.py start &
+
+# Keep the container running
+echo "Daemon started, keeping container alive..."
+tail -f /dev/null
+EOF
+
+RUN chmod +x /startup.sh
+
+# Set the startup script as entrypoint
+ENTRYPOINT ["/startup.sh"]

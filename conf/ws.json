@@ -1,0 +1,43 @@
+{
+    "server_url": "wss://studio-api.iki-cit.cc/v1/ws",
+    "token": "0000",
+    "tables": [
+        {
+            "table_id": "ARO-001",
+            "name": "ARO-001",
+            "device_id": "ARO-001-1"
+        },
+        {
+            "table_id": "ARO-002",
+            "name": "ARO-002",
+            "device_id": "ARO-002-1"
+        },
+        {
+            "table_id": "SBO-001",
+            "name": "SBO-001",
+            "device_id": "ASB-001-1"
+        }
+    ],
+    "device_mapping": {
+        "ARO-001-1": {
+            "table_id": "ARO-001",
+            "device_id": "ARO-001-1"
+        },
+        "ARO-001-2": {
+            "table_id": "ARO-001",
+            "device_id": "ARO-001-2"
+        },
+        "ARO-002-1": {
+            "table_id": "ARO-002",
+            "device_id": "ARO-002-1"
+        },
+        "ARO-002-2": {
+            "table_id": "ARO-002",
+            "device_id": "ARO-002-2"
+        },
+        "ASB-001-1": {
+            "table_id": "SBO-001",
+            "device_id": "ASB-001-1"
+        }
+    }
+}

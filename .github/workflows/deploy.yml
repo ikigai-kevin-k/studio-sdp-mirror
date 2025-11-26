@@ -1,0 +1,108 @@
+name: Deploy SDP Roulette System
+
+on:
+  workflow_run:
+    workflows: ["Build and Test SDP Roulette System"]
+    types:
+      - completed
+    branches: [ main, gitaction ]
+
+env:
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-24.04
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: sdp-roulette-executables
+          path: ./artifacts
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install deployment dependencies
+        run: |
+          pip install requests
+
+      - name: Deploy to staging environment
+        run: |
+          echo "Deploying to staging environment..."
+          # Add your staging deployment logic here
+          # Example: Upload to staging server, update configuration, etc.
+          echo "Staging deployment completed"
+
+      - name: Notify staging deployment
+        run: |
+          echo "Staging deployment notification sent"
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-24.04
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    environment: production
+    needs: deploy-staging
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: sdp-roulette-executables
+          path: ./artifacts
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install deployment dependencies
+        run: |
+          pip install requests
+
+      - name: Deploy to production environment
+        run: |
+          echo "Deploying to production environment..."
+          # Add your production deployment logic here
+          # Example: Upload to production server, update load balancer, etc.
+          echo "Production deployment completed"
+
+      - name: Notify production deployment
+        run: |
+          echo "Production deployment notification sent"
+
+  rollback:
+    name: Rollback on Failure
+    runs-on: ubuntu-24.04
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Rollback deployment
+        run: |
+          echo "Rolling back deployment due to build failure..."
+          # Add your rollback logic here
+          echo "Rollback completed"
+
+      - name: Notify rollback
+        run: |
+          echo "Rollback notification sent"

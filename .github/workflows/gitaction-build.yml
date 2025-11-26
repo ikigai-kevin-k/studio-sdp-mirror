@@ -1,0 +1,126 @@
+name: GitAction Branch Build and Test
+
+on:
+  # DISABLED: This workflow is disabled in favor of the main "Build and Test SDP Roulette System"
+  # push:
+  #   branches: [ gitaction ]
+  # pull_request:
+  #   branches: [ gitaction ]
+  
+  # Only allow manual trigger for emergency use
+  workflow_dispatch:
+    inputs:
+      emergency_override:
+        description: 'Emergency override to enable this workflow'
+        required: true
+        default: false
+        type: boolean
+
+env:
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  gitaction-test:
+    name: GitAction Branch Testing
+    runs-on: ubuntu-24.04
+    if: ${{ github.event.inputs.emergency_override == true }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run linting with flake8
+        run: |
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
+
+      - name: Run code formatting check with black
+        run: |
+          black --check --diff .
+
+      # - name: Run type checking with mypy
+      #   run: |
+      #     mypy . --ignore-missing-imports
+
+      - name: Run tests with pytest
+        run: |
+          pytest tests/ -v --cov=. --cov-report=xml
+
+  gitaction-build:
+    name: GitAction Branch Build
+    runs-on: ubuntu-24.04
+    needs: gitaction-test
+    if: ${{ github.event.inputs.emergency_override == true }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          pip install shiv
+
+      - name: Build all game controllers
+        run: |
+          echo "Building all game controllers for gitaction branch..."
+          
+          # Build VIP Roulette
+          echo "Building VIP Roulette..."
+          PYTHONPATH=. shiv --compressed --compile-pyc -o roulette-vip.pyz -e main_vip:main .
+          
+          # Build Speed Roulette
+          echo "Building Speed Roulette..."
+          PYTHONPATH=. shiv --compressed --compile-pyc -o roulette-speed.pyz -e main_speed:main .
+          
+          # Build SicBo
+          echo "Building SicBo..."
+          PYTHONPATH=. shiv --compressed --compile-pyc -o roulette-sicbo.pyz -e main_sicbo:main .
+          
+          # Build Baccarat
+          echo "Building Baccarat..."
+          PYTHONPATH=. shiv --compressed --compile-pyc -o roulette-baccarat.pyz -e main_baccarat:main .
+          
+          echo "All builds completed successfully!"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitaction-builds
+          path: |
+            roulette-vip.pyz
+            roulette-speed.pyz
+            roulette-sicbo.pyz
+            roulette-baccarat.pyz
+          retention-days: 15
+
+      - name: Notify gitaction build completion
+        run: |
+          echo "GitAction branch build completed successfully!"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Triggered by: ${{ github.actor }}"

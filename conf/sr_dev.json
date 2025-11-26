@@ -1,0 +1,22 @@
+{
+    "dev_port": "/dev/ttyUSB0",
+    "dev_port2": "/dev/ttyUSB1",
+    "baudrate": 9600,
+    "parity": "NONE",
+    "stopbits": 1,
+    "bytesize": 8,
+    "timeout": 1,
+    "game_type": "roulette_speed",
+    "enable_logging": true,
+    "log_dir": "logs",
+    "machine_config": {
+        "common": {
+            "wheel_speed": [0.8, 0.8]
+        },
+        "specific": {
+            "gph": 100,
+            "deceleration_distance": 50,
+            "in_rim_jet_duration": [200, 200]
+        }
+    }
+}

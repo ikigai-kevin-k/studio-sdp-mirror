@@ -1,0 +1,11 @@
+[
+    {
+    "name": "CIT-2",
+    "get_url": "https://crystal-table.iki-cit.cc/v2/service/tables/",
+    "post_url": "https://crystal-table.iki-cit.cc/v2/service/tables/",
+    "game_code": "Studio-Roulette-Test",
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiJlOGM1ZDdmOC0wZjBiLTQ2NTAtYjY4My1iOTU0ODlhZDE3MTYiLCJnYW1lQ29kZSI6WyJTdHVkaW8tUm91bGV0dGUtVGVzdCJdLCJyb2xlIjoic2RwIiwiY3JlYXRlZEF0IjoxNzYxMTE4MzQ1MjAzLCJpYXQiOjE3NjExMTgzNDV9.3KdnvWP25p_dwlA65gLGr1xoFRVbvwOTFzCmb6egKVI",
+    "table_token": "E5LN4END9Q"
+    }
+]
+  

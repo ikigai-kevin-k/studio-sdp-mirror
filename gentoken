@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# gentoken - Get access token for table and environment
+# Usage: gentoken {table} {env}
+# Example: gentoken Studio-Roulette-Test CIT
+
+# Get the directory where this script is located
+# Handle both direct execution and symlink execution
+if [ -L "${BASH_SOURCE[0]}" ]; then
+    # If this is a symlink, get the actual directory
+    SCRIPT_DIR="$(cd "$(dirname "$(readlink "${BASH_SOURCE[0]}")")" && pwd)"
+else
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+
+# Check if arguments are provided
+if [ $# -lt 2 ]; then
+    echo "Usage: gentoken {table} {env}"
+    echo "Example: gentoken Studio-Roulette-Test CIT"
+    echo ""
+    echo "Available environments: CIT, UAT, PRD, STG, QAT"
+    exit 1
+fi
+
+TABLE="$1"
+ENV="$2"
+
+# Change to the project directory
+cd "$SCRIPT_DIR"
+
+# Activate virtual environment if it exists
+if [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
+elif [ -f "sdp-env/bin/activate" ]; then
+    source sdp-env/bin/activate
+fi
+
+# Run the Python script with the provided arguments
+python3 "$SCRIPT_DIR/table_api/get_access_token.py" "$TABLE" "$ENV"

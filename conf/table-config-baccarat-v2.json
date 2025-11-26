@@ -1,0 +1,11 @@
+[
+    {
+        "name": "CIT_BCR",
+        "get_url": "https://crystal-table.iki-cit.cc/v2/service/tables/",
+        "post_url": "https://crystal-table.iki-cit.cc/v2/service/tables/",
+        "game_code": "BAC-005",
+        "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXNzaW9uSWQiOiIxZGI1N2Y1OC1mODcwLTQ3OGYtOTA0NS0zMWZmZTRiNmVmNDIiLCJnYW1lQ29kZSI6WyJCQUMtMDA1Il0sInJvbGUiOiJzZHAiLCJjcmVhdGVkQXQiOjE3NTYzNjUzMjYzNTYsImlhdCI6MTc1NjM2NTMyNn0.sC32XTX5Tuh3WcEXouog8wOg8qgx7cv_1a0WSoBhiKQ",
+        "table_token": "E5LN4END9Q"
+    }
+]
+  
