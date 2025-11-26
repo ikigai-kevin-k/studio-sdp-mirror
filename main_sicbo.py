@@ -303,13 +303,15 @@ async def start_round_for_table(table, token):
         post_url = f"{table['post_url']}{table['game_code']}"
 
         if table["name"] == "CIT":
-            round_id, bet_period = await retry_with_network_check(
+            round_id, _ = await retry_with_network_check(
                 start_post_v2, post_url, token
             )
+            bet_period = None  # Will be set from PRD later
         elif table["name"] == "UAT":
-            round_id, bet_period = await retry_with_network_check(
+            round_id, _ = await retry_with_network_check(
                 start_post_v2_uat, post_url, token
             )
+            bet_period = None  # Will be set from PRD later
         elif table["name"] == "PRD":
             try:
                 round_id, bet_period = await retry_with_network_check(
@@ -381,9 +383,10 @@ async def start_round_for_table(table, token):
                 round_id, bet_period = -1, None
         elif table["name"] == "STG":
             try:
-                round_id, bet_period = await retry_with_network_check(
+                round_id, _ = await retry_with_network_check(
                     start_post_v2_stg, post_url, token
                 )
+                bet_period = None  # Will be set from PRD later
                 if round_id == -1:
                     # Send Slack error notification for STG start post failure
                     # Only send if we haven't sent one recently
@@ -427,13 +430,15 @@ async def start_round_for_table(table, token):
                     )
                 round_id, bet_period = -1, None
         elif table["name"] == "QAT":
-            round_id, bet_period = await retry_with_network_check(
+            round_id, _ = await retry_with_network_check(
                 start_post_v2_qat, post_url, token
             )
+            bet_period = None  # Will be set from PRD later
         elif table["name"] == "GLC":
-            round_id, bet_period = await retry_with_network_check(
+            round_id, _ = await retry_with_network_check(
                 start_post_v2_glc, post_url, token
             )
+            bet_period = None  # Will be set from PRD later
         else:
             return None, None
 
@@ -1069,7 +1074,8 @@ class SDPGame:
                 # Execute all tasks concurrently
                 results = await asyncio.gather(*tasks, return_exceptions=True)
 
-                # Process results
+                # Process results and get PRD bet_period
+                prd_bet_period = None
                 for i, result in enumerate(results):
                     if isinstance(result, Exception):
                         self.logger.error(
@@ -1079,6 +1085,9 @@ class SDPGame:
                         result and result[0] and result[1]
                     ):  # Check if we got valid table and round_id
                         table, round_id, bet_period = result
+                        # Store PRD bet_period
+                        if table["name"] == "PRD" and bet_period is not None:
+                            prd_bet_period = bet_period
                         round_ids.append((table, round_id, bet_period))
                         self.logger.info(
                             f"Started round {round_id} for {table['name']} with bet period {bet_period}"
@@ -1087,6 +1096,15 @@ class SDPGame:
                         self.logger.warning(
                             f"Failed to start round for table {self.table_configs[i]['name']}"
                         )
+
+                # Share PRD bet_period with other environments (CIT, QAT, UAT, DEV, STG)
+                if prd_bet_period is not None:
+                    for i, (table, round_id, bet_period) in enumerate(round_ids):
+                        if bet_period is None and table["name"] in ["CIT", "QAT", "UAT", "DEV", "STG"]:
+                            round_ids[i] = (table, round_id, prd_bet_period)
+                            self.logger.info(
+                                f"Sharing PRD bet_period ({prd_bet_period}s) with {table['name']}"
+                            )
 
                 if not round_ids:
                     self.logger.error("Failed to start round on any table")

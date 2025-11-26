@@ -2057,17 +2057,20 @@ async def _execute_start_post_async(table, token):
             )
             bet_period = None  # Will be set from PRD later
         elif table["name"] == "PRD-5":
-            round_id, bet_period = await retry_with_network_check(
+            round_id, _ = await retry_with_network_check(
                 start_post_v2_prd5, post_url, token
             )
+            bet_period = None  # Will be set from PRD later
         elif table["name"] == "PRD-6":
-            round_id, bet_period = await retry_with_network_check(
+            round_id, _ = await retry_with_network_check(
                 start_post_v2_prd6, post_url, token
             )
+            bet_period = None  # Will be set from PRD later
         elif table["name"] == "PRD-7":
-            round_id, bet_period = await retry_with_network_check(
+            round_id, _ = await retry_with_network_check(
                 start_post_v2_prd7, post_url, token
             )
+            bet_period = None  # Will be set from PRD later
         elif table["name"] == "GLC":
             round_id, _ = await retry_with_network_check(
                 start_post_v2_glc, post_url, token

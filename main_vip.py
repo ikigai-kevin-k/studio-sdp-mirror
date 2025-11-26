@@ -1771,15 +1771,15 @@ def read_from_serial():
                                 result = future.result()  # Wait for all requests to complete
                                 if result and result[0] and result[1]:  # Check if we got valid table and round_id
                                     table, round_id, bet_period = result
-                                    # Store PRD bet_period
-                                    if table["name"] in ["PRD", "PRD-3", "PRD-4"] and bet_period is not None:
+                                    # Store PRD bet_period (only from PRD, not PRD-3 or PRD-4)
+                                    if table["name"] == "PRD" and bet_period is not None:
                                         prd_bet_period = bet_period
                                     round_ids.append((table, round_id, bet_period))
                         
-                        # Second pass: Share PRD bet_period with other environments (STG, UAT, QAT, CIT)
+                        # Second pass: Share PRD bet_period with other environments (STG, UAT, QAT, PRD-3, PRD-4, GLC)
                         if prd_bet_period is not None:
                             for i, (table, round_id, bet_period) in enumerate(round_ids):
-                                if bet_period is None and table["name"] in ["STG", "UAT", "QAT", "GLC", "DEV"]:
+                                if bet_period is None and table["name"] in ["STG", "UAT", "QAT", "PRD-3", "PRD-4", "GLC", "DEV"]:
                                     round_ids[i] = (table, round_id, prd_bet_period)
                                     print(f"[{get_timestamp()}] Sharing PRD bet_period ({prd_bet_period}s) with {table['name']}")
                                     log_to_file(f"Sharing PRD bet_period ({prd_bet_period}s) with {table['name']}", "Bet Stop >>>")
@@ -2237,9 +2237,11 @@ def execute_start_post(table, token):
         elif table["name"] == "PRD":
             round_id, betPeriod = start_post_v2_prd(post_url, token)
         elif table["name"] == "PRD-3":
-            round_id, betPeriod = start_post_v2_prd3(post_url, token)
+            round_id, _ = start_post_v2_prd3(post_url, token)
+            betPeriod = None  # Will be set from PRD later
         elif table["name"] == "PRD-4":
-            round_id, betPeriod = start_post_v2_prd4(post_url, token)
+            round_id, _ = start_post_v2_prd4(post_url, token)
+            betPeriod = None  # Will be set from PRD later
         elif table["name"] == "STG":
             round_id, _ = start_post_v2_stg(post_url, token)
             betPeriod = None  # Will be set from PRD later
